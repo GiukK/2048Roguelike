@@ -2,8 +2,7 @@
 
 Tile::Tile(): 
 tileTexture("assets/textures/2sprite.png", false, sf::IntRect({ 0, 0 }, { 32, 32 })),
-tile(tileTexture),
-value(0)
+tile(tileTexture)
 {
 
 	tile.setOrigin({ 16.f,16.f });
@@ -41,13 +40,4 @@ void Tile::spawn(sf::Sprite board, int x, int y) {
 	sf::Vector2f pos = boardPos + sf::Vector2f({xshift, yshift});
 
 	tile.setPosition(pos);
-}
-
-
-bool Tile::canMergeWith(const Tile& other) const {
-	return value == other.value;
-}
-
-void Tile::mergeWith(Tile& other) {
-	value *= 2;
 }

@@ -8,10 +8,8 @@ class Tile{
 
 public:
 
-    int value;
     //------
-    bool canMergeWith(const Tile& other) const;
-    void mergeWith(Tile& other);
+
     //------
 
     Tile();
@@ -25,6 +23,7 @@ private:
 
     //------
 
+    int value{ 2 };
 
     sf::Texture tileTexture;
     sf::Sprite tile;

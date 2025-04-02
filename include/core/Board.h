@@ -20,17 +20,9 @@ public:
 
     //------
 
-    bool isAdjacent(const Coord& newCoord) const;
-    bool addSlot(const Coord& newCoord);
-    void spawnTile(const Coord& pos, int value);
-    void moveTiles(Coord direction);
-
 private:
 
     //------
-
-    std::map<Coord, std::shared_ptr<Slot>> slots;
-    std::vector<Coord> directions = { {0, 1}, {0, -1}, {1, 0}, {-1, 0} };
 
     //------
 
