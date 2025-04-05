@@ -14,7 +14,7 @@ PlayState::PlayState(StateManager& stateManager, sf::RenderWindow& window) :
 void PlayState::enter() {
     std::cout << "Entering Play State" << std::endl;
 
-    //currentRun.enter();
+    currentRun->enter();
 
     std::cout << "Entering current GameRun" << std::endl;
 }

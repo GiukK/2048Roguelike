@@ -4,26 +4,34 @@
 
 #include <SFML/Graphics.hpp>
 
+
+class Slot;
+
 class Tile{
 
 public:
 
     //------
-
+    std::shared_ptr<Slot> slot;
     //------
 
-    Tile();
+    Tile(std::shared_ptr<Slot> slot);
 
     void render(sf::RenderWindow& window);
 
-    void spawn(sf::Sprite board, int x, int y);
+    sf::Vector2f getPosition();
+
+
+    void changeSlot(std::shared_ptr<Slot> first, std::shared_ptr<Slot> second);
+
+
 
 private:
 
 
     //------
 
-    int value{ 2 };
+    int value{};
 
     sf::Texture tileTexture;
     sf::Sprite tile;

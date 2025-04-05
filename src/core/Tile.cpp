@@ -1,12 +1,15 @@
 #include "core/Tile.h"
+#include "core/Slot.h"
 
-Tile::Tile(): 
+Tile::Tile(std::shared_ptr<Slot> slot) :
+slot(slot),
 tileTexture("assets/textures/2sprite.png", false, sf::IntRect({ 0, 0 }, { 32, 32 })),
 tile(tileTexture)
 {
 
 	tile.setOrigin({ 16.f,16.f });
-	tile.setScale({ 4.f, 4.f });
+	tile.setScale({ 2.f, 2.f });
+	tile.setPosition(slot->slot.getPosition());
 }
 
 
@@ -17,27 +20,19 @@ void Tile::render(sf::RenderWindow& window) {
 
 }
 
+//changes ownership of tile ALSO manages internal slot ownership (tile-><-slot) 
+void Tile::changeSlot(std::shared_ptr<Slot> a, std::shared_ptr<Slot> b) {
 
-void Tile::spawn(sf::Sprite board, int x, int y) {
+	this->slot = b;
 
-	float xshift{};
-	float yshift{};
+	tile.setPosition(b->slot.getPosition());
 
-	float halfTile = board.getGlobalBounds().size.x / 8.f;
+	b->setTile(a->releaseTile());
 
-	if (x == 1) { xshift -= halfTile * 3; }
-	if (x == 2) { xshift -= halfTile; }
-	if (x == 3) { xshift += halfTile; }
-	if (x == 4) { xshift += halfTile * 3; }
+}
 
-	if (y == 1) { yshift -= halfTile * 3; }
-	if (y == 2) { yshift -= halfTile; }
-	if (y == 3) { yshift += halfTile; }
-	if (y == 4) { yshift += halfTile * 3; }
+sf::Vector2f Tile::getPosition() {
 
-	sf::Vector2f boardPos = board.getPosition();
+	return tile.getPosition();
 
-	sf::Vector2f pos = boardPos + sf::Vector2f({xshift, yshift});
-
-	tile.setPosition(pos);
 }

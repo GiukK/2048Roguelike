@@ -1,19 +1,18 @@
 #pragma once
 
 #include <iostream>
+#include <random>
 
 #include <SFML/Graphics.hpp>
 #include "core/Tile.h"
+#include "core/Board.h"
+
 
 class GameRun {
 
 public:
 
     //------
-
-
-
-
 
     //------
 
@@ -28,6 +27,11 @@ public:
 
 private:
 
+    unsigned int randomSeed;
+    std::mt19937 rng;
+
+    bool gameStarted{ 0 };
+
     //------
 
     sf::RenderWindow& window;
@@ -36,10 +40,7 @@ private:
 
     int score{};
 
-    sf::Texture boardTexture;
-    sf::Sprite board;
-
-    std::vector<std::unique_ptr<Tile>> tiles;
+    Board board;
 
     //------
 
@@ -47,6 +48,7 @@ private:
     void addScore(int score);
     void subtractScore(int score);
 
+    int getRandomInt(int min, int max);
+    float getRandomFloat(float min, float max);
+
 };
-
-

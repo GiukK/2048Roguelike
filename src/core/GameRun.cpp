@@ -4,29 +4,24 @@
 #include <memory>
 #include <iostream>
 
-#include <random>
-
-int getRandomNumber();
-
-
-
 GameRun::GameRun(sf::RenderWindow& window) :
-    window(window),
-    boardTexture("assets/textures/board.png", false, sf::IntRect({ 0, 0 }, { 66, 66 })),
-    board(boardTexture)
+    window(window)
 {
+    auto rd = std::random_device{};
+    randomSeed = rd();
+    rng.seed(randomSeed);
 
-    board.setOrigin({ 33.f,33.f });
-    board.setPosition({ window.getSize().x / 2.f , window.getSize().y / 2.f });
+    board.setRng(rng);
 
-    board.setScale({ 10.f, 10.f });
+    board.start();
 
+    gameStarted = true;
 
 }
 
 void GameRun::enter() {
 
-	std::cout << "currentRun entered." << std::endl;
+	std::cout << "currentRun entered" << std::endl;
 
 }
 
@@ -51,24 +46,26 @@ void GameRun::subtractScore(int score) {
 
 void GameRun::handleInput(sf::Event& event) {
 
-    if (const auto* keyPressed = event.getIf<sf::Event::KeyReleased>()) {
-        if (keyPressed->scancode == sf::Keyboard::Scancode::Z) {
-            std::cout << "GameRun input triggered = create" << std::endl;
-
-            std::unique_ptr<Tile> tile = std::make_unique<Tile>();
-
-            tile->spawn(board, getRandomNumber(), getRandomNumber());
-
-            tiles.push_back(std::move(tile));
-
+    if (const auto* keyPressed = event.getIf<sf::Event::KeyPressed>()) {
+        if (keyPressed->scancode == sf::Keyboard::Scancode::X) {
+            board.spawnTileInRandomEmptySlot();
         }
-        else if (keyPressed->scancode == sf::Keyboard::Scancode::X) {
-            std::cout << "GameRun input triggered = delete" << std::endl;
-
-            if (!tiles.empty()) { tiles.pop_back(); }
+        else if (keyPressed->scancode == sf::Keyboard::Scancode::A) {
+            board.moveLeft();
+        }
+        else if (keyPressed->scancode == sf::Keyboard::Scancode::D) {
+            board.moveRight();
+        }
+        else if (keyPressed->scancode == sf::Keyboard::Scancode::W) {
+            board.moveUp();
+        }
+        else if (keyPressed->scancode == sf::Keyboard::Scancode::S) {
+            board.moveDown();
+        }
+        else if (keyPressed->scancode == sf::Keyboard::Scancode::Delete) {
+            board.clear();
         }
     }
-
 
 }
 
@@ -76,19 +73,16 @@ void GameRun::update(float deltaTime) {}
 
 void GameRun::render(sf::RenderWindow& window) {
 
-    window.draw(board);
-
-    for (const std::unique_ptr<Tile>& tile : tiles) {
-        tile->render(window);
-    }
+    board.render(window);
 
 }
-
-
-int getRandomNumber() {
-    static std::random_device rd;  // Seed for randomness
-    static std::mt19937 gen(rd()); // Mersenne Twister PRNG
-    std::uniform_int_distribution<int> distrib(1, 4); // Range [1, 4]
-
-    return distrib(gen);
+int GameRun::getRandomInt(int min, int max) {
+    std::uniform_int_distribution<int> dist(min, max);
+    return dist(rng);
 }
+
+float GameRun::getRandomFloat(float min, float max) {
+    std::uniform_real_distribution<float> dist(min, max);
+    return dist(rng);
+}
+
