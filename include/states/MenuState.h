@@ -40,5 +40,8 @@ private:
     sf::SoundBuffer audioBuffer1, audioBuffer2;
     sf::Sound audioHover, audioClick;
 
+    bool musicOn = false;
+    sf::Music music;
+
 
 };

@@ -17,6 +17,7 @@ MenuState::MenuState(StateManager& stateManager, sf::RenderWindow& window) :
     startButton(startTexture),
     optionsButton(optionsTexture),
 
+    music("assets/sounds/song.mp3"),
     audioBuffer1("assets/sounds/hover.wav"),
     audioBuffer2("assets/sounds/click.wav"),
     audioClick(audioBuffer1),
@@ -101,8 +102,22 @@ void MenuState::handleInput(sf::Event& event) {
 
         if (optionsButton.getGlobalBounds().contains(mousePos_f)) {
 
+
+            //SONG
             std::cout << "OPTIONS pressed" << std::endl;
             audioClick.play();
+
+            if (!musicOn) { 
+                musicOn = true;
+                music.setVolume(5.f);
+                music.setPitch(2.f);
+                music.play();
+            }
+            else {
+                musicOn = false;
+                music.pause();
+            }
+
         }
 
 
