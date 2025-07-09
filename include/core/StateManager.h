@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <memory>
 #include <stack>
 #include <SFML/Graphics.hpp>
@@ -10,7 +11,7 @@ class StateManager {
 public:
     void pushState(std::unique_ptr<GameState> state);
     void popState();
-    void changeState(std::unique_ptr<GameState> state);
+    //void changeState(std::unique_ptr<GameState> state);
 
     void handleInput(sf::Event& event);
     void update(float deltaTime);

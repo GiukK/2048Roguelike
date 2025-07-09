@@ -12,18 +12,18 @@ class Tile{
 public:
 
     //------
-    std::shared_ptr<Slot> slot;
+    Slot* slot;
     //------
 
-    Tile(std::shared_ptr<Slot> slot, int value);
+    Tile(Slot* slot, int value);
 
     void render(sf::RenderWindow& window);
 
     sf::Vector2f getPosition();
 
 
-    void changeSlot(std::shared_ptr<Slot> first, std::shared_ptr<Slot> second);
-    void mergeIntoSlot(std::shared_ptr<Slot> other);
+    void changeSlot(Slot* first, Slot* second);
+    void mergeIntoSlot(Slot* other);
 
     int getValue();
     void setValue(int x);

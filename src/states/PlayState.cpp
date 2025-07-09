@@ -12,7 +12,7 @@ PlayState::PlayState(StateManager& stateManager, sf::RenderWindow& window) :
 }
 
 void PlayState::enter() {
-    std::cout << "Entering Play State" << std::endl;
+    std::cout << "Entering Play State - PlayState::enter()" << std::endl;
 
     currentRun->enter();
 
@@ -20,7 +20,7 @@ void PlayState::enter() {
 }
 
 void PlayState::exit() {
-    std::cout << "exit() was called from PlayState" << std::endl;
+    std::cout << "exit() was called from PlayState - PlayState::exit()" << std::endl;
 
     stateManager.popState();
 }
@@ -36,6 +36,7 @@ void PlayState::handleInput(sf::Event& event) {
 
 
             exit();  // Close game
+            return;
         }
     }
 

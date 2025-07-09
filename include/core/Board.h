@@ -37,10 +37,10 @@ private:
 
     //------
     //{coloumn,row} : slot_POINTER
-    std::map<Coord, std::shared_ptr<Slot>> slots;
+    std::map<Coord, std::unique_ptr<Slot>> slots;
 
     //how many coloumns are there
-    std::pair<int, int> col_range{ 0, 3 };
+    std::pair<int, int> col_range{ -1, 3 };
     //how many rows are there
     std::pair<int, int> row_range{ 0, 3 };
 

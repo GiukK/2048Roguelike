@@ -4,8 +4,7 @@
 #include <random>
 
 #include <SFML/Graphics.hpp>
-#include "core/Tile.h"
-#include "core/Board.h"
+#include "core/Turn.h"
 
 
 class GameRun {
@@ -40,7 +39,8 @@ private:
 
     int score{};
 
-    Board board;
+    std::vector<std::unique_ptr<Turn>> run_turns;
+
 
     //------
 

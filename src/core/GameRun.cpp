@@ -1,5 +1,4 @@
 #include "core/Gamerun.h"
-#include "core/Tile.h"
 
 #include <memory>
 #include <iostream>
@@ -11,12 +10,9 @@ GameRun::GameRun(sf::RenderWindow& window) :
     randomSeed = rd();
     rng.seed(randomSeed);
 
-    board.setRng(rng);
-
-    board.start();
-
     gameStarted = true;
 
+    run_turns.push_back(std::make_unique<Turn>(this));
 }
 
 void GameRun::enter() {
@@ -46,31 +42,7 @@ void GameRun::subtractScore(int score) {
 
 void GameRun::handleInput(sf::Event& event) {
 
-    if (const auto* keyPressed = event.getIf<sf::Event::KeyReleased>()) {
-        if (keyPressed->scancode == sf::Keyboard::Scancode::X) {
-            board.spawnTileInRandomEmptySlot();
-        }
-        else if (keyPressed->scancode == sf::Keyboard::Scancode::A) {
-            board.moveLeft();
-            board.spawnTileInRandomEmptySlot();
-        }
-        else if (keyPressed->scancode == sf::Keyboard::Scancode::D) {
-            board.moveRight();
-            board.spawnTileInRandomEmptySlot();
-        }
-        else if (keyPressed->scancode == sf::Keyboard::Scancode::W) {
-            board.moveUp();
-            board.spawnTileInRandomEmptySlot();
-        }
-        else if (keyPressed->scancode == sf::Keyboard::Scancode::S) {
-            board.moveDown();
-            board.spawnTileInRandomEmptySlot();
-        }
-        else if (keyPressed->scancode == sf::Keyboard::Scancode::Delete) {
-            board.clear();
-            board.spawnTileInRandomEmptySlot();
-        }
-    }
+    run_turns.back()->handleInput(event);
 
 }
 
@@ -82,7 +54,7 @@ void GameRun::update(float deltaTime) {
 
 void GameRun::render(sf::RenderWindow& window) {
 
-    board.render(window);
+    run_turns.back()->board.render(window);
 
 }
 int GameRun::getRandomInt(int min, int max) {

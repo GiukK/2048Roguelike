@@ -1,7 +1,7 @@
 #include "core/Tile.h"
 #include "core/Slot.h"
 
-Tile::Tile(std::shared_ptr<Slot> slot, int value) :
+Tile::Tile(Slot* slot, int value) :
 value(value),
 slot(slot),
 tileTexture("assets/textures/" + std::to_string(value) + ".png", false, sf::IntRect({ 0, 0 }, { 32, 32 })),
@@ -21,7 +21,7 @@ void Tile::render(sf::RenderWindow& window) {
 }
 
 //changes ownership of tile ALSO manages internal slot ownership (tile-><-slot) 
-void Tile::changeSlot(std::shared_ptr<Slot> a, std::shared_ptr<Slot> b) {
+void Tile::changeSlot(Slot* a, Slot* b) {
 
 	this->slot = b;
 
@@ -50,7 +50,7 @@ void Tile::setValue(int x) {
 
 }
 
-void Tile::mergeIntoSlot(std::shared_ptr<Slot> other) {
+void Tile::mergeIntoSlot(Slot* other) {
 
 	int sum = value + other->tile->getValue();
 
