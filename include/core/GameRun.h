@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <random>
+#include <stack>
 
 #include <SFML/Graphics.hpp>
 #include "core/Turn.h"
@@ -19,6 +20,9 @@ public:
 
     void enter() ;
     void exit() ;
+
+    void new_turn(Board initial_board);
+    void go_back();
 
     void handleInput(sf::Event& event) ;
     void update(float deltaTime) ;
@@ -39,7 +43,7 @@ private:
 
     int score{};
 
-    std::vector<std::unique_ptr<Turn>> run_turns;
+    std::stack<std::unique_ptr<Turn>> run_turns;
 
 
     //------

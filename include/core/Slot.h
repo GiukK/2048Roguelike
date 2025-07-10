@@ -22,6 +22,9 @@ public:
 
     Slot(int col, int row);
 
+    Slot(const Slot& other);
+
+
     void render(sf::RenderWindow& window);
 
     // In Slot.h - Change isEmpty() from a non-const to a const method:

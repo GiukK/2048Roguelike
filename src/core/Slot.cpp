@@ -17,6 +17,19 @@ Slot::Slot (int col, int row) :
     slot.setPosition({ 128.f * col + shift, 128.f * row + shift });
 }
 
+Slot::Slot(const Slot& other) :
+    col(other.col),
+    row(other.row),
+    slotTexture("assets/textures/slot.png", false, sf::IntRect({ 0, 0 }, { 32, 32 })),
+    slot(slotTexture)
+{
+    slot.setOrigin(other.slot.getOrigin());
+    slot.setScale(other.slot.getScale());
+    slot.setPosition(other.slot.getPosition());
+    // La tile non viene copiata qui, lo farà Board
+}
+
+
 void Slot::render(sf::RenderWindow& window) {
     window.draw(slot);
     if (!isEmpty()) {

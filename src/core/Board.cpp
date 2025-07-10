@@ -22,6 +22,61 @@ Board::Board() :
 
 }
 
+Board::Board(const Board& other) :
+    col_range(other.col_range),
+    row_range(other.row_range),
+    boardTexture("assets/textures/board.png", false, sf::IntRect({ 0, 0 }, { 64, 32 })),
+    board(boardTexture),
+    rng(other.rng)
+{
+    //set sprite origin and scale
+    board.setOrigin({ 0.f, 0.f });
+    board.setScale({ 22.f, 22.f });
+    board.setPosition({ 160.f,140.f });
+    //------
+
+    // Primo passo: creare nuovi slot
+    for (const auto& [coord, slotPtr] : other.slots) {
+        slots[coord] = std::make_unique<Slot>(*slotPtr);
+    }
+
+    // Secondo passo: copiare le tile mantenendo riferimenti corretti agli slot
+    for (const auto& [coord, slotPtr] : other.slots) {
+        if (!slotPtr->isEmpty()) {
+            Slot* mySlot = slots[coord].get();
+            const Tile* originalTile = slotPtr->tile.get();
+            mySlot->setTile(std::make_unique<Tile>(mySlot, originalTile->getValue()));
+        }
+    }
+}
+
+Board& Board::operator=(const Board& other) {
+    if (this == &other) return *this;
+
+    slots.clear();
+
+    col_range = other.col_range;
+    row_range = other.row_range;
+    boardTexture = other.boardTexture;
+    board = other.board;
+    rng = other.rng;
+
+    for (const auto& [coord, slotPtr] : other.slots) {
+        slots[coord] = std::make_unique<Slot>(*slotPtr);
+    }
+
+    for (const auto& [coord, slotPtr] : other.slots) {
+        if (!slotPtr->isEmpty()) {
+            Slot* mySlot = slots[coord].get();
+            const Tile* originalTile = slotPtr->tile.get();
+            mySlot->setTile(std::make_unique<Tile>(mySlot, originalTile->getValue()));
+        }
+    }
+
+    return *this;
+}
+
+
 
 
 void Board::render(sf::RenderWindow& window) {

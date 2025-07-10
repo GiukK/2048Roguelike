@@ -25,7 +25,7 @@ public:
     void changeSlot(Slot* first, Slot* second);
     void mergeIntoSlot(Slot* other);
 
-    int getValue();
+    int getValue() const;
     void setValue(int x);
 
     void changeSprite();

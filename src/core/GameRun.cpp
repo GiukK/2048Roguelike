@@ -12,7 +12,9 @@ GameRun::GameRun(sf::RenderWindow& window) :
 
     gameStarted = true;
 
-    run_turns.push_back(std::make_unique<Turn>(this));
+    Board starting_board;
+
+    run_turns.push(std::make_unique<Turn>(this, starting_board));
 }
 
 void GameRun::enter() {
@@ -26,6 +28,27 @@ void GameRun::exit() {
     std::cout << "currentRun exited" << std::endl;
 
 }
+
+void GameRun::new_turn(Board initial_board) {
+
+    run_turns.push(std::make_unique<Turn>(this, initial_board));
+
+    std::cout << "Turn" << run_turns.size() << std::endl;
+
+}
+
+void GameRun::go_back() {
+    if (run_turns.size() <= 1) {
+        std::cout << "Nessun turno precedente disponibile." << std::endl;
+        return;
+    }
+
+    // Rimuove l'ultimo turno
+    run_turns.pop();
+    std::cout << "Turno Rimosso - Tornato al Turno : " << run_turns.size()  << std::endl;
+
+}
+
 
 void GameRun::addScore(int score) {
     score += score;
@@ -42,7 +65,10 @@ void GameRun::subtractScore(int score) {
 
 void GameRun::handleInput(sf::Event& event) {
 
-    run_turns.back()->handleInput(event);
+
+    if (!run_turns.empty()) {
+        run_turns.top()->handleInput(event);
+    }
 
 }
 
@@ -54,7 +80,9 @@ void GameRun::update(float deltaTime) {
 
 void GameRun::render(sf::RenderWindow& window) {
 
-    run_turns.back()->board.render(window);
+    if (!run_turns.empty()) {
+        run_turns.top()->board.render(window);
+    }
 
 }
 int GameRun::getRandomInt(int min, int max) {

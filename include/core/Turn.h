@@ -10,9 +10,10 @@ class Turn {
 
 public:
 
-    Turn(GameRun* game_run);
+    Turn(GameRun* game_run, Board initial_board);
 
     void announce_event();
+    void end_turn();
 
     void update(float deltaTime);
     void handleInput(sf::Event& event);

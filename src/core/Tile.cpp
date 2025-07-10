@@ -38,7 +38,7 @@ sf::Vector2f Tile::getPosition() {
 }
 
 
-int Tile::getValue() {
+int Tile::getValue() const {
 
 	return value;
 

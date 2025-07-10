@@ -17,6 +17,12 @@ public:
 
     Board();
 
+    //This constructor is useful when creating a deepcopy of the previous board of the previous turn
+
+    Board(const Board& other);
+    Board& operator=(const Board& other);
+
+
     void render(sf::RenderWindow& window);
 
     void start();
