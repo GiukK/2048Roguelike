@@ -1,7 +1,10 @@
 #include "core/Board.h"
 #include "core/Slot.h"
+#include "core/ShopEffect.h"
+#include "core/Turn.h"
 
-Board::Board() :
+Board::Board(Turn* turn) :
+    turn(turn),
     boardTexture("assets/textures/board.png", false, sf::IntRect({ 0, 0 }, { 64, 32 })),
     board(boardTexture)
 {
@@ -13,16 +16,22 @@ Board::Board() :
     const float shift = 300.f;
     for (int i = -0; i <= 3; ++i) {
         for (int j = 0; j <= 3; ++j) {
-            slots[{i, j}] = std::make_unique<Slot>(i, j);
+            slots[{i, j}] = std::make_unique<Slot>(i, j, this);
         }
     }
 
-    slots[{-1, 2}] = std::make_unique<Slot>(-1, 2);
+    slots[{-1, 2}] = std::make_unique<Slot>(-1, 2, this);
+    slots[{-1, 2}]->addEffect(std::make_unique<ShopEffect>());
+    slots[{-1, 2}]->canTileStepIn = 0;
+    slots[{-1, 2}]->canTileStepOut = 0;
+    slots[{-1, 2}]->setTile(std::make_unique<Tile>(slots[{-1, 2}].get(), 4));
+
     slots.erase({ 2, 2 });
 
 }
 
-Board::Board(const Board& other) :
+Board::Board(const Board& other, Turn* turn) :
+    turn(turn),
     col_range(other.col_range),
     row_range(other.row_range),
     boardTexture("assets/textures/board.png", false, sf::IntRect({ 0, 0 }, { 64, 32 })),
@@ -37,7 +46,7 @@ Board::Board(const Board& other) :
 
     // Primo passo: creare nuovi slot
     for (const auto& [coord, slotPtr] : other.slots) {
-        slots[coord] = std::make_unique<Slot>(*slotPtr);
+        slots[coord] = std::make_unique<Slot>(*slotPtr, this);
     }
 
     // Secondo passo: copiare le tile mantenendo riferimenti corretti agli slot
@@ -47,33 +56,9 @@ Board::Board(const Board& other) :
             const Tile* originalTile = slotPtr->tile.get();
             mySlot->setTile(std::make_unique<Tile>(mySlot, originalTile->getValue()));
         }
+
     }
-}
-
-Board& Board::operator=(const Board& other) {
-    if (this == &other) return *this;
-
-    slots.clear();
-
-    col_range = other.col_range;
-    row_range = other.row_range;
-    boardTexture = other.boardTexture;
-    board = other.board;
-    rng = other.rng;
-
-    for (const auto& [coord, slotPtr] : other.slots) {
-        slots[coord] = std::make_unique<Slot>(*slotPtr);
-    }
-
-    for (const auto& [coord, slotPtr] : other.slots) {
-        if (!slotPtr->isEmpty()) {
-            Slot* mySlot = slots[coord].get();
-            const Tile* originalTile = slotPtr->tile.get();
-            mySlot->setTile(std::make_unique<Tile>(mySlot, originalTile->getValue()));
-        }
-    }
-
-    return *this;
+    
 }
 
 
@@ -120,9 +105,23 @@ void Board::spawnTileInRandomEmptySlot() {
         int randomIndex = getRandomInt(0, emptySlots.size() - 1);
         Slot* randomSlot = emptySlots[randomIndex];
 
-        randomSlot->setTile(std::make_unique<Tile>(randomSlot,4));
+        //90% 2 - 10% 4 spawn rate
+        int probValue = getRandomInt(1, 10);
 
-        std::cout << "Spawned tile at (row=" << randomSlot->row << ", col=" << randomSlot->col << ")\n";
+        int tileValue{2};
+
+        if (probValue <= 9) {
+            tileValue = 2;
+        }
+        else {
+            tileValue = 4;
+        }
+
+        //spawn random tile at random tile
+        randomSlot->setTile(std::make_unique<Tile>(randomSlot,tileValue));
+
+        std::cout << "Spawned tile at (row=" << randomSlot->row << ", col=" << randomSlot->col << ") with value " << tileValue << std::endl ;
+        std::cout << "the value of spawn rate was " << probValue << std::endl;
     }
     else {
         std::cout << "No empty slots available to spawn a tile.\n";
@@ -140,7 +139,16 @@ void Board::moveLeft() {
                 int currentX = x;
 
                 // Move the tile as far left as possible
-                while (currentX > col_range.first and slots.count({ currentX - 1, y }) and slots[{ currentX - 1, y }]->isEmpty()) {
+                while (
+
+                    currentX > col_range.first and
+                    slots.count({ currentX - 1, y }) and
+                    slots[{ currentX - 1, y }]->isEmpty() and
+                    slots[{ currentX - 1, y }]->canTileStepIn and
+                    slots[{ currentX, y }]->canTileStepOut
+                    
+                    )
+                {
                     slots[{ currentX, y}]->tile->changeSlot(slots[{ currentX, y}].get(), slots[{ currentX - 1, y }].get());
                     currentX--; // Move the tile one step to the left
                     std::cout << "tile moved!\n";
@@ -174,7 +182,18 @@ void Board::moveRight() {
                 int currentX = x;
 
                 // Move the tile as far right as possible
-                while (currentX < col_range.second && slots.count({ currentX + 1, y }) && slots[{ currentX + 1, y }]->isEmpty()) {
+                while (
+
+                    currentX < col_range.second and 
+                    slots.count({ currentX + 1, y }) and 
+                    slots[{ currentX + 1, y }]->isEmpty() and
+                    slots[{ currentX + 1, y }]->canTileStepIn and
+                    slots[{ currentX, y }]->canTileStepOut
+
+
+                    )
+                
+                {
                     slots[{ currentX, y}]->tile->changeSlot(slots[{ currentX, y}].get(), slots[{ currentX + 1, y }].get());
                     currentX++; // Move the tile one step to the right
                     std::cout << "tile moved!\n";
@@ -204,7 +223,16 @@ void Board::moveUp() {
                 int currentY = y;
 
                 // Move the tile as far up as possible
-                while (currentY > row_range.first && slots.count({ x, currentY - 1 }) && slots[{ x, currentY - 1 }]->isEmpty()) {
+                while (
+
+                    currentY > row_range.first and
+                    slots.count({ x, currentY - 1 }) and
+                    slots[{ x, currentY - 1 }]->isEmpty() and
+                    slots[{ x ,currentY - 1 }]->canTileStepIn and
+                    slots[{ x, currentY }]->canTileStepOut
+
+                    
+                    ) {
                     slots[{ x, currentY}]->tile->changeSlot(slots[{ x, currentY}].get(), slots[{ x, currentY - 1 }].get());
                     currentY--; // Move the tile one step up
                     std::cout << "tile moved!\n";
@@ -234,7 +262,17 @@ void Board::moveDown() {
                 int currentY = y;
 
                 // Move the tile as far down as possible
-                while (currentY < row_range.second && slots.count({ x, currentY + 1 }) && slots[{ x, currentY + 1 }]->isEmpty()) {
+                while (
+                    
+                    currentY < row_range.second and
+                    slots.count({ x, currentY + 1 }) and
+                    slots[{ x, currentY + 1 }]->isEmpty() and
+                    slots[{ x, currentY + 1 }]->canTileStepIn and
+                    slots[{ x, currentY }]->canTileStepOut
+
+
+                    
+                    ) {
                     slots[{ x, currentY}]->tile->changeSlot(slots[{ x, currentY}].get(), slots[{ x, currentY + 1 }].get());
                     currentY++; // Move the tile one step down
                     std::cout << "tile moved!\n";

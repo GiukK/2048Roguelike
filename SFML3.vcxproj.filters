@@ -24,9 +24,6 @@
     <ClCompile Include="src\core\StateManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\core\GameState.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\states\MenuState.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -49,6 +46,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\core\Turn.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\ShopEffect.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\states\ShopState.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -87,6 +90,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\core\Turn.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\core\SlotEffect.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\core\ShopEffect.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\states\ShopState.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,12 +1,19 @@
 #include "core/Turn.h"
 #include "core/GameRun.h"
+#include "core/Board.h"
 
-Turn::Turn(GameRun* game_run, Board initial_board):
+Turn::Turn(GameRun* game_run) :
     game_run(game_run),
-    board(initial_board)
-{
+    board(this)
+{}
 
+
+Turn::Turn(GameRun* game_run,const Board& initial_board) :
+    game_run(game_run),
+    board(initial_board, this)
+{
 }
+
 
 void Turn::announce_event() {
 
@@ -19,6 +26,10 @@ void Turn::end_turn() {
     std::cout << "Turn ended" << std::endl;
 
     game_run->new_turn(this->board);
+}
+
+void Turn::requestShop() {
+    game_run->openShop(); // delega a GameRun
 }
 
 

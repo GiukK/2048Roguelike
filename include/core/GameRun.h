@@ -7,6 +7,8 @@
 #include <SFML/Graphics.hpp>
 #include "core/Turn.h"
 
+class PlayState;
+
 
 class GameRun {
 
@@ -16,13 +18,15 @@ public:
 
     //------
 
-    GameRun(sf::RenderWindow& window);
+    GameRun(sf::RenderWindow& window, PlayState* playState);
 
     void enter() ;
     void exit() ;
 
-    void new_turn(Board initial_board);
+    void new_turn(const Board& initial_board);
     void go_back();
+
+    void openShop();
 
     void handleInput(sf::Event& event) ;
     void update(float deltaTime) ;
@@ -43,6 +47,7 @@ private:
 
     int score{};
 
+    PlayState* playState;
     std::stack<std::unique_ptr<Turn>> run_turns;
 
 

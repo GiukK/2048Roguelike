@@ -61,6 +61,8 @@ void Tile::mergeIntoSlot(Slot* other) {
 
 	other->tile->changeSprite();
 
+	other->triggerMergeEffects();
+
 }
 
 void Tile::changeSprite() {

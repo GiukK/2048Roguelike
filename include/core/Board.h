@@ -11,16 +11,18 @@
 
 #include "SFML/Graphics.hpp"
 
+class Turn;
+
 class Board {
 
 public:
 
-    Board();
+    Board(Turn* turn);
 
     //This constructor is useful when creating a deepcopy of the previous board of the previous turn
 
-    Board(const Board& other);
-    Board& operator=(const Board& other);
+    Board(const Board& other, Turn* turn);
+    Board& operator=(const Board& other) = delete;
 
 
     void render(sf::RenderWindow& window);
@@ -38,11 +40,14 @@ public:
 
     void clear();
 
+    Turn* turn;
 
 private:
 
     //------
     //{coloumn,row} : slot_POINTER
+
+
     std::map<Coord, std::unique_ptr<Slot>> slots;
 
     //how many coloumns are there

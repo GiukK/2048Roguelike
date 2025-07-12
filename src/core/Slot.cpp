@@ -1,10 +1,12 @@
 #include "core/Slot.h"
+#include "core/Board.h"
 
 
 
-Slot::Slot (int col, int row) :
+Slot::Slot (int col, int row, Board* board) :
     col(col),
     row(row),
+    board(board),
     slotTexture("assets/textures/slot.png", false, sf::IntRect({ 0, 0 }, { 32, 32 })),
     slot(slotTexture)
 { 
@@ -17,17 +19,28 @@ Slot::Slot (int col, int row) :
     slot.setPosition({ 128.f * col + shift, 128.f * row + shift });
 }
 
-Slot::Slot(const Slot& other) :
+Slot::Slot(const Slot& other, Board* newBoard) :
+    board(newBoard),
     col(other.col),
     row(other.row),
-    slotTexture("assets/textures/slot.png", false, sf::IntRect({ 0, 0 }, { 32, 32 })),
+    canTileStepIn(other.canTileStepIn),
+    canTileStepOut(other.canTileStepOut),
+    slotTexture(other.slotTexture),
     slot(slotTexture)
 {
+    // Copia visiva dello sprite
     slot.setOrigin(other.slot.getOrigin());
     slot.setScale(other.slot.getScale());
     slot.setPosition(other.slot.getPosition());
-    // La tile non viene copiata qui, lo farà Board
+
+    // Copia profonda degli effetti
+    for (const auto& effect : other.effects) {
+        effects.push_back(effect->clone());
+    }
+
+    // Nota: la tile non viene copiata qui, viene gestita separatamente dalla Board
 }
+
 
 
 void Slot::render(sf::RenderWindow& window) {
@@ -54,4 +67,29 @@ std::unique_ptr<Tile> Slot::releaseTile() {
 
 void Slot::removeTile() {
     tile.reset();  // Properly destroys the tile
+}
+
+void Slot::addEffect(std::unique_ptr<SlotEffect> effect) {
+    effects.push_back(std::move(effect));
+
+    sf::Texture loader("assets/textures/shopslot.png", false, sf::IntRect({ 0, 0 }, { 32, 32 }));
+
+    slotTexture = loader;
+
+    sf::Sprite spriteload(slotTexture);
+
+    slot = spriteload;
+
+    slot.setOrigin({ 16.f,16.f });
+    slot.setScale({ 4.f, 4.f });
+
+
+    float shift = 300.f;
+    slot.setPosition({ 128.f * col + shift, 128.f * row + shift });
+}
+
+void Slot::triggerMergeEffects() {
+    for (auto& effect : effects) {
+        effect->onMerge(this);
+    }
 }

@@ -4,7 +4,7 @@
 PlayState::PlayState(StateManager& stateManager, sf::RenderWindow& window) :
     stateManager(stateManager),
     window(window),
-    currentRun(std::make_unique<GameRun>(window))
+    currentRun(std::make_unique<GameRun>(window, this))
 {
 
 

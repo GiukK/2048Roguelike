@@ -6,9 +6,9 @@
 
 #include "SFML/Audio.hpp"
 
-class PlayState : public GameState {
+class ShopState : public GameState {
 public:
-    PlayState(StateManager& stateManager, sf::RenderWindow& window);
+    ShopState(StateManager& stateManager, sf::RenderWindow& window, GameRun* gamerun);
 
     void enter() override;
     void exit() override;
@@ -17,12 +17,14 @@ public:
     void update(float deltaTime) override;
     void render(sf::RenderWindow& window) override;
 
+private:
+
+    GameRun* currentRun;
+
     StateManager& stateManager;
     sf::RenderWindow& window;
 
-private:
-
-    std::unique_ptr<GameRun> currentRun;
-
+    sf::Texture shopTexture;
+    sf::Sprite shopSprite;
 
 };

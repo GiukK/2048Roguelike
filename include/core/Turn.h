@@ -10,10 +10,13 @@ class Turn {
 
 public:
 
-    Turn(GameRun* game_run, Board initial_board);
+    Turn(GameRun* game_run);
+    Turn(GameRun* game_run, const Board& initial_board);
 
     void announce_event();
     void end_turn();
+
+    void requestShop();
 
     void update(float deltaTime);
     void handleInput(sf::Event& event);

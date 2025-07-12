@@ -145,16 +145,17 @@
   <ItemGroup>
     <ClCompile Include="src\core\Board.cpp" />
     <ClCompile Include="src\core\GameRun.cpp" />
+    <ClCompile Include="src\core\ShopEffect.cpp" />
     <ClCompile Include="src\core\Slot.cpp" />
     <ClCompile Include="src\core\Tile.cpp" />
     <ClCompile Include="src\core\Turn.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\prova.cpp" />
-    <ClCompile Include="src\core\GameState.cpp" />
     <ClCompile Include="src\core\StateManager.cpp" />
     <ClCompile Include="src\Game.cpp" />
     <ClCompile Include="src\states\MenuState.cpp" />
     <ClCompile Include="src\states\PlayState.cpp" />
+    <ClCompile Include="src\states\ShopState.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="guidelines.txt" />
@@ -164,13 +165,16 @@
     <ClInclude Include="include\core\Coord.h" />
     <ClInclude Include="include\core\GameRun.h" />
     <ClInclude Include="include\core\GameState.h" />
+    <ClInclude Include="include\core\ShopEffect.h" />
     <ClInclude Include="include\core\Slot.h" />
+    <ClInclude Include="include\core\SlotEffect.h" />
     <ClInclude Include="include\core\StateManager.h" />
     <ClInclude Include="include\core\Tile.h" />
     <ClInclude Include="include\core\Turn.h" />
     <ClInclude Include="include\Game.h" />
     <ClInclude Include="include\states\MenuState.h" />
     <ClInclude Include="include\states\PlayState.h" />
+    <ClInclude Include="include\states\ShopState.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

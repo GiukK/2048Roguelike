@@ -1,10 +1,12 @@
-#include "core/Gamerun.h"
-
 #include <memory>
 #include <iostream>
+#include "core/Gamerun.h"
+#include "states/PlayState.h"
+#include "states/ShopState.h"
 
-GameRun::GameRun(sf::RenderWindow& window) :
-    window(window)
+GameRun::GameRun(sf::RenderWindow& window, PlayState* playState) :
+    window(window),
+    playState(playState)
 {
     auto rd = std::random_device{};
     randomSeed = rd();
@@ -12,9 +14,8 @@ GameRun::GameRun(sf::RenderWindow& window) :
 
     gameStarted = true;
 
-    Board starting_board;
+    run_turns.push(std::make_unique<Turn>(this));
 
-    run_turns.push(std::make_unique<Turn>(this, starting_board));
 }
 
 void GameRun::enter() {
@@ -29,8 +30,8 @@ void GameRun::exit() {
 
 }
 
-void GameRun::new_turn(Board initial_board) {
 
+void GameRun::new_turn(const Board& initial_board) {
     run_turns.push(std::make_unique<Turn>(this, initial_board));
 
     std::cout << "Turn" << run_turns.size() << std::endl;
@@ -48,6 +49,12 @@ void GameRun::go_back() {
     std::cout << "Turno Rimosso - Tornato al Turno : " << run_turns.size()  << std::endl;
 
 }
+
+void GameRun::openShop() {
+    std::cout << "Opening shop...\n";
+    playState->stateManager.pushState(std::make_unique<ShopState>(playState->stateManager, playState->window, this));
+}
+
 
 
 void GameRun::addScore(int score) {
