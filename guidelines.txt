@@ -1,167 +1,135 @@
-# SFML 2D Game Project Structure
+﻿
+# 📦 Architettura del Gioco - Sistema Turni, Board, Stati, Animazioni
 
-## Project Directory Layout
+Questo documento raccoglie l'architettura concettuale e le scelte progettuali emerse dalla discussione.
+Il focus è su: gestione dei turni, evoluzione della board, FSM, animazioni, reversibilità e espandibilità futura.
 
-```
-YourGameProject/
-?
-??? include/                 # Header files (.h)
-?   ??? core/
-?   ?   ??? GameState.h      # Abstract base class for game states
-?   ?   ??? StateManager.h   # Manages game states and transitions
-?   ?   ??? InputHandler.h   # Handles input processing
-?   ?
-?   ??? states/              # Specific game state headers
-?   ?   ??? MenuState.h
-?   ?   ??? PlayState.h
-?   ?   ??? PauseState.h
-?   ?   ??? OptionsState.h
-?   ?
-?   ??? entities/            # Game object headers
-?   ?   ??? Player.h
-?   ?   ??? Enemy.h
-?   ?   ??? GameObject.h
-?   ?
-?   ??? utils/               # Utility class headers
-?   ?   ??? ResourceManager.h
-?   ?   ??? Collision.h
-?   ?   ??? Configuration.h
-?   ?
-?   ??? Game.h               # Main game class declaration
-?
-??? src/                     # Source files (.cpp)
-?   ??? main.cpp             # Entry point of the application
-?   ?
-?   ??? core/                # Core system implementations
-?   ?   ??? GameState.cpp
-?   ?   ??? StateManager.cpp
-?   ?   ??? InputHandler.cpp
-?   ?
-?   ??? states/              # Specific state implementations
-?   ?   ??? MenuState.cpp
-?   ?   ??? PlayState.cpp
-?   ?   ??? PauseState.cpp
-?   ?   ??? OptionsState.cpp
-?   ?
-?   ??? entities/            # Game object implementations
-?   ?   ??? Player.cpp
-?   ?   ??? Enemy.cpp
-?   ?   ??? GameObject.cpp
-?   ?
-?   ??? utils/               # Utility class implementations
-?   ?   ??? ResourceManager.cpp
-?   ?   ??? Collision.cpp
-?   ?   ??? Configuration.cpp
-?   ?
-?   ??? Game.cpp             # Main game class implementation
-?
-??? assets/                  # Game resources
-?   ??? textures/
-?   ??? sounds/
-?   ??? fonts/
-?   ??? configs/
-?       ??? game_config.json
-?
-??? README.md                # Project documentation
-```
+------------------------------------------------------------
+## ✅ STRUTTURA GENERALE ATTUALE
 
-## Recommended File Contents
+Game
+└── StateManager (std::stack<State>)
+    ├── MenuState
+    ├── PlayState
+    │   └── GameRun (unique_ptr)
+    │       └── std::stack<unique_ptr<Turn>>
+    │           └── Turn
+    │               └── Board
+    │                   └── std::map<Coord, unique_ptr<Slot>>
+    │                       └── Slot
+    │                           └── unique_ptr<Tile>
 
-### 1. `src/main.cpp`
+Ogni sottoclasse ha un raw pointer verso il proprio "genitore" (es: Slot → Board, Board → Turn...)
+
+------------------------------------------------------------
+## 🔁 GESTIONE DEL TURNO
+
+- Ogni Turn ha:
+    - `Board board_start` → stato iniziale (immutabile, per go_back e debug)
+    - `Direction move` → direzione della mossa fatta in quel turno
+    - (Opzionale) `Board board_result` → stato della board dopo l'elaborazione del turno
+    - Log/flags: consumabili usati, effetti attivati, shop aperto, ecc.
+
+- Turn gestito a fasi (FSM implicita o esplicita):
+    - Begin
+    - ApplyConsumables
+    - ApplyEffects
+    - Movement
+    - TriggerPassives
+    - BoardResolution
+    - TriggerSpecialStates
+    - End
+
+------------------------------------------------------------
+## ⚙️ GESTIONE MOVIMENTO E STATI DI BOARD
+
+- Non usare `Board::moveLeft()` per spostare TUTTO in un colpo.
+- Invece: generare e processare una serie di azioni granulari `TileAction`:
+
 ```cpp
-#include "../include/Game.h"
-
-int main() {
-    Game game;
-    game.run();
-    return 0;
-}
-```
-
-### 2. `include/Game.h`
-```cpp
-#pragma once
-#include <SFML/Graphics.hpp>
-#include "core/StateManager.h"
-
-class Game {
-public:
-    Game();  // Constructor to initialize game
-    void run();  // Main game loop
-
-private:
-    void processEvents();
-    void update(float deltaTime);
-    void render();
-
-    sf::RenderWindow window;
-    StateManager stateManager;
-    sf::Clock clock;
+struct TileAction {
+    Coord from;
+    Coord to;
+    enum class Type { Move, Merge, Trigger };
+    float delay = 0.f;
+    float elapsed = 0.f;
 };
 ```
 
-### 3. `src/Game.cpp`
+- Board mantiene una coda di `TileAction`:
+    ```cpp
+    std::queue<TileAction> pendingActions;
+    ```
+
+- Ogni frame viene elaborata una sola azione. Questo consente:
+    - Interrompere il movimento per attivare effetti
+    - Animare singoli passaggi
+    - Gestire pause logiche e visive
+
+------------------------------------------------------------
+## 🕹️ GESTIONE ANIMAZIONI (FUTURA, PREPARAZIONE)
+
+Introdurre una struttura minimale per animazioni, anche se inizialmente "logica" (nessuna animazione reale):
+
 ```cpp
-#include "../include/Game.h"
+struct AnimationStep {
+    std::function<void()> execute;
+    float delay;
+    float elapsed = 0.f;
+};
 
-Game::Game() {
-    // Initialize window
-    window.create(sf::VideoMode(800, 600), "Your Game Title");
-    
-    // Additional initialization
-}
-
-void Game::run() {
-    while (window.isOpen()) {
-        float deltaTime = clock.restart().asSeconds();
-
-        processEvents();
-        update(deltaTime);
-        render();
-    }
-}
-
-void Game::processEvents() {
-    sf::Event event;
-    while (window.pollEvent(event)) {
-        if (event.type == sf::Event::Closed)
-            window.close();
-
-        // Delegate input to current state
-        stateManager.getCurrentState()->handleInput(event);
-    }
-}
-
-void Game::update(float deltaTime) {
-    stateManager.update(deltaTime);
-}
-
-void Game::render() {
-    window.clear();
-    stateManager.render(window);
-    window.display();
-}
+class AnimationQueue {
+    std::queue<AnimationStep> steps;
+public:
+    void push(AnimationStep);
+    void update(float deltaTime);
+    bool isBusy() const;
+};
 ```
 
+- `Board::update()` chiama `animationQueue.update(delta)`
+- `GameRun` o `Turn` aspetta che `isBusy() == false` prima di passare alla prossima fase
+- Ogni azione è ritardabile/animabile in futuro
 
-## Key Considerations
+------------------------------------------------------------
+## 🎮 GESTIONE FSM - MACCHINA A STATI MINIMA
 
-1. **Separation of Concerns**
-   - Each class has a single, well-defined responsibility
-   - Clear separation between game logic, rendering, and state management
+```cpp
+enum class TurnPhase {
+    Begin,
+    ApplyConsumables,
+    ApplyEffects,
+    Movement,
+    TriggerPassives,
+    BoardResolution,
+    TriggerSpecialStates,
+    End
+};
 
-2. **Extensibility**
-   - Easy to add new states
-   - Modular design allows for simple feature additions
+class Turn {
+    TurnPhase phase = TurnPhase::Begin;
+    void nextPhase();
+    void update(); // dispatch logico in base alla fase attuale
+};
+```
 
-3. **Resource Management**
-   - Centralized resource loading
-   - Efficient state transitions
+------------------------------------------------------------
+## 📌 CONCLUSIONI - DESIGN PRINCIPLES
 
-## Next Steps
+| Obiettivo | Raggiunto | Meccanismo |
+|-----------|-----------|------------|
+| Reversibilità (go_back) | ✅ | `board_start` salvata nel Turn |
+| Espandibilità futura | ✅ | FSM + Action Queue + eventi |
+| Separazione logica vs effetto | ✅ | Turn descrive, Board esegue |
+| Supporto animazioni future | ✅ | `AnimationQueue` modulare |
+| Debug e replay facile | ✅ | board_start + log fasi/mosse |
 
-1. Implement `StateManager`
-2. Create base `GameState`
-3. Develop specific game states
-4. Set up resource management
-5. Add game-specific logic
+------------------------------------------------------------
+## ✍️ PROSSIMI PASSI SUGGERITI
+
+- Implementare `AnimationQueue` semplice
+- Refactor `Board::moveX()` in `enqueueMoveActions(Direction)`
+- Integrare `TurnPhase` in `Turn` con `update()` e `nextPhase()`
+- Spostare effetti (consumabili, tile speciali) in fasi FSM
+- Lasciare il rendering/UI isolato nei `State`
+

@@ -8,6 +8,8 @@ GameRun::GameRun(sf::RenderWindow& window, PlayState* playState) :
     window(window),
     playState(playState)
 {
+
+    //to fix this using local time
     auto rd = std::random_device{};
     randomSeed = rd();
     rng.seed(randomSeed);
@@ -51,8 +53,16 @@ void GameRun::go_back() {
 }
 
 void GameRun::openShop() {
+
+    if (shopOpen) { 
+        std::cout << "Shop will not open since it is already been opened\n";
+        return;
+    }
+
     std::cout << "Opening shop...\n";
+    shopOpen = true;
     playState->stateManager.pushState(std::make_unique<ShopState>(playState->stateManager, playState->window, this));
+
 }
 
 
@@ -85,13 +95,41 @@ void GameRun::update(float deltaTime) {
     
 }
 
+void GameRun::drawCounter(sf::RenderWindow& window, unsigned int count) {
+    std::string countStr = std::to_string(count);
+    float digitScale = 10.f;
+    float digitWidth = 5.f;
+    float digitHeight = 7.f;
+
+    for (std::size_t i = 0; i < countStr.size(); ++i) {
+        int digit = countStr[i] - '0';
+
+        sf::Texture digitTexture("assets/textures/digits.png", false,
+            sf::IntRect({ int(digit * digitWidth), 0 }, { int(digitWidth), int(digitHeight) }));
+
+        sf::Sprite digitSprite(digitTexture);
+        digitSprite.setOrigin({ 0.f, 0.f });
+        digitSprite.setScale({ digitScale, digitScale });
+        digitSprite.setPosition({ i * digitWidth * digitScale, 0.f });
+
+        window.draw(digitSprite);
+    }
+}
+
+
+
 void GameRun::render(sf::RenderWindow& window) {
+
 
     if (!run_turns.empty()) {
         run_turns.top()->board.render(window);
+
+        drawCounter(window, unsigned int(run_turns.size()));
     }
 
 }
+
+
 int GameRun::getRandomInt(int min, int max) {
     std::uniform_int_distribution<int> dist(min, max);
     return dist(rng);

@@ -24,7 +24,7 @@ Board::Board(Turn* turn) :
     slots[{-1, 2}]->addEffect(std::make_unique<ShopEffect>());
     slots[{-1, 2}]->canTileStepIn = 0;
     slots[{-1, 2}]->canTileStepOut = 0;
-    slots[{-1, 2}]->setTile(std::make_unique<Tile>(slots[{-1, 2}].get(), 4));
+    slots[{-1, 2}]->setTile(std::make_unique<Tile>(slots[{-1, 2}].get(), 2));
 
     slots.erase({ 2, 2 });
 
@@ -102,7 +102,7 @@ void Board::spawnTileInRandomEmptySlot() {
     }
 
     if (!emptySlots.empty()) {
-        int randomIndex = getRandomInt(0, emptySlots.size() - 1);
+        int randomIndex = getRandomInt(0, int(emptySlots.size()) - 1);
         Slot* randomSlot = emptySlots[randomIndex];
 
         //90% 2 - 10% 4 spawn rate
@@ -129,29 +129,46 @@ void Board::spawnTileInRandomEmptySlot() {
 }
 
 
-void Board::moveLeft() {
+bool Board::moveLeft() {
+
+    bool someTileHasMoved{ 0 };
+
     for (int y = row_range.first; y <= row_range.second; ++y) {
         // Start by checking each row from left to right
         for (int x = col_range.first; x <= col_range.second; ++x) {
-            if (!slots.count({ x, y })) { continue; } // Skip if the slot isn't there (has been removed)
 
-            if (!slots[{ x, y}]->isEmpty()) {
+                                                      // (.count returs 1 if the container has an element with key k
+                                                      //   or 0 otherwise )
+            if (!slots.count({ x, y })) { continue; } // Skip if the slot isn't there (has been removed since it is inside .first and .second) 
+            
+
+            if (!slots[{ x, y}]->isEmpty()) { //Skip if the slot is not empty (does not contain a tile)
                 int currentX = x;
 
                 // Move the tile as far left as possible
                 while (
 
-                    currentX > col_range.first and
-                    slots.count({ currentX - 1, y }) and
-                    slots[{ currentX - 1, y }]->isEmpty() and
-                    slots[{ currentX - 1, y }]->canTileStepIn and
-                    slots[{ currentX, y }]->canTileStepOut
+                    currentX > col_range.first and // this is more of a hard check to be inside the board
+                    slots.count({ currentX - 1, y }) and // tiles at the edge of the board dont move
+                    slots[{ currentX - 1, y }]->isEmpty() and // tiles whose adjacent slot is already full do not move
+                    slots[{ currentX - 1, y }]->canTileStepIn and // if the adj slot is out-locked
+                    slots[{ currentX, y }]->canTileStepOut // if the current slot is in-locked
+
+                    //in the future it may be useful to properly inplement a structure which contains the useful fields or a helper function
+                    //that computes the status of access of a slot
                     
                     )
                 {
+
+                    //if everything went right the current slot changes tile with the next
                     slots[{ currentX, y}]->tile->changeSlot(slots[{ currentX, y}].get(), slots[{ currentX - 1, y }].get());
-                    currentX--; // Move the tile one step to the left
+
+                    currentX--; // Move the considered slot one step to the left to "chase" the tile until it hits a wall
+
+
                     std::cout << "tile moved!\n";
+
+                    someTileHasMoved = true;
                 }
 
                 
@@ -163,15 +180,23 @@ void Board::moveLeft() {
                     slots[{ currentX, y}]->tile->mergeIntoSlot(slots[{ currentX - 1, y }].get());
 
                     std::cout << "tiles merged!\n";
+
+                    someTileHasMoved = true;
                 }
             }
         }
     }
+
+    //if no tile has moved then the move is considered invalid and the turn should not proceed.
+    return someTileHasMoved;
 }
 
 
 
-void Board::moveRight() {
+bool Board::moveRight() {
+
+    bool someTileHasMoved{ 0 };
+
     for (int y = row_range.first; y <= row_range.second; ++y) {
         // Start by checking each row from right to left
         for (int x = col_range.second; x >= col_range.first; --x) {
@@ -197,6 +222,7 @@ void Board::moveRight() {
                     slots[{ currentX, y}]->tile->changeSlot(slots[{ currentX, y}].get(), slots[{ currentX + 1, y }].get());
                     currentX++; // Move the tile one step to the right
                     std::cout << "tile moved!\n";
+                    someTileHasMoved = true;
                 }
 
                 // Check for merging tiles if the right tile is not empty and has the same value
@@ -206,14 +232,20 @@ void Board::moveRight() {
                     slots[{ currentX, y}]->tile->mergeIntoSlot(slots[{ currentX + 1, y }].get());
 
                     std::cout << "tiles merged!\n";
+                    someTileHasMoved = true;
                 }
             }
         }
     }
+
+    return someTileHasMoved;
 }
 
 
-void Board::moveUp() {
+bool Board::moveUp() {
+
+    bool someTileHasMoved{ 0 };
+
     for (int x = col_range.first; x <= col_range.second; ++x) {
         // Start by checking each column from top to bottom
         for (int y = row_range.first + 1; y <= row_range.second; ++y) {  // Start from 1 to allow the previous row to move tiles
@@ -236,6 +268,8 @@ void Board::moveUp() {
                     slots[{ x, currentY}]->tile->changeSlot(slots[{ x, currentY}].get(), slots[{ x, currentY - 1 }].get());
                     currentY--; // Move the tile one step up
                     std::cout << "tile moved!\n";
+
+                    someTileHasMoved = true;
                 }
 
                 // Check for merging tiles if the top tile is not empty and has the same value
@@ -245,14 +279,20 @@ void Board::moveUp() {
                     slots[{ x, currentY}]->tile->mergeIntoSlot(slots[{ x, currentY - 1 }].get());
 
                     std::cout << "tiles merged!\n";
+
+                    someTileHasMoved = true;
                 }
             }
         }
     }
+    return someTileHasMoved;
 }
 
 
-void Board::moveDown() {
+bool Board::moveDown() {
+
+    bool someTileHasMoved{ 0 };
+
     for (int x = col_range.first; x <= col_range.second; ++x) {
         // Start by checking each column from bottom to top
         for (int y = row_range.second; y >= row_range.first; --y) {  // Start from second to last to allow the bottom tile to move
@@ -276,6 +316,7 @@ void Board::moveDown() {
                     slots[{ x, currentY}]->tile->changeSlot(slots[{ x, currentY}].get(), slots[{ x, currentY + 1 }].get());
                     currentY++; // Move the tile one step down
                     std::cout << "tile moved!\n";
+                    someTileHasMoved = true;
                 }
 
                 // Check for merging tiles if the bottom tile is not empty and has the same value
@@ -285,10 +326,12 @@ void Board::moveDown() {
                     slots[{ x, currentY}]->tile->mergeIntoSlot(slots[{ x, currentY + 1 }].get());
 
                     std::cout << "tiles merged!\n";
+                    someTileHasMoved = true;
                 }
             }
         }
     }
+    return someTileHasMoved;
 }
 
 

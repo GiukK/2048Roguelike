@@ -6,7 +6,7 @@
 #include <iostream>
 
 void ShopEffect::onMerge(Slot* slot) {
-    std::cout << "Shop activated at Slot (" << slot->col << ", " << slot->row << ")" << std::endl;
+    std::cout << "Shop merged at Slot (" << slot->col << ", " << slot->row << ")" << std::endl;
     slot->board->turn->requestShop();  // delega tutto al Turn
 }
 

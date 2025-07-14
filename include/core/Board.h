@@ -33,10 +33,10 @@ public:
     //------
     void spawnTileInRandomEmptySlot();
     
-    void moveLeft();
-    void moveRight();
-    void moveUp();
-    void moveDown();
+    bool moveLeft();
+    bool moveRight();
+    bool moveUp();
+    bool moveDown();
 
     void clear();
 

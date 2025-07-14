@@ -15,9 +15,9 @@ Turn::Turn(GameRun* game_run,const Board& initial_board) :
 }
 
 
-void Turn::announce_event() {
+void Turn::nextPhase() {
 
-	std::cout << "EVENT!" << std::endl;
+	std::cout << "Next Phase!" << std::endl;
 
 }
 
@@ -29,7 +29,8 @@ void Turn::end_turn() {
 }
 
 void Turn::requestShop() {
-    game_run->openShop(); // delega a GameRun
+
+    game_run->openShop(); // delega a GameRun, to avoid multiple shops by consecutive merges. (possible feature?)
 }
 
 
@@ -42,24 +43,42 @@ void Turn::update(float deltaTime) {
 void Turn::handleInput(sf::Event& event) {
 
     if (const auto* keyPressed = event.getIf<sf::Event::KeyReleased>()) {
+
         if (keyPressed->scancode == sf::Keyboard::Scancode::X) {
             board.spawnTileInRandomEmptySlot();
         }
         else if (keyPressed->scancode == sf::Keyboard::Scancode::A) {
-            board.moveLeft();
-            board.spawnTileInRandomEmptySlot();
+
+            if (board.moveLeft()) { board.spawnTileInRandomEmptySlot();
+
+            move = Direction::Left;
+            
+            }
+            else { std::cout << "move invalid" << std::endl; return;}
         }
         else if (keyPressed->scancode == sf::Keyboard::Scancode::D) {
-            board.moveRight();
-            board.spawnTileInRandomEmptySlot();
+            if (board.moveRight()) { board.spawnTileInRandomEmptySlot();
+            
+            move = Direction::Right;
+
+            }
+            else { std::cout << "move invalid" << std::endl; return; }
         }
         else if (keyPressed->scancode == sf::Keyboard::Scancode::W) {
-            board.moveUp();
-            board.spawnTileInRandomEmptySlot();
+            if (board.moveUp()) { board.spawnTileInRandomEmptySlot();
+            
+            move = Direction::Up;
+
+            }
+            else { std::cout << "move invalid" << std::endl; return;}
         }
         else if (keyPressed->scancode == sf::Keyboard::Scancode::S) {
-            board.moveDown();
-            board.spawnTileInRandomEmptySlot();
+            if (board.moveDown()) { board.spawnTileInRandomEmptySlot();
+            
+            move = Direction::Down;
+
+            }
+            else { std::cout << "move invalid" << std::endl; return;}
         }
         else if (keyPressed->scancode == sf::Keyboard::Scancode::Delete) {
             board.clear();

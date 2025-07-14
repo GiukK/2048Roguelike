@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include "core/Board.h"
+#include "core/Direction.h"
 
 class GameRun; //   forward declaration GameRun -u-> Turn
                //                       Turn -raw-> GameRun
@@ -10,10 +11,20 @@ class Turn {
 
 public:
 
+    enum class Phase {
+        Begin,
+        //ApplyConsumables,
+        //ApplyEffects,
+        Movement,
+        //TriggerPassives,
+        BoardResolution,
+        //SpecialEvents,
+        End
+    };
+
     Turn(GameRun* game_run);
     Turn(GameRun* game_run, const Board& initial_board);
 
-    void announce_event();
     void end_turn();
 
     void requestShop();
@@ -41,11 +52,14 @@ public:
 
     GameRun* game_run;
 
+    Direction move = Direction::None;
+
+    Phase phase = Phase::Begin;
+
+    void nextPhase();
 
 private:
 
     bool input_received = 0;
-
-
 
 };

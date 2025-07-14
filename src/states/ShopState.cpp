@@ -10,8 +10,8 @@ ShopState::ShopState(StateManager& stateManager, sf::RenderWindow& window, GameR
 {
         //set sprite origin and scale
     shopSprite.setOrigin({ 0.f, 0.f });
-    shopSprite.setScale({ 5.f, 5.f });
-    shopSprite.setPosition({ 160.f,140.f });
+    shopSprite.setScale({ 25.f, 25.f });
+    shopSprite.setPosition({ 160.f, 0.f });
 
     enter(); // Open shop
 }
@@ -31,6 +31,9 @@ void ShopState::handleInput(sf::Event& event) {
         if (keyPressed->scancode == sf::Keyboard::Scancode::Escape) {
             std::cout << "Exiting shop..." << std::endl;
 
+            // right now this field is public since the closing of the shop is currently handled by ShopState
+            // in the future it will probably make sense to fully handle the UI internally in GameRun by creating public functions that modify private fields.
+            currentRun->shopOpen = false;
 
             exit();  // Close shop
             return;

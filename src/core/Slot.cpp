@@ -72,6 +72,8 @@ void Slot::removeTile() {
 void Slot::addEffect(std::unique_ptr<SlotEffect> effect) {
     effects.push_back(std::move(effect));
 
+
+    //right now the effect is trivially the shop but in the future this will be constructed with string concatenation
     sf::Texture loader("assets/textures/shopslot.png", false, sf::IntRect({ 0, 0 }, { 32, 32 }));
 
     slotTexture = loader;
@@ -85,6 +87,8 @@ void Slot::addEffect(std::unique_ptr<SlotEffect> effect) {
 
 
     float shift = 300.f;
+
+    //in the future the position will hopefully be more insightful to read
     slot.setPosition({ 128.f * col + shift, 128.f * row + shift });
 }
 

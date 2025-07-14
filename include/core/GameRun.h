@@ -32,6 +32,12 @@ public:
     void update(float deltaTime) ;
     void render(sf::RenderWindow& window);
 
+
+    // right now this field is public since the closing of the shop is currently handled by ShopState
+    // in the future it will probably make sense to fully handle the UI internally by creating public functions that modify private fields.
+
+    bool shopOpen{ 0 };
+
 private:
 
     unsigned int randomSeed;
@@ -39,7 +45,11 @@ private:
 
     bool gameStarted{ 0 };
 
+
     //------
+
+    //this function will later be part of a more broad UI.h
+    void drawCounter(sf::RenderWindow& window, unsigned int count);
 
     sf::RenderWindow& window;
 

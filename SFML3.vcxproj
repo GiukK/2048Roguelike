@@ -163,6 +163,7 @@
   <ItemGroup>
     <ClInclude Include="include\core\Board.h" />
     <ClInclude Include="include\core\Coord.h" />
+    <ClInclude Include="include\core\Direction.h" />
     <ClInclude Include="include\core\GameRun.h" />
     <ClInclude Include="include\core\GameState.h" />
     <ClInclude Include="include\core\ShopEffect.h" />
