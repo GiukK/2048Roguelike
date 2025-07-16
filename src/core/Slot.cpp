@@ -54,6 +54,10 @@ bool Slot::isEmpty() const {
     return tile == nullptr;
 }
 
+Coord Slot::getCoord() const {
+    return { col, row };
+}
+
 void Slot::setTile(std::unique_ptr<Tile> newTile) {
     tile = std::move(newTile);  // Takes ownership using move semantics
 }

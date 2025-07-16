@@ -3,6 +3,7 @@
 #include <memory>
 #include "Tile.h"
 #include "SlotEffect.h"
+#include "Coord.h"
 
 #include "SFML/Graphics.hpp"
 
@@ -10,48 +11,55 @@ class Board;
 class Tile;
 
 class Slot {
-private:
-
-
-
 public:
+    //------
+    Slot(int col, int row, Board* board);
 
+    //for board copying to next turn
+    Slot(const Slot& other, Board* board);
+    //------
+
+
+    Coord getCoord() const;
     int col;//x
     int row;//y
 
+
+    //------
+
+    //movement flag
     bool canTileStepIn{1};
     bool canTileStepOut{ 1 };
 
-
+    //raw ptr to owner - Board
     Board* board;
 
+    //single unique ptr to -> Tile
     std::unique_ptr<Tile> tile = nullptr;
 
+    //rendering utils
+    void render(sf::RenderWindow& window);
     sf::Texture slotTexture;
     sf::Sprite slot;
 
-    Slot(int col, int row, Board* board);
 
-    Slot(const Slot& other, Board* board);
-
-
-
-    void render(sf::RenderWindow& window);
-
-    // In Slot.h - Change isEmpty() from a non-const to a const method:
-    bool isEmpty() const;  // Note the const keyword
-
+    //--------------
+    //is there a tile?
+    bool isEmpty() const;  // const
+    //hard sets tile 
     void setTile(std::unique_ptr<Tile> newTile);
-
+    //hard remove tile
     void removeTile();
-
+    //soft releasing
     std::unique_ptr<Tile> releaseTile();
 
+    //------
+    //vector of effects (concept to be expanded)
     std::vector<std::unique_ptr<SlotEffect>> effects;
-
+    //adds effect to vector
     void addEffect(std::unique_ptr<SlotEffect> effect);
-
+    //triggers optional merge effect FOR EACH EFFECT in vector
     void triggerMergeEffects();
 
-
+private:
 };

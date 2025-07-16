@@ -4,13 +4,14 @@
 #include "core/Board.h"
 #include "core/Direction.h"
 
-class GameRun; //   forward declaration GameRun -u-> Turn
+class GameRun; //   forward declaration GameRun -unique-> Turn
                //                       Turn -raw-> GameRun
 
 class Turn {
 
 public:
 
+    //FSM of phases
     enum class Phase {
         Begin,
         //ApplyConsumables,
@@ -22,44 +23,70 @@ public:
         End
     };
 
+    inline const char* toString(Phase phase) {
+        switch (phase) {
+        case Phase::Begin:                      return "Begin";
+        //case Phase::ApplyConsumables:         return "ApplyConsumables";
+        //case Phase::ApplyEffects:             return "ApplyEffects";
+        case Phase::Movement:                   return "Movement";
+        case Phase::BoardResolution:            return "BoardResolution";
+        //case Phase::TriggerPassives:          return "TriggerPassives";
+        //case Phase::TriggerSpecialStates:     return "TriggerSpecialStates";
+        case Phase::End:                        return "End";
+        default:                                return "Unknown Phase";
+        }
+    }
+
     Turn(GameRun* game_run);
     Turn(GameRun* game_run, const Board& initial_board);
 
-    void end_turn();
-
-    void requestShop();
+    //---------------------------------------------------------
+    //modularized for FSM
+    void handleInput(sf::Event& event);
+        void handleInput_BeginPhase(sf::Event& event);
 
     void update(float deltaTime);
-    void handleInput(sf::Event& event);
+    void render(sf::RenderWindow& window);
+    //---------------------------------------------------------
 
-
-    //------TURNS CONTAINS THE BOARD.H ITSELF, IT WILL MANAGE IT INTRNALLY
+    //------TURNS OWNS ITS BOARD ITSELF, IT WILL MANAGE IT INTRNALLY
     // 
     // each turn must contain every information to replicate the exact instance of the board i.e:
     // the disposition of the tiles at the start of the turn
     // the move made at the end of the turn
     // 
-    // note : contrary to logic, the turn "ends" with the move, in the sense that the information to move the tiles will still be processed in that turn but the
-    // final disposition of the tiles will be stored in the initial state of the next turn.
+    // essential for go_back and future effects
     // 
-    // IN THE FUTURE : the turn will probably contain a field called "events" or similar, that will contain a list of effects and special events, so that the turn will
-    // be analyzable in further detail and complexity. At the moment the core concept to recreate is the "go back" feature.
-    
     //---------------------------------------------------------
 
-
+    //internal board of the turn
     Board board;
+    //useful for restoring the turn's state
+    Board boardBegin;
 
+    //raw ptr back to owner GameRun
     GameRun* game_run;
 
+    //internal currentmove made - None if not yet chosen
     Direction move = Direction::None;
 
-    Phase phase = Phase::Begin;
+    //current phase of the Turn in the FSM
+    Phase currentPhase = Phase::Begin;
 
+    //skips phase following the common order
     void nextPhase();
+
+
+    //hard ends turn
+    void end_turn();
+
+    //requests shop to be handled by GameRun (possible change)
+    void requestShop();
+
 
 private:
 
-    bool input_received = 0;
+    //trivial flag for input of move (to be depracated)
+    bool inputReceived = 0;
 
 };

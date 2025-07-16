@@ -50,20 +50,19 @@ void Tile::setValue(int x) {
 
 }
 
+//the in-merging tile is the one destroyed
 void Tile::mergeIntoSlot(Slot* other) {
 
 	int sum = value + other->tile->getValue();
-
 	other->tile->setValue(sum);
-
 	slot->removeTile();
 
 
 	other->tile->changeSprite();
-
 	other->triggerMergeEffects();
 
 }
+
 
 void Tile::changeSprite() {
 

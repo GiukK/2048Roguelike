@@ -36,7 +36,7 @@ void GameRun::exit() {
 void GameRun::new_turn(const Board& initial_board) {
     run_turns.push(std::make_unique<Turn>(this, initial_board));
 
-    std::cout << "Turn" << run_turns.size() << std::endl;
+    std::cout << " -------------------------------" << "Turn " << run_turns.size() << " -------------------------------" << std::endl;
 
 }
 
@@ -91,10 +91,10 @@ void GameRun::handleInput(sf::Event& event) {
 
 void GameRun::update(float deltaTime) {
 
-    //called every gameloop (fast) -> does nothing at the moment but will be used to animate board.
-    
+    run_turns.top()->update(deltaTime);
 }
 
+//writes a counter with the number of the turn
 void GameRun::drawCounter(sf::RenderWindow& window, unsigned int count) {
     std::string countStr = std::to_string(count);
     float digitScale = 10.f;
@@ -124,7 +124,7 @@ void GameRun::render(sf::RenderWindow& window) {
     if (!run_turns.empty()) {
         run_turns.top()->board.render(window);
 
-        drawCounter(window, unsigned int(run_turns.size()));
+        drawCounter(window, unsigned int(run_turns.size())); //writes a counter with the number of the turn
     }
 
 }
