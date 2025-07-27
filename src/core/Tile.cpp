@@ -1,22 +1,35 @@
 #include "core/Tile.h"
 #include "core/Slot.h"
+#include "rendering/RenderSystem.h"
 
-Tile::Tile(Slot* slot, int value) :
+
+//the entirety of this class has to be rethought as a more solid and less visual-oriented (sprites)
+
+Tile::Tile(RenderSystem& renderer , Slot* slot, int value) :
 value(value),
-slot(slot),
-tileTexture("assets/textures/" + std::to_string(value) + ".png", false, sf::IntRect({ 0, 0 }, { 32, 32 })),
-tile(tileTexture)
+renderer(renderer),
+tile(renderer.getTextureManager().get(std::to_string(value))),
+slot(slot)
 {
-	tile.setOrigin({ 16.f,16.f });
-	tile.setScale({ 2.f, 2.f });
-	tile.setPosition(slot->slot.getPosition());
+	fixVisualAssets();
 }
 
 
 
-void Tile::render(sf::RenderWindow& window) {
 
-	window.draw(tile);
+void Tile::fixVisualAssets() {
+
+	tile.setOrigin({ tile.getGlobalBounds().size.x / 2 , tile.getGlobalBounds().size.y / 2 });
+	tile.setScale({ 2.f, 2.f });
+	tile.setPosition(slot->getSlotSprite().getPosition());
+
+}
+
+
+
+void Tile::render( RenderSystem& renderer) {
+
+	renderer.draw(tile);
 
 }
 
@@ -25,7 +38,7 @@ void Tile::changeSlot(Slot* a, Slot* b) {
 
 	this->slot = b;
 
-	tile.setPosition(b->slot.getPosition());
+	//tile.setPosition(b->slot.getPosition());
 
 	b->setTile(a->releaseTile());
 
@@ -34,7 +47,6 @@ void Tile::changeSlot(Slot* a, Slot* b) {
 sf::Vector2f Tile::getPosition() {
 
 	return tile.getPosition();
-
 }
 
 
@@ -53,6 +65,8 @@ void Tile::setValue(int x) {
 //the in-merging tile is the one destroyed
 void Tile::mergeIntoSlot(Slot* other) {
 
+	std::cout << "Slot merged at: x = " << other->getCoord().x << " and y = " << other->getCoord().y << std::endl;
+
 	int sum = value + other->tile->getValue();
 	other->tile->setValue(sum);
 	slot->removeTile();
@@ -66,16 +80,8 @@ void Tile::mergeIntoSlot(Slot* other) {
 
 void Tile::changeSprite() {
 
-	std::cerr << "changed!1" << std::endl;
-
 	std::string val = std::to_string(value);
 
-	if (!tileTexture.loadFromFile("assets/textures/" + val + ".png")) {
-		std::cerr << "Error loading tile texture!" << std::endl;
-		return;
-	}
+	tile.setTexture(renderer.getTextureManager().get(val));
 
-	tile.setTexture(tileTexture);
-
-	std::cerr << "changed!2" << std::endl;
 }

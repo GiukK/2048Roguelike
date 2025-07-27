@@ -41,6 +41,8 @@ Ogni sottoclasse ha un raw pointer verso il proprio "genitore" (es: Slot → Boa
     - End
 
 ------------------------------------------------------------
+
+## NON ANCORA IMPLEMENTATO
 ## ⚙️ GESTIONE MOVIMENTO E STATI DI BOARD
 
 - Non usare `Board::moveLeft()` per spostare TUTTO in un colpo.
@@ -127,9 +129,10 @@ class Turn {
 ------------------------------------------------------------
 ## ✍️ PROSSIMI PASSI SUGGERITI
 
+-Implementare passo passo a cascata il rendering e loading centralizzato delle risorse visive:
+    da Platstate(x) -> GameRun(si) -> fino ad -> Tile (Classe quasi completamente da riscrivere)
+
 - Implementare `AnimationQueue` semplice
 - Refactor `Board::moveX()` in `enqueueMoveActions(Direction)`
-- Integrare `TurnPhase` in `Turn` con `update()` e `nextPhase()`
 - Spostare effetti (consumabili, tile speciali) in fasi FSM
-- Lasciare il rendering/UI isolato nei `State`
 

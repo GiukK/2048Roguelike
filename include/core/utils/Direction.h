@@ -9,7 +9,7 @@ enum class Direction {
 };
 
 // Converts a Direction to its string representation
-inline const char* toString(Direction dir) {
+inline const char* dirToString(Direction dir) {
     switch (dir) {
     case Direction::None:  return "None";
     case Direction::Up:    return "Up";

@@ -145,15 +145,17 @@
   <ItemGroup>
     <ClCompile Include="src\core\Board.cpp" />
     <ClCompile Include="src\core\GameRun.cpp" />
-    <ClCompile Include="src\core\MovementQueue.cpp" />
-    <ClCompile Include="src\core\ShopEffect.cpp" />
+    <ClCompile Include="src\core\utils\MovementQueue.cpp" />
+    <ClCompile Include="src\core\utils\saleItem.cpp" />
+    <ClCompile Include="src\effects\ShopEffect.cpp" />
     <ClCompile Include="src\core\Slot.cpp" />
     <ClCompile Include="src\core\Tile.cpp" />
     <ClCompile Include="src\core\Turn.cpp" />
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\prova.cpp" />
-    <ClCompile Include="src\core\StateManager.cpp" />
+    <ClCompile Include="src\states\StateManager.cpp" />
     <ClCompile Include="src\Game.cpp" />
+    <ClCompile Include="src\rendering\RenderSystem.cpp" />
+    <ClCompile Include="src\rendering\TextureManager.cpp" />
     <ClCompile Include="src\states\MenuState.cpp" />
     <ClCompile Include="src\states\PlayState.cpp" />
     <ClCompile Include="src\states\ShopState.cpp" />
@@ -163,18 +165,21 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\core\Board.h" />
-    <ClInclude Include="include\core\Coord.h" />
-    <ClInclude Include="include\core\Direction.h" />
+    <ClInclude Include="include\core\utils\Coord.h" />
+    <ClInclude Include="include\core\utils\Direction.h" />
     <ClInclude Include="include\core\GameRun.h" />
-    <ClInclude Include="include\core\GameState.h" />
-    <ClInclude Include="include\core\MovementQueue.h" />
-    <ClInclude Include="include\core\ShopEffect.h" />
+    <ClInclude Include="include\core\utils\saleItem.h" />
+    <ClInclude Include="include\states\GameState.h" />
+    <ClInclude Include="include\core\utils\MovementQueue.h" />
+    <ClInclude Include="include\effects\ShopEffect.h" />
     <ClInclude Include="include\core\Slot.h" />
-    <ClInclude Include="include\core\SlotEffect.h" />
-    <ClInclude Include="include\core\StateManager.h" />
+    <ClInclude Include="include\effects\SlotEffect.h" />
+    <ClInclude Include="include\states\StateManager.h" />
     <ClInclude Include="include\core\Tile.h" />
     <ClInclude Include="include\core\Turn.h" />
     <ClInclude Include="include\Game.h" />
+    <ClInclude Include="include\rendering\RenderSystem.h" />
+    <ClInclude Include="include\rendering\TextureManager.h" />
     <ClInclude Include="include\states\MenuState.h" />
     <ClInclude Include="include\states\PlayState.h" />
     <ClInclude Include="include\states\ShopState.h" />

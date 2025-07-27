@@ -1,13 +1,11 @@
 #include "states/PlayState.h"
 #include <iostream>
 
-PlayState::PlayState(StateManager& stateManager, sf::RenderWindow& window) :
+PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer) :
     stateManager(stateManager),
-    window(window),
-    currentRun(std::make_unique<GameRun>(window, this))
+    renderer(renderer),
+    currentRun(std::make_unique<GameRun>(renderer, this))
 {
-
-
     enter(); // Open game
 }
 
@@ -49,8 +47,8 @@ void PlayState::update(float deltaTime) {
 
 }
 
-void PlayState::render(sf::RenderWindow& window) {
+void PlayState::render(RenderSystem& renderer) {
 
     //Text UI deprecated
-    currentRun->render(window);
+    currentRun->render(renderer);
 }

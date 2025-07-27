@@ -1,4 +1,5 @@
-#include "core/StateManager.h"
+#include "states/StateManager.h"
+#include "rendering/RenderSystem.h"
 
 void StateManager::pushState(std::unique_ptr<GameState> state) {
     states.push(std::move(state));
@@ -44,8 +45,8 @@ void StateManager::update(float deltaTime) {
     }
 }
 
-void StateManager::render(sf::RenderWindow& window) {
+void StateManager::render(RenderSystem& renderer) {
     if (!states.empty()) {
-        states.top()->render(window);
+        states.top()->render(renderer);
     }
 }

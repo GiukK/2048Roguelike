@@ -3,11 +3,27 @@
 #include "core/Gamerun.h"
 #include "states/PlayState.h"
 #include "states/ShopState.h"
+#include "rendering/RenderSystem.h"
+#include "rendering/TextureManager.h"
+//#include "core/utils/saleItem.h"
 
-GameRun::GameRun(sf::RenderWindow& window, PlayState* playState) :
-    window(window),
-    playState(playState)
+
+GameRun::GameRun(RenderSystem& renderer, PlayState* playState) :
+    renderer(renderer),
+    playState(playState),
+    backUI(renderer.getTextureManager().get("backUI")),
+    coin_animation(renderer.getTextureManager().get("coin_animation"))
 {
+
+    //future fixVisualAssets as the others
+    renderer.resizeSprite("backUI", backUI);
+
+    renderer.resizeSprite("coin_animation", coin_animation);
+
+    coin_animation.setPosition({ 20.f, 850.f });
+    //animation starts at 0, avoids full sprite artifact
+    coin_animation.setTextureRect(sf::IntRect({ int(coin_ani_frame * 32), 0 }, { 32, 32 })); 
+
 
     //to fix this using local time
     auto rd = std::random_device{};
@@ -16,7 +32,7 @@ GameRun::GameRun(sf::RenderWindow& window, PlayState* playState) :
 
     gameStarted = true;
 
-    run_turns.push(std::make_unique<Turn>(this));
+    run_turns.push(std::make_unique<Turn>(renderer , this));
 
 }
 
@@ -34,7 +50,7 @@ void GameRun::exit() {
 
 
 void GameRun::new_turn(const Board& initial_board) {
-    run_turns.push(std::make_unique<Turn>(this, initial_board));
+    run_turns.push(std::make_unique<Turn>(renderer , this, initial_board));
 
     std::cout << " -------------------------------" << "Turn " << run_turns.size() << " -------------------------------" << std::endl;
 
@@ -61,27 +77,11 @@ void GameRun::openShop() {
 
     std::cout << "Opening shop...\n";
     shopOpen = true;
-    playState->stateManager.pushState(std::make_unique<ShopState>(playState->stateManager, playState->window, this));
+    playState->stateManager.pushState(std::make_unique<ShopState>(playState->stateManager, renderer, this));
 
-}
-
-
-
-void GameRun::addScore(int score) {
-    score += score;
-    std::cout << "Score added: " << score << " | Total Score: " << score << std::endl;
-}
-
-void GameRun::subtractScore(int score) {
-    score -= score;
-    if (score < 0) {
-        score = 0; // Ensuring score doesn't go negative
-    }
-    std::cout << "Score subtracted: " << score << " | Total Score: " << score << std::endl;
 }
 
 void GameRun::handleInput(sf::Event& event) {
-
 
     if (!run_turns.empty()) {
         run_turns.top()->handleInput(event);
@@ -92,14 +92,46 @@ void GameRun::handleInput(sf::Event& event) {
 void GameRun::update(float deltaTime) {
 
     run_turns.top()->update(deltaTime);
+
+    coin_ani_elapsed += deltaTime;
+
+
+    //all this CAN and WILL be centralized, possibly in the renderer and with a centralized deltatime, fps and animation handling.
+
+    if (coin_ani_elapsed > 1.f / 12.f) {
+
+        coin_ani_frame += 1;
+
+        if (coin_ani_frame >= 8) {
+            coin_ani_frame = 0;
+        }
+        coin_animation.setTextureRect(sf::IntRect({ int(coin_ani_frame * 32), 0 }, { 32, 32 })); //animation starts at 0
+        
+        coin_ani_elapsed = 0;
+
+
+        
+    }
 }
 
-//writes a counter with the number of the turn
-void GameRun::drawCounter(sf::RenderWindow& window, unsigned int count) {
+//writes a counter with the number of the turn-  to be deprecated
+void GameRun::drawCounter(sf::RenderWindow& window, unsigned int count, std::string asset) {
     std::string countStr = std::to_string(count);
     float digitScale = 10.f;
     float digitWidth = 5.f;
     float digitHeight = 7.f;
+
+    const float YSHIFT = 18.f;
+    float XSHIFT{};
+
+    if (asset == "turns") {
+
+        XSHIFT = 340.f;
+    }
+    else if (asset == "coins") {
+
+        XSHIFT = 1000.f;
+    }
 
     for (std::size_t i = 0; i < countStr.size(); ++i) {
         int digit = countStr[i] - '0';
@@ -110,7 +142,7 @@ void GameRun::drawCounter(sf::RenderWindow& window, unsigned int count) {
         sf::Sprite digitSprite(digitTexture);
         digitSprite.setOrigin({ 0.f, 0.f });
         digitSprite.setScale({ digitScale, digitScale });
-        digitSprite.setPosition({ i * digitWidth * digitScale, 0.f });
+        digitSprite.setPosition({ i * digitWidth * digitScale + XSHIFT, YSHIFT });
 
         window.draw(digitSprite);
     }
@@ -118,16 +150,29 @@ void GameRun::drawCounter(sf::RenderWindow& window, unsigned int count) {
 
 
 
-void GameRun::render(sf::RenderWindow& window) {
+void GameRun::render(RenderSystem& renderer) {
+
+    renderer.draw(backUI);
+
+    renderer.draw(coin_animation);
+
+    run_turns.top()->render(renderer);
 
 
-    if (!run_turns.empty()) {
-        run_turns.top()->board.render(window);
+    //in the future this function will not exist, all the ui will be centralized
+    drawCounter(renderer.getWindow(), run_turns.size(), "turns");
+    drawCounter(renderer.getWindow(), coins , "coins");
 
-        drawCounter(window, unsigned int(run_turns.size())); //writes a counter with the number of the turn
+    //draw inventory
+    for (auto& item : inventory) {
+
+        renderer.draw(item.sprite);
+
     }
 
+
 }
+
 
 
 int GameRun::getRandomInt(int min, int max) {
@@ -140,3 +185,49 @@ float GameRun::getRandomFloat(float min, float max) {
     return dist(rng);
 }
 
+const RenderSystem& GameRun::getRenderer() const {
+
+    return renderer;
+
+}
+
+void GameRun::addCoins(int count) {
+
+    coins += count;
+
+    return;
+
+}
+
+const int GameRun::getCoins() const  {
+
+    return coins;
+
+}
+
+std::vector<saleItem>& GameRun::getInventory() {
+
+    return inventory;
+
+}
+
+bool GameRun::isInventoryFull() {
+
+    return inventory.size() == maxInventorySize;
+
+}
+
+void GameRun::addItem(std::string item_name) {
+
+    saleItem item(item_name, renderer);
+
+    //hard positioning for gamerun ui -> to be deprecated and centralized into an UI manager
+
+    item.sprite.setPosition({ 1500.f, 400.f + 100.f*inventory.size()});
+    item.sprite.setScale({ 1.f, 1.f });
+    //
+
+    //in the future this will be a better structured container and class/struct
+    inventory.push_back(item);
+
+}

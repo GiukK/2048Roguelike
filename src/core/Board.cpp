@@ -1,82 +1,122 @@
 #include "core/Board.h"
-#include "core/Coord.h"
+#include "core/utils/Coord.h"
 #include "core/Slot.h"
-#include "core/ShopEffect.h"
+#include "effects/ShopEffect.h"
 #include "core/Turn.h"
+#include "rendering/RenderSystem.h"
 
-Board::Board(Turn* turn) :
-    turn(turn),
-    boardTexture("assets/textures/board.png", false, sf::IntRect({ 0, 0 }, { 64, 32 })),
-    board(boardTexture)
+
+Board::Board(RenderSystem& renderer, Turn* turn, bool doInitialSetup) :
+    renderer(renderer),
+    board(renderer.getTextureManager().get("board")),
+    turn(turn)
 {
-    //set sprite origin and scale
-    board.setOrigin({ 0.f, 0.f });
-    board.setScale({ 22.f, 22.f });
-    board.setPosition({ 160.f,140.f });
-    //------
-    const float shift = 300.f;
-    for (int i = -0; i <= 3; ++i) {
-        for (int j = 0; j <= 3; ++j) {
-            slots[{i, j}] = std::make_unique<Slot>(i, j, this);
-        }
+    //only for the first board
+    if (doInitialSetup) {
+        fixVisualAssets();
+        firstBoardSetUp();
     }
-
-    slots[{-1, 2}] = std::make_unique<Slot>(-1, 2, this);
-    slots[{-1, 2}]->addEffect(std::make_unique<ShopEffect>());
-    slots[{-1, 2}]->canTileStepIn = 0;
-    slots[{-1, 2}]->canTileStepOut = 0;
-    slots[{-1, 2}]->setTile(std::make_unique<Tile>(slots[{-1, 2}].get(), 2));
-
-    slots.erase({ 2, 2 });
-
-    spawnTileInRandomEmptySlot();
-
 }
 
-Board::Board(const Board& other, Turn* turn) :
-    turn(turn),
-    col_range(other.col_range),
-    row_range(other.row_range),
-    boardTexture(other.boardTexture),
-    board(other.boardTexture),
-    rng(other.rng)
-{
-    //set sprite origin and scale
-    board.setOrigin({ 0.f, 0.f });
-    board.setScale({ 22.f, 22.f });
-    board.setPosition({ 160.f,140.f });
-    //------
+Board Board::cloneFrom(const Board& other, Turn* turn) {
+    Board b(other.renderer, turn, false);
+    b.copyStateFrom(other);
+    return b;
+}
 
-    // Primo passo: creare nuovi slot
+void Board::copyStateFrom(const Board& other) {
+    this->clear();
+
+    board = other.board;
+    col_range = other.col_range;
+    row_range = other.row_range;
+    rng = other.rng;
+
+    //restore flags at the end of the round
+    isResolvingMovementFlag = false;
+    moveIsPermittedFlag = false;
+
+    slots.clear();
     for (const auto& [coord, slotPtr] : other.slots) {
         slots[coord] = std::make_unique<Slot>(*slotPtr, this);
     }
 
-    // Secondo passo: copiare le tile mantenendo riferimenti corretti agli slot
     for (const auto& [coord, slotPtr] : other.slots) {
         if (!slotPtr->isEmpty()) {
             Slot* mySlot = slots[coord].get();
             const Tile* originalTile = slotPtr->tile.get();
-            mySlot->setTile(std::make_unique<Tile>(mySlot, originalTile->getValue()));
+            mySlot->setTile(std::make_unique<Tile>(renderer, mySlot, originalTile->getValue()));
         }
-
     }
-    
 }
 
 
 
-void Board::render(sf::RenderWindow& window) {
+void Board::fixVisualAssets() {
 
-    window.draw(board);
+    //asset resizing
+    renderer.resizeSprite("board", board);
+    //asset origin setting
 
-    // Iterate over the map using a range-based for loop
-    for (const auto& pair : slots) {
-        //const Coord& coord = pair.first;  // The key (Coord)
-        const std::unique_ptr<Slot>& slot = pair.second;  // The value (shared_ptr<Slot>)
+    board.setOrigin(board.getLocalBounds().getCenter());
 
-        slot->render(window);
+    //asset positioning
+    auto windowSize = renderer.getWindowSize();
+
+    board.setPosition({ float(windowSize.x) / 2, float(windowSize.y) / 2 }); //  up shift (-) 
+
+    std::cout << "Board visual assets: ready" << std::endl;
+}
+
+
+
+void Board::firstBoardSetUp() {
+
+    //grid
+    for (int i = -0; i <= 3; ++i) {
+        for (int j = 0; j <= 3; ++j) {
+            slots[{i, j}] = std::make_unique<Slot>(i, j, this, renderer);
+        }
     }
+    //shop initial slot
+    slots[{-1, 2}] = std::make_unique<Slot>(-1, 2, this, renderer);
+
+    //shop effect add->tile and fields (to be created a specific function)
+    slots[{-1, 2}]->addEffect(std::make_unique<ShopEffect>());
+    slots[{-1, 2}]->canTileStepIn = 0;
+    slots[{-1, 2}]->canTileStepOut = 0;
+    slots[{-1, 2}]->setTile(std::make_unique<Tile>(renderer, slots[{-1, 2}].get(), 2));
+
+    //boss
+
+    /*
+    slots[{3, 3}]->getSlotSprite().setTexture(renderer.getTextureManager().get("monstro"));
+    slots[{3, 3}]->getSlotSprite().setTextureRect(sf::IntRect({ 0,0 }, { 42, 42 }));
+    slots[{3, 3}]->getSlotSprite().setOrigin({ 42 / 2 , 42 / 2 });
+    renderer.resizeSprite("monstro" , slots[{3, 3}]->getSlotSprite());
+    */
+
+    //hole
+    
+    //slots.erase({ 2, 2 });
+    
+    //first tile
+    spawnTileInRandomEmptySlot();
+    
+}
+
+
+void Board::render(RenderSystem& renderer) {
+
+    //renderer.draw(board);
+
+    for (const auto& [coord, slotPtr] : slots) {
+
+        slotPtr->render(renderer);
+
+    }
+
+
 }
 
 void Board::update(float deltaTime) {
@@ -124,7 +164,7 @@ void Board::spawnTileInRandomEmptySlot() {
         }
 
         //spawn random tile at random tile
-        randomSlot->setTile(std::make_unique<Tile>(randomSlot,tileValue));
+        randomSlot->setTile(std::make_unique<Tile>(renderer,randomSlot,tileValue));
 
         std::cout << "Spawned tile at (row=" << randomSlot->row << ", col=" << randomSlot->col << ") with value " << tileValue << std::endl ;
         std::cout << "the value of spawn rate was " << probValue << std::endl;
@@ -235,10 +275,17 @@ void Board::resolveNextTileMove(Direction moveDirection) {
     if (slots.count(mergeCoord)) {
         Slot* neighbor = slots[mergeCoord].get();
 
-        if (!neighbor->isEmpty() &&
-            neighbor->tile->getValue() == tile->getValue()) {
+        //this should all be part of a function that computes and groups conditions and combinations of effect
+        //locked, passives, effects...etc
+
+        if (!neighbor->isEmpty() and                                //the neighbor slot must be empty
+            neighbor->tile->getValue() == tile->getValue() and      //it must have the same value
+            slots[current]->canTileStepOut)                         //the current slot must not be locked
+        {
 
             tile->mergeIntoSlot(neighbor);
+
+            moveIsPermittedFlag = true;
         }
     }
 }
@@ -260,8 +307,6 @@ void Board::clear() {
     for (const auto& entry : slots) {
         if (!entry.second->isEmpty()) {
             entry.second->removeTile();
-
-            std::cout << "removed tile from col=" << entry.first.x << " row=" << entry.first.y << std::endl;
         }
     }
 }
@@ -276,3 +321,28 @@ bool Board::moveIsPermitted() const {
     return moveIsPermittedFlag;
 }
 
+//----test
+
+void Board::handleClick(sf::Vector2f worldPos) {
+
+
+    return;
+
+    //this function has to be thought again as after the render refactor the slot's sprite is not owned.(it actually is, luckily)
+
+    /*
+    for (const auto& [coord, slotPtr] : slots) {
+        sf::FloatRect bounds = slotPtr->getSlotSprite().getGlobalBounds();
+
+        if (bounds.contains(worldPos)) {
+
+            // Applica filtro rosso
+            slotPtr->getSlotSprite().setColor(sf::Color(255, 100, 100));  // leggermente trasparente rosso
+
+            return;
+        }
+    }
+
+    std::cout << "Clicked on empty space.\n";
+    */
+}

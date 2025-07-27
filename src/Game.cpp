@@ -2,17 +2,25 @@
 #include "Game.h"
 #include "states/MenuState.h"  // Start with the main menu
 
-Game::Game() : window(sf::VideoMode::getFullscreenModes()[0], "My 2D Game", sf::Style::None) //set to None when deployed
+Game::Game() : window(sf::VideoMode::getFullscreenModes()[0], "<0>", sf::Style::None), //set to None when deployed
+               renderer(window)
 {
     window.setFramerateLimit(100); //limit framerate
-    stateManager.pushState(std::make_unique<MenuState>(stateManager, window));  // Push initial state
+
+    // Init layout and texture
+    renderer.initialize(window.getSize());
+
+    stateManager.pushState(std::make_unique<MenuState>(stateManager, renderer));  // Push initial state
+
 }
 
+
+//game loop
 void Game::run() {
     while (window.isOpen()) {
-        processEvents();
-        update(clock.restart().asSeconds());
-        render();
+        processEvents(); //input handliing
+        update(clock.restart().asSeconds()); //clock restart and update deltaTime
+        render(); //rendering
     }
 }
 
@@ -32,6 +40,6 @@ void Game::update(float deltaTime) {
 
 void Game::render() {
     window.clear();
-    stateManager.render(window);  // Render the current game state
+    stateManager.render(renderer);  // Render the current game state
     window.display();
 }

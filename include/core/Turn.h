@@ -2,10 +2,13 @@
 
 #include <iostream>
 #include "core/Board.h"
-#include "core/Direction.h"
+#include "core/utils/Direction.h"
 
 class GameRun; //   forward declaration GameRun -unique-> Turn
                //                       Turn -raw-> GameRun
+class RenderSystem;
+class saleItem;
+
 
 class Turn {
 
@@ -15,7 +18,7 @@ public:
     enum class Phase {
         Begin,
         //ApplyConsumables,
-        //ApplyEffects,
+        SelectingConsumables,
         Movement,
         //TriggerPassives,
         BoardResolution,
@@ -26,7 +29,7 @@ public:
     inline const char* toString(Phase phase) {
         switch (phase) {
         case Phase::Begin:                      return "Begin";
-        //case Phase::ApplyConsumables:         return "ApplyConsumables";
+        case Phase::SelectingConsumables:       return "SelectingConsumables";
         //case Phase::ApplyEffects:             return "ApplyEffects";
         case Phase::Movement:                   return "Movement";
         case Phase::BoardResolution:            return "BoardResolution";
@@ -37,8 +40,8 @@ public:
         }
     }
 
-    Turn(GameRun* game_run);
-    Turn(GameRun* game_run, const Board& initial_board);
+    Turn(RenderSystem& renderer, GameRun* game_run);
+    Turn(RenderSystem& renderer, GameRun* game_run, const Board& initial_board);
 
     //---------------------------------------------------------
     //modularized for FSM
@@ -46,7 +49,7 @@ public:
         void handleInput_BeginPhase(sf::Event& event);
 
     void update(float deltaTime);
-    void render(sf::RenderWindow& window);
+    void render(RenderSystem& renderer);
     //---------------------------------------------------------
 
     //------TURNS OWNS ITS BOARD ITSELF, IT WILL MANAGE IT INTRNALLY
@@ -76,7 +79,6 @@ public:
     //skips phase following the common order
     void nextPhase();
 
-
     //hard ends turn
     void end_turn();
 
@@ -88,5 +90,13 @@ private:
 
     //trivial flag for input of move (to be depracated)
     bool inputReceived = 0;
+
+    RenderSystem& renderer;
+
+    sf::Sprite use_button; //<------------------------------------- FIX IN THE NEXT VERSION
+    bool itemWasSelected{ 0 };
+
+
+    //void itemSelected(saleItem& inventory_item);
 
 };

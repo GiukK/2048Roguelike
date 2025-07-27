@@ -2,21 +2,22 @@
 
 #include <memory>
 #include "Tile.h"
-#include "SlotEffect.h"
-#include "Coord.h"
+#include "effects/SlotEffect.h"
+#include "utils/Coord.h"
 
 #include "SFML/Graphics.hpp"
 
+class RenderSystem;
 class Board;
 class Tile;
 
 class Slot {
 public:
     //------
-    Slot(int col, int row, Board* board);
+    Slot(int col, int row, Board* board, RenderSystem& renderer);
 
     //for board copying to next turn
-    Slot(const Slot& other, Board* board);
+    Slot(const Slot& other, Board* board );
     //------
 
 
@@ -24,6 +25,7 @@ public:
     int col;//x
     int row;//y
 
+    sf::Sprite& getSlotSprite();
 
     //------
 
@@ -38,10 +40,7 @@ public:
     std::unique_ptr<Tile> tile = nullptr;
 
     //rendering utils
-    void render(sf::RenderWindow& window);
-    sf::Texture slotTexture;
-    sf::Sprite slot;
-
+    void render(RenderSystem& renderer);
 
     //--------------
     //is there a tile?
@@ -62,4 +61,10 @@ public:
     void triggerMergeEffects();
 
 private:
+
+    RenderSystem& renderer;
+    sf::Sprite slot;
+
+    void fixVisualAssets();
+
 };

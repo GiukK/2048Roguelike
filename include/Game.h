@@ -1,7 +1,8 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
-#include "core/StateManager.h"
+#include "states/StateManager.h"
+#include "rendering/RenderSystem.h"
 
 class Game {
 public:
@@ -13,7 +14,11 @@ private:
     void update(float deltaTime);
     void render();
 
+
     sf::RenderWindow window;
-    StateManager stateManager;
     sf::Clock clock;
+
+
+    StateManager stateManager;
+    RenderSystem renderer;
 };

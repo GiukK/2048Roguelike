@@ -1,5 +1,5 @@
 #pragma once
-#include "SlotEffect.h"
+#include "effects/SlotEffect.h"
 
 class ShopEffect : public SlotEffect {
 public:

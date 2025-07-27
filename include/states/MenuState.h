@@ -1,47 +1,35 @@
 #pragma once
 
-#include "core/GameState.h"
-#include "core/StateManager.h"
+#include "states/GameState.h"
+#include "states/StateManager.h"
+#include "rendering/RenderSystem.h"
+
 
 #include "SFML/Audio.hpp"
 
 class MenuState : public GameState {
 public:
-    MenuState(StateManager& stateManager, sf::RenderWindow& window);
+    MenuState(StateManager& stateManager, RenderSystem& renderer);
+
+    void fixVisualAssets();
 
     void enter() override;
     void exit() override;
 
     void handleInput(sf::Event& event) override;
     void update(float deltaTime) override;
-    void render(sf::RenderWindow& window) override;
+    void render(RenderSystem& renderer) override;
 
 private:
 
     void updateButton(sf::Sprite& button);
 
     StateManager& stateManager;
-    sf::RenderWindow& window;
-
-
-    sf::Font font;
-    sf::Text titleText;
+    RenderSystem& renderer;
 
     //UI
-    sf::Texture backgroundTexture;
-    sf::Texture startTexture;
-    sf::Texture optionsTexture;
-
     sf::Sprite background;
     sf::Sprite startButton;
     sf::Sprite optionsButton;
-
-    //AUDIO
-    sf::SoundBuffer audioBuffer1, audioBuffer2;
-    sf::Sound audioHover, audioClick;
-
-    bool musicOn = false;
-    sf::Music music;
-
 
 };

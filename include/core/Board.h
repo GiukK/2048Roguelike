@@ -6,28 +6,31 @@
 #include <vector>
 #include <random>
 
-#include "Coord.h"
+#include "utils/Coord.h"
 #include "Slot.h"
-#include "Direction.h"
-#include "MovementQueue.h"
+#include "utils/Direction.h"
+#include "utils/MovementQueue.h"
 
 #include "SFML/Graphics.hpp"
 
 class Turn;
+class RenderSystem;
+
 
 class Board {
 
 public:
 
-    Board(Turn* turn);
-    //This constructor is useful when creating a deepcopy of the previous board of the previous turn
-    Board(const Board& other, Turn* turn);
+    Board(RenderSystem& renderer, Turn* turn, bool doInitialSetup = true);
 
-    Board(Board&&) noexcept = default;
-    Board& operator=(Board&&) noexcept = default;
+    static Board cloneFrom(const Board& other, Turn* turn);
+    //copy for go_back()
+    void copyStateFrom(const Board& other);
+
 
     //-----------------------------------------------------------------
-    void render(sf::RenderWindow& window);
+    void render(RenderSystem& renderer);
+
     void update(float deltaTime);
     //-----------------------------------------------------------------
 
@@ -44,8 +47,8 @@ public:
     void initializeMovementQueue(Direction dir);
     //helper function to manage slot movement in Deque
     void resolveNextTileMove(Direction dir);
-    //helper to decide tile position
-    Coord getNextCoord(Coord from, Direction dir);
+        //helper to decide tile position
+        Coord getNextCoord(Coord from, Direction dir);
 
     //clears Board's TILES
     void clear();
@@ -60,7 +63,20 @@ public:
     //-----------------------------------------------TO BE ADDED
     //void reset() //to reset all flags and state
 
+
+
+    //test
+    void handleClick(sf::Vector2f worldPos);
+
 private:
+
+    void firstBoardSetUp();
+
+    //Sprite
+    RenderSystem& renderer;
+    sf::Sprite board;
+
+    void fixVisualAssets();
 
     //internal slots
     std::map<Coord, std::unique_ptr<Slot>> slots;
@@ -75,9 +91,6 @@ private:
     std::pair<int, int> row_range{ 0, 3 };
     //------
     
-    //rendering utils
-    sf::Texture boardTexture;
-    sf::Sprite board;
 
 
     //internal rng (GameRun should handle it fully?)

@@ -6,17 +6,19 @@
 
 
 class Slot;
+class RenderSystem;
+
 
 class Tile{
 
 public:
 
-    Tile(Slot* slot, int value);
+    Tile(RenderSystem& renderer , Slot* slot, int value);
     //raw ptr to owner - Slot
     Slot* slot;
 
     //------
-    void render(sf::RenderWindow& window);
+    void render( RenderSystem& renderer);
     //returns pos in float terms (sprite)
     sf::Vector2f getPosition();
     //changes sprite when merged
@@ -37,14 +39,18 @@ public:
 
 private:
 
+    RenderSystem& renderer;
+    sf::Sprite tile;
+
+    void fixVisualAssets();
+
+
     //game value
     int value{2};
 
     //------ANIMATION
     sf::Vector2f targetPosition; // Destination to move toward
     float moveSpeed = 800.f;   // Pixels per second
-    sf::Texture tileTexture;
-    sf::Sprite tile;
     //-----------------
 
 
