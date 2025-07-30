@@ -1,4 +1,6 @@
 #include "states/ShopState.h"
+#include "rendering/UI_Button.h"
+
 #include <iostream>
 
 ShopState::ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* current_run) :
@@ -7,11 +9,10 @@ ShopState::ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun
     currentRun(current_run),
     shopSprite(renderer.getTextureManager().get("shop"))
 {
+    enter(); // Open shop
 
     fixVisualAssets();
 
-
-    enter(); // Open shop
 }
 
 
@@ -30,6 +31,13 @@ void ShopState::fixVisualAssets() {
 
     std::cout << "ShopState visual assets: ready" << std::endl;
 
+
+
+    //button -> no risize
+    itemsForSale[0].getSprite().setOrigin(itemsForSale[0].getSprite().getLocalBounds().getCenter());
+    itemsForSale[0].getSprite().setScale({ 2.f , 2.f });
+    itemsForSale[0].getSprite().setPosition({ float(windowSize.x) / 2, float(windowSize.y) / 2 });
+
 }
 
 
@@ -43,10 +51,10 @@ void ShopState::enter() {
 
 void ShopState::generateShop() {
     
-
     //right now the shop generates only a coin bag
-    saleItem coin_bag("coin_bag", renderer);
-    itemsForSale.push_back(coin_bag);
+    itemsForSale.emplace_back(renderer, "coin_bag", [this]() {
+        this->buyItem("coin_bag");
+        });
 
 }
 
@@ -72,21 +80,17 @@ void ShopState::handleInput(sf::Event& event) {
             exit();  // Close shop
             return;
         }
-
-    }
-        //in the future it will be nice to have down-up button animation when pushed in sync with onRelease and isPressed
-    if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
-    {
-        auto& window = renderer.getWindow();
-
-        sf::Vector2i mousePos = sf::Mouse::getPosition(window);  // da PlayState o GameRun
-        sf::Vector2f worldPos = window.mapPixelToCoords(mousePos);
-
-        handleClick(worldPos); //works fine but its just a test
     }
 }
 
 void ShopState::update(float deltaTime) {
+
+    currentRun->update(deltaTime);
+
+    for (auto& itemButton : itemsForSale) {
+
+        itemButton.update(deltaTime);
+    }
 
 }
 
@@ -100,10 +104,9 @@ void ShopState::render(RenderSystem& renderer) {
 
 
     //render items for sale
-    for (auto item : itemsForSale) {
+    for (auto& itemButton : itemsForSale) {
 
-        renderer.draw(item.sprite);
-
+        renderer.draw(itemButton.getSprite());
     }
 
 
@@ -111,26 +114,16 @@ void ShopState::render(RenderSystem& renderer) {
 
 void ShopState::handleClick(sf::Vector2f worldPos) {
 
-    for (auto& item : itemsForSale) {
-        sf::FloatRect bounds = item.sprite.getGlobalBounds();
-
-        if (bounds.contains(worldPos) and not item.sold) { //buy more items ? (remove item.sold)
-
-            buyItem(item);
-
-            return;
-
-        }
-    }
+    
 
 }
+//TODO
+void ShopState::buyItem(const std::string & itemButton) {
 
-void ShopState::buyItem(saleItem& item) {
-
-    if (item.price > currentRun->getCoins()) { //item cannot be bought (possible feature to go in debt?)
+    if (1 > currentRun->getCoins()) { //item cannot be bought (possible feature to go in debt?)
         
-        std::cout << "ITEM : " << item.name << " cannot be bought: it costs " <<
-            item.price << " and you have " << currentRun->getCoins() << std::endl;
+        std::cout << "ITEM : cannot be bought: it costs " <<
+            1 << " and you have " << currentRun->getCoins() << std::endl;
         return;
     }
     if (currentRun->isInventoryFull()) {
@@ -140,15 +133,13 @@ void ShopState::buyItem(saleItem& item) {
 
     }
 
-    item.sprite.setColor(sf::Color(255, 100, 100));  // apply filter (atm)
+    itemsForSale[0].disabled = true; //to be fixed
 
-    item.sold = true;
+    std::cout << "ITEM BOUGHT :  has been added to the inventory!\n";
 
-    std::cout << "ITEM BOUGHT : " << item.name << " has been added to the inventory!\n";
+    currentRun->addCoins(-1); // in the future it will be useful to add "subtract coins etc..."
 
-    currentRun->addCoins(-item.price); // in the future it will be useful to add "subtract coins etc..."
-
-    currentRun->addItem(item.name);
+    currentRun->addItem("coin_bag");
 
 }
 

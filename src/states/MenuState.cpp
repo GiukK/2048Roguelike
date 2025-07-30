@@ -8,11 +8,16 @@
 MenuState::MenuState(StateManager& stateManager, RenderSystem& renderer) :
     stateManager(stateManager),
     renderer(renderer),
-    background(renderer.getTextureManager().get("background")),
-    startButton(renderer.getTextureManager().get("startb")),
-    optionsButton(renderer.getTextureManager().get("optionsb"))
+    background(renderer.getTextureManager().get("background")) //not movable
 {
-    //fixes size,position and origin of sprites.
+    //fixes button and assset size,position and origin of sprites.
+    buttons.emplace_back(renderer, "startb", [&stateManager, &renderer]() {
+        stateManager.pushState(std::make_unique<PlayState>(stateManager, renderer));
+        });
+    buttons.emplace_back(renderer, "optionsb", []() {
+        std::cout << "Options clicked!\n";
+        });
+
     fixVisualAssets();
 
     // Open game menu at start
@@ -21,15 +26,18 @@ MenuState::MenuState(StateManager& stateManager, RenderSystem& renderer) :
 
 void MenuState::fixVisualAssets() {
 
+    sf::Sprite& startbSprite = buttons[0].getSprite();
+    sf::Sprite& optionsbSprite = buttons[1].getSprite();
+
     //asset resizing
     renderer.resizeSprite("background", background);
-    renderer.resizeSprite("startb", startButton);
-    renderer.resizeSprite("optionsb", optionsButton);
+    renderer.resizeSprite("startb", startbSprite);
+    renderer.resizeSprite("optionsb", optionsbSprite);
 
     //asset origin setting
 
-    startButton.setOrigin(startButton.getLocalBounds().getCenter());
-    optionsButton.setOrigin(optionsButton.getLocalBounds().getCenter());
+    startbSprite.setOrigin(startbSprite.getLocalBounds().getCenter());
+    optionsbSprite.setOrigin(optionsbSprite.getLocalBounds().getCenter());
 
 
     //asset positioning
@@ -37,8 +45,8 @@ void MenuState::fixVisualAssets() {
 
     const float verticalShift = 100.f; //this is a visual shift needed to set up the correct position for the two buttons : START, OPTIONS
 
-    startButton.setPosition({ float(windowSize.x) / 2, -verticalShift + float(windowSize.y) / 2 }); //  up shift (-) 
-    optionsButton.setPosition({ float(windowSize.x) / 2, verticalShift + float(windowSize.y) / 2 }); // down shift
+    startbSprite.setPosition({ float(windowSize.x) / 2, -verticalShift + float(windowSize.y) / 2 }); //  up shift (-) 
+    optionsbSprite.setPosition({ float(windowSize.x) / 2, verticalShift + float(windowSize.y) / 2 }); // down shift
 
     std::cout << "MenuState visual assets: ready" << std::endl;
 }
@@ -61,61 +69,25 @@ void MenuState::handleInput(sf::Event& event) {
         else if (keyPressed->scancode == sf::Keyboard::Scancode::Escape) {
             std::cout << "Exiting Game..." << std::endl;
 
-
             exit();  // Close game
-        }
-    }
-    if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left)) {
-
-        auto& window = renderer.getWindow();
-
-        //HANDLE MOUSE POSITIONS
-        sf::Vector2i mousePos_i = sf::Mouse::getPosition(window);
-        sf::Vector2f mousePos_f = window.mapPixelToCoords(mousePos_i);  // Convert to world coordinates (float)
-
-        //----------------------------------------------------------------------
-
-        if (startButton.getGlobalBounds().contains(mousePos_f)) {
-
-            std::cout << "START pressed" << std::endl;
-            stateManager.pushState(std::make_unique<PlayState>(stateManager, renderer));
-        }
-
-        if (optionsButton.getGlobalBounds().contains(mousePos_f)) {
-            std::cout << "OPTIONS pressed" << std::endl;
         }
     }
 }
 
 void MenuState::update(float deltaTime) {
 
-    updateButton(startButton);
-    updateButton(optionsButton);
+    for (auto& button : buttons) {
+
+        button.update(deltaTime);
+    }
 }
 
 void MenuState::render(RenderSystem& renderer) {
 
-    //Text UI deprecated
-    //window.draw(titleText);
-
     renderer.draw(background);
 
-    renderer.draw(startButton);
+    for (auto& button : buttons) {
 
-    renderer.draw(optionsButton);
-}
-
-void MenuState::updateButton(sf::Sprite& button) {
-
-
-    sf::Vector2i mousePos = sf::Mouse::getPosition(renderer.getWindow());
-
-    if (button.getGlobalBounds().contains(static_cast<sf::Vector2f>(mousePos)) and button.getColor() == sf::Color::White) {
-
-        button.setColor(sf::Color::Red);
-        //audioHover.play();
-
+        renderer.draw(button.getSprite());
     }
-    else if (!button.getGlobalBounds().contains(static_cast<sf::Vector2f>(mousePos))) { button.setColor(sf::Color::White); }
-
 }

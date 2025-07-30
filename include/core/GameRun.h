@@ -5,12 +5,12 @@
 #include <stack>
 
 #include <SFML/Graphics.hpp>
+#include "rendering/UI_Button.h"
+
 #include "core/Turn.h"
-#include "core/utils/saleItem.h"
 
 class PlayState;
 class RenderSystem;
-class saleItem;
 
 class GameRun {
 
@@ -45,8 +45,7 @@ public:
 
     //getters
     bool isInventoryFull();
-
-    std::vector<saleItem>& getInventory();
+    void popInventory(); //temporary to make items disappear
 
     const RenderSystem& getRenderer() const;
     const int getCoins() const;
@@ -68,17 +67,19 @@ private:
 
     sf::Sprite backUI;
 
-    sf::Sprite coin_animation;
+    std::vector<UI_Button> inventoryButtons;
 
+    //ani try
+    sf::Sprite coin_animation;
     char coin_ani_frame{ 0 };
     float coin_ani_elapsed{ 0 };
+    //
 
     //------
 
     int coins{0};
 
     unsigned short int maxInventorySize{ 6 } ;
-    std::vector<saleItem> inventory;
 
     PlayState* playState;
     std::stack<std::unique_ptr<Turn>> run_turns;

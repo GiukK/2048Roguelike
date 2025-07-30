@@ -93,9 +93,6 @@ private:
 
     RenderSystem& renderer;
 
-    sf::Sprite use_button; //<------------------------------------- FIX IN THE NEXT VERSION
-    bool itemWasSelected{ 0 };
-
 
     //void itemSelected(saleItem& inventory_item);
 

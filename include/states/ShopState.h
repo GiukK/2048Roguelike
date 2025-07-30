@@ -4,7 +4,8 @@
 #include "states/StateManager.h"
 #include "core/GameRun.h"
 #include "rendering/RenderSystem.h"
-#include "core/utils/saleItem.h"
+#include "rendering/UI_Button.h"
+
 
 #include "SFML/Audio.hpp"
 
@@ -24,7 +25,7 @@ public:
     void handleClick(sf::Vector2f worldPos);
 
     void generateShop();
-    void buyItem(saleItem& item);
+    void buyItem(const std::string& name);
 
 private:
 
@@ -33,9 +34,8 @@ private:
     StateManager& stateManager;
     RenderSystem& renderer;
 
-    sf::Texture shopTexture;
     sf::Sprite shopSprite;
 
-    std::vector<saleItem> itemsForSale;
+    std::vector<UI_Button> itemsForSale;
 
 };

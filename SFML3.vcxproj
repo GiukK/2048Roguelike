@@ -146,12 +146,12 @@
     <ClCompile Include="src\core\Board.cpp" />
     <ClCompile Include="src\core\GameRun.cpp" />
     <ClCompile Include="src\core\utils\MovementQueue.cpp" />
-    <ClCompile Include="src\core\utils\saleItem.cpp" />
     <ClCompile Include="src\effects\ShopEffect.cpp" />
     <ClCompile Include="src\core\Slot.cpp" />
     <ClCompile Include="src\core\Tile.cpp" />
     <ClCompile Include="src\core\Turn.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\rendering\UI_Button.cpp" />
     <ClCompile Include="src\states\StateManager.cpp" />
     <ClCompile Include="src\Game.cpp" />
     <ClCompile Include="src\rendering\RenderSystem.cpp" />
@@ -168,7 +168,7 @@
     <ClInclude Include="include\core\utils\Coord.h" />
     <ClInclude Include="include\core\utils\Direction.h" />
     <ClInclude Include="include\core\GameRun.h" />
-    <ClInclude Include="include\core\utils\saleItem.h" />
+    <ClInclude Include="include\rendering\UI_Button.h" />
     <ClInclude Include="include\states\GameState.h" />
     <ClInclude Include="include\core\utils\MovementQueue.h" />
     <ClInclude Include="include\effects\ShopEffect.h" />

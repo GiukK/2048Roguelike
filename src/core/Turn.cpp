@@ -2,8 +2,6 @@
 #include "core/GameRun.h"
 #include "core/Board.h"
 #include "core/utils/Direction.h"
-#include "core/utils/saleItem.h"
-
 
 
 #include "rendering/RenderSystem.h"
@@ -13,10 +11,7 @@ Turn::Turn(RenderSystem& renderer , GameRun* game_run) :
     renderer(renderer),
     game_run(game_run),
     board(renderer , this),
-    boardBegin(Board::cloneFrom(board, this)),
-
-
-    use_button(renderer.getTextureManager().get("use_button")) ////<------------------------------------- FIX IN THE NEXT VERSION
+    boardBegin(Board::cloneFrom(board, this))
 
 {
     std::cout << " -------------------------------  Turn 1  -------------------------------" << std::endl;
@@ -27,11 +22,7 @@ Turn::Turn(RenderSystem& renderer , GameRun* game_run,const Board& initial_board
     renderer(renderer),
     game_run(game_run),
     board(Board::cloneFrom(initial_board, this)),
-    boardBegin(Board::cloneFrom(initial_board, this)),
-
-
-    use_button(renderer.getTextureManager().get("use_button")) ////<------------------------------------- FIX IN THE NEXT VERSION
-
+    boardBegin(Board::cloneFrom(initial_board, this))
 {
 }
 
@@ -153,8 +144,6 @@ void Turn::update(float delta) {
 void Turn::render(RenderSystem& renderer) {
 
     board.render(renderer);
-
-    if (itemWasSelected) { renderer.draw(use_button); }
 }
 
 void Turn::handleInput(sf::Event& event) {
@@ -202,88 +191,6 @@ void Turn::handleInput_BeginPhase(sf::Event& event) {
             return;
         default:
             return;
-        }
-        
-
-       
-    }
-
-    
-    //in the future it will be nice to have down-up button animation when pushed in sync with onRelease and isPressed
-    if (const auto* mouseReleased = event.getIf<sf::Event::MouseButtonReleased>())
-    {
-        if (mouseReleased->button == sf::Mouse::Button::Left) {
-            auto& window = renderer.getWindow();
-
-            sf::Vector2i mousePos = sf::Mouse::getPosition(window);  // da PlayState o GameRun
-            sf::Vector2f worldPos = window.mapPixelToCoords(mousePos);
-
-            //board.handleClick(worldPos); //works fine but its just a test
-
-            //manage inventory effects (temporary) -----------------------------------------------------------------
-
-
-            for (auto& item : game_run->getInventory()) {
-                sf::FloatRect bounds = item.sprite.getGlobalBounds();
-
-                if (bounds.contains(worldPos)) {
-
-                    //temporary UI for fast test
-                    if (!itemWasSelected) {
-                        // Applica filtro rosso
-                        item.sprite.setColor(sf::Color(255, 100, 100));  // leggermente trasparente rosso
-
-                        //currentPhase = Phase::SelectingConsumables
-                        //itemSelected(item);
-                        // 
-                        //temporary item management
-                        use_button.setPosition({ item.sprite.getPosition().x + 100.f, item.sprite.getPosition().y });
-                        use_button.setScale({ 2.f, 2.f });
-                        itemWasSelected = true;
-
-
-                        std::cout << "item set to red\n";
-
-
-                        return;
-                    }
-                    else {
-
-                        item.sprite.setColor(sf::Color(255, 255, 255));
-                        itemWasSelected = false;
-
-                        std::cout << "item set to white\n";
-
-
-                        return;
-                    }
-
-                }
-                else {
-
-                    item.sprite.setColor(sf::Color(255, 255, 255));
-                }
-            }
-
-            sf::FloatRect bbounds = use_button.getGlobalBounds();  //<<<
-
-            if (itemWasSelected and bbounds.contains(worldPos)) {
-
-                std::cout << "item used\n";
-
-
-
-            }
-            else if (itemWasSelected and not bbounds.contains(worldPos)) {
-
-                itemWasSelected = false;
-
-                std::cout << "item selected but outside button -> d\n";
-
-            }
-
-
-            //-------------------------------------------------------------------------------------------------------
         }
     }
 }

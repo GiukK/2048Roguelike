@@ -4,6 +4,7 @@
 #include "states/StateManager.h"
 #include "rendering/RenderSystem.h"
 
+#include "rendering/UI_Button.h"
 
 #include "SFML/Audio.hpp"
 
@@ -22,14 +23,12 @@ public:
 
 private:
 
-    void updateButton(sf::Sprite& button);
-
     StateManager& stateManager;
     RenderSystem& renderer;
 
     //UI
+
     sf::Sprite background;
-    sf::Sprite startButton;
-    sf::Sprite optionsButton;
+    std::vector<UI_Button> buttons;
 
 };

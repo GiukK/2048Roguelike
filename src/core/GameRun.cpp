@@ -93,6 +93,12 @@ void GameRun::update(float deltaTime) {
 
     run_turns.top()->update(deltaTime);
 
+    for (auto& itemButton : inventoryButtons) {
+
+        itemButton.update(deltaTime);
+
+    }
+
     coin_ani_elapsed += deltaTime;
 
 
@@ -108,9 +114,6 @@ void GameRun::update(float deltaTime) {
         coin_animation.setTextureRect(sf::IntRect({ int(coin_ani_frame * 32), 0 }, { 32, 32 })); //animation starts at 0
         
         coin_ani_elapsed = 0;
-
-
-        
     }
 }
 
@@ -164,9 +167,9 @@ void GameRun::render(RenderSystem& renderer) {
     drawCounter(renderer.getWindow(), coins , "coins");
 
     //draw inventory
-    for (auto& item : inventory) {
+    for (auto& item : inventoryButtons) {
 
-        renderer.draw(item.sprite);
+        renderer.draw(item.getSprite());
 
     }
 
@@ -205,29 +208,48 @@ const int GameRun::getCoins() const  {
 
 }
 
-std::vector<saleItem>& GameRun::getInventory() {
-
-    return inventory;
-
-}
 
 bool GameRun::isInventoryFull() {
 
-    return inventory.size() == maxInventorySize;
+    return inventoryButtons.size() == maxInventorySize;
 
 }
 
 void GameRun::addItem(std::string item_name) {
 
-    saleItem item(item_name, renderer);
+
+    UI_Button itemButton(renderer, item_name, [this](){
+        this->addCoins(+50); //in the future there will need to be a way to understand what each button should do based on 
+                             //a table sheet of key - effects
+
+        this->popInventory();
+                             //there will probably be a virtual class to better handle UI input
+        });
 
     //hard positioning for gamerun ui -> to be deprecated and centralized into an UI manager
 
-    item.sprite.setPosition({ 1500.f, 400.f + 100.f*inventory.size()});
-    item.sprite.setScale({ 1.f, 1.f });
+    itemButton.getSprite().setPosition({1500.f, 400.f + 100.f * inventoryButtons.size()});
+    itemButton.getSprite().setScale({ 1.f, 1.f });
     //
 
     //in the future this will be a better structured container and class/struct
-    inventory.push_back(item);
+    inventoryButtons.push_back(itemButton);
+
+}
+
+//Temporary
+void GameRun::popInventory() {
+
+    inventoryButtons.pop_back();
+
+    unsigned short index = 0;
+    
+    for (auto& button : inventoryButtons) {
+
+        button.getSprite().setPosition({ 1500.f, 400.f + 100.f * index });
+        button.getSprite().setScale({ 1.f, 1.f });
+
+        index++;
+    }
 
 }
