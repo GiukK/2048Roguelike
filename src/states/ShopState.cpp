@@ -7,7 +7,8 @@ ShopState::ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun
     stateManager(stateManager),
     renderer(renderer),
     currentRun(current_run),
-    shopSprite(renderer.getTextureManager().get("shop"))
+    shopSprite(renderer.getTextureManager().get("shop")),
+    coin_animation(renderer.getTextureManager().get("coin_animation"))
 {
     enter(); // Open shop
 
@@ -19,6 +20,14 @@ ShopState::ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun
 void ShopState::fixVisualAssets() {
     //asset resizing
     renderer.resizeSprite("shop", shopSprite);
+
+    //ANI TRY -------
+    renderer.resizeSprite("coin_animation", coin_animation);
+    coin_animation.setScale({ 6.f, 6.f });
+    coin_animation.setPosition({ 1700.f, 850.f });
+    //animation starts at 0, avoids full sprite artifact
+    coin_animation.setTextureRect(sf::IntRect({ int(coin_ani_frame * 32), 0 }, { 32, 32 }));
+    //----------
 
     //asset origin setting
 
@@ -35,7 +44,7 @@ void ShopState::fixVisualAssets() {
 
     //button -> no risize
     itemsForSale[0].getSprite().setOrigin(itemsForSale[0].getSprite().getLocalBounds().getCenter());
-    itemsForSale[0].getSprite().setScale({ 2.f , 2.f });
+    itemsForSale[0].getSprite().setScale({ 6.f , 6.f });
     itemsForSale[0].getSprite().setPosition({ float(windowSize.x) / 2, float(windowSize.y) / 2 });
 
 }
@@ -92,6 +101,26 @@ void ShopState::update(float deltaTime) {
         itemButton.update(deltaTime);
     }
 
+
+
+    //ANI TRY ------------------------------
+    coin_ani_elapsed += deltaTime;
+
+    //all this CAN and WILL be centralized, possibly in the renderer and with a centralized deltatime, fps and animation handling.
+
+    if (coin_ani_elapsed > 1.f / 12.f) {
+
+        coin_ani_frame += 1;
+
+        if (coin_ani_frame >= 8) {
+            coin_ani_frame = 0;
+        }
+        coin_animation.setTextureRect(sf::IntRect({ int(coin_ani_frame * 32), 0 }, { 32, 32 })); //animation starts at 0
+
+        coin_ani_elapsed = 0;
+    }
+
+    //------------------------------------------
 }
 
 void ShopState::render(RenderSystem& renderer) {
@@ -109,6 +138,9 @@ void ShopState::render(RenderSystem& renderer) {
         renderer.draw(itemButton.getSprite());
     }
 
+
+    //ANI TRY
+    renderer.draw(coin_animation);
 
 }
 

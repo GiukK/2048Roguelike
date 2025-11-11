@@ -36,6 +36,12 @@ private:
 
     sf::Sprite shopSprite;
 
+    //ani try
+    sf::Sprite coin_animation;
+    char coin_ani_frame{ 0 };
+    float coin_ani_elapsed{ 0 };
+    //
+
     std::vector<UI_Button> itemsForSale;
 
 };

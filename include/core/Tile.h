@@ -19,6 +19,7 @@ public:
 
     //------
     void render( RenderSystem& renderer);
+    void update(float deltaTime);
     //returns pos in float terms (sprite)
     sf::Vector2f getPosition();
     //changes sprite when merged
@@ -36,7 +37,7 @@ public:
     int getValue() const;
     void setValue(int x);
 
-
+    bool isAnimating() const { return animating; }
 private:
 
     RenderSystem& renderer;
@@ -51,6 +52,14 @@ private:
     //------ANIMATION
     sf::Vector2f targetPosition; // Destination to move toward
     float moveSpeed = 800.f;   // Pixels per second
+    bool animating = false;
+
+    sf::Vector2f startPosition;
+    float animationTime = 0.f;
+    float animationDuration = 0.1f; // Total animation time in seconds
+
+
+
     //-----------------
 
 

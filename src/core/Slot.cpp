@@ -107,6 +107,12 @@ void Slot::triggerMergeEffects() {
     }
 }
 
+void Slot::update(float deltaTime) {
+    if (!isEmpty()) {
+        tile->update(deltaTime);
+    }
+}
+
 //GETTERS
 
 
@@ -115,3 +121,5 @@ sf::Sprite& Slot::getSlotSprite() {
     return slot;
 
 }
+
+//TRY

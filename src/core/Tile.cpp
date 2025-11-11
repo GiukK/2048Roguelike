@@ -35,14 +35,16 @@ void Tile::render( RenderSystem& renderer) {
 
 //changes ownership of tile ALSO manages internal slot ownership (tile-><-slot) 
 void Tile::changeSlot(Slot* a, Slot* b) {
-
 	this->slot = b;
-
-	//tile.setPosition(b->slot.getPosition());
-
 	b->setTile(a->releaseTile());
 
+	startPosition = tile.getPosition();
+	targetPosition = b->getSlotSprite().getPosition();
+	animationTime = 0.f;
+	animating = true;
 }
+
+
 
 sf::Vector2f Tile::getPosition() {
 
@@ -65,15 +67,29 @@ void Tile::setValue(int x) {
 //the in-merging tile is the one destroyed
 void Tile::mergeIntoSlot(Slot* other) {
 
+
+	//multiple merges are allowed
+
 	std::cout << "Slot merged at: x = " << other->getCoord().x << " and y = " << other->getCoord().y << std::endl;
 
 	int sum = value + other->tile->getValue();
+
+	/*
 	other->tile->setValue(sum);
 	slot->removeTile();
-
+	other->tile->changeSprite();
+	other->triggerMergeEffects();
+	*/
+	other->removeTile();
+	changeSlot(slot, other);
+	other->tile->setValue(sum);
 
 	other->tile->changeSprite();
 	other->triggerMergeEffects();
+
+	//in the future the animation of merging and the logic should be separated
+
+
 
 }
 
@@ -84,4 +100,25 @@ void Tile::changeSprite() {
 
 	tile.setTexture(renderer.getTextureManager().get(val));
 
+}
+
+void Tile::update(float deltaTime) {
+	if (!animating) return;
+
+	animationTime += deltaTime;
+	float t = animationTime / animationDuration;
+
+	if (t >= 1.f) {
+		tile.setPosition(targetPosition);
+		animating = false;
+		return;
+	}
+
+	// Elastic easing out: tweaked version of easeOutElastic
+	float p = 1.f;
+	float s = p / 4.f;
+	float elasticT = std::pow(2.f, -12.f * t) * std::sin((t - s) * (2.f * 3.14159f) / p) + 1.f;
+
+	sf::Vector2f newPos = startPosition + (targetPosition - startPosition) * elasticT;
+	tile.setPosition(newPos);
 }

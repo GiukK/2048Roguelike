@@ -40,6 +40,7 @@ public:
     std::unique_ptr<Tile> tile = nullptr;
 
     //rendering utils
+    void update(float deltaTime);
     void render(RenderSystem& renderer);
 
     //--------------

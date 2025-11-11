@@ -11,18 +11,13 @@
 GameRun::GameRun(RenderSystem& renderer, PlayState* playState) :
     renderer(renderer),
     playState(playState),
-    backUI(renderer.getTextureManager().get("backUI")),
-    coin_animation(renderer.getTextureManager().get("coin_animation"))
+    backUI(renderer.getTextureManager().get("backUI"))
 {
 
     //future fixVisualAssets as the others
     renderer.resizeSprite("backUI", backUI);
 
-    renderer.resizeSprite("coin_animation", coin_animation);
 
-    coin_animation.setPosition({ 20.f, 850.f });
-    //animation starts at 0, avoids full sprite artifact
-    coin_animation.setTextureRect(sf::IntRect({ int(coin_ani_frame * 32), 0 }, { 32, 32 })); 
 
 
     //to fix this using local time
@@ -99,22 +94,7 @@ void GameRun::update(float deltaTime) {
 
     }
 
-    coin_ani_elapsed += deltaTime;
 
-
-    //all this CAN and WILL be centralized, possibly in the renderer and with a centralized deltatime, fps and animation handling.
-
-    if (coin_ani_elapsed > 1.f / 12.f) {
-
-        coin_ani_frame += 1;
-
-        if (coin_ani_frame >= 8) {
-            coin_ani_frame = 0;
-        }
-        coin_animation.setTextureRect(sf::IntRect({ int(coin_ani_frame * 32), 0 }, { 32, 32 })); //animation starts at 0
-        
-        coin_ani_elapsed = 0;
-    }
 }
 
 //writes a counter with the number of the turn-  to be deprecated
@@ -129,11 +109,11 @@ void GameRun::drawCounter(sf::RenderWindow& window, unsigned int count, std::str
 
     if (asset == "turns") {
 
-        XSHIFT = 340.f;
+        XSHIFT = 250.f;
     }
     else if (asset == "coins") {
 
-        XSHIFT = 1000.f;
+        XSHIFT = 1180.f;
     }
 
     for (std::size_t i = 0; i < countStr.size(); ++i) {
@@ -156,8 +136,6 @@ void GameRun::drawCounter(sf::RenderWindow& window, unsigned int count, std::str
 void GameRun::render(RenderSystem& renderer) {
 
     renderer.draw(backUI);
-
-    renderer.draw(coin_animation);
 
     run_turns.top()->render(renderer);
 

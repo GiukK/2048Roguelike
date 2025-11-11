@@ -69,17 +69,13 @@ private:
 
     std::vector<UI_Button> inventoryButtons;
 
-    //ani try
-    sf::Sprite coin_animation;
-    char coin_ani_frame{ 0 };
-    float coin_ani_elapsed{ 0 };
-    //
+
 
     //------
 
-    int coins{0};
+    int coins{100};
 
-    unsigned short int maxInventorySize{ 6 } ;
+    unsigned short int maxInventorySize{ 3 } ;
 
     PlayState* playState;
     std::stack<std::unique_ptr<Turn>> run_turns;

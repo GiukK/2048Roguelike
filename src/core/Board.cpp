@@ -120,9 +120,11 @@ void Board::render(RenderSystem& renderer) {
 }
 
 void Board::update(float deltaTime) {
-
-    // to be written
+    for (auto& [_, slot] : slots) {
+        slot->update(deltaTime);
+    }
 }
+
 
 void Board::setRng(std::mt19937 rng) {
     this->rng = rng;
@@ -172,6 +174,23 @@ void Board::spawnTileInRandomEmptySlot() {
     else {
         std::cout << "No empty slots available to spawn a tile.\n";
     }
+}
+
+void Board::generateCoins() {
+    /*
+    std::vector<Slot*> coin_slots;
+
+    for (const auto& entry : slots) {
+        coin_slots.push_back(entry.second.get());
+    }
+
+    int len = coin_slots.size();
+
+    const auto& chosen = coin_slots[getRandomInt(0, len)];
+
+    */
+
+
 }
 
 void Board::move(Direction dir) {
@@ -325,24 +344,16 @@ bool Board::moveIsPermitted() const {
 
 void Board::handleClick(sf::Vector2f worldPos) {
 
-
     return;
 
-    //this function has to be thought again as after the render refactor the slot's sprite is not owned.(it actually is, luckily)
+}
 
-    /*
-    for (const auto& [coord, slotPtr] : slots) {
-        sf::FloatRect bounds = slotPtr->getSlotSprite().getGlobalBounds();
-
-        if (bounds.contains(worldPos)) {
-
-            // Applica filtro rosso
-            slotPtr->getSlotSprite().setColor(sf::Color(255, 100, 100));  // leggermente trasparente rosso
-
-            return;
+bool Board::animationFinished() const {
+    for (const auto& [_, slot] : slots) {
+        if (!slot->isEmpty() && slot->tile->isAnimating()) {
+            return false;
         }
     }
-
-    std::cout << "Clicked on empty space.\n";
-    */
+    return true;
 }
+

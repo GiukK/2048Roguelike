@@ -73,6 +73,7 @@ void Turn::end_turn() {
 void Turn::requestShop() {
 
     game_run->openShop(); // managed by GameRun, to avoid multiple shops by consecutive merges. (possible feature?)
+
 }
 
 
@@ -85,6 +86,9 @@ End
 void Turn::update(float delta) {
     switch (currentPhase) {
     case Phase::Begin:
+
+        board.generateCoins();
+
 
         if (inputReceived) {
             nextPhase();
@@ -114,7 +118,10 @@ void Turn::update(float delta) {
         //the movement has to be processed to understand if the move is valid so this check has to be made here.
         //in case the move fails the phase goes back to Begin
         if (board.moveIsPermitted()) {
-            nextPhase();
+
+            if (board.animationFinished()) {
+                nextPhase(); // Proceed to Phase::BoardResolution
+            }
         }
         else { 
             currentPhase = Phase::Begin;

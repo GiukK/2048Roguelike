@@ -40,6 +40,8 @@ public:
 
     //spawns random tile in random empty slot (to be made modular) - uses internal rng
     void spawnTileInRandomEmptySlot();
+    //
+    void generateCoins();
     
     //handles board movement logic
     void move(Direction dir);
@@ -57,6 +59,9 @@ public:
     Turn* turn;
 
     //getters
+    bool animationFinished() const;
+
+
     bool isResolvingMovement() const;
     bool moveIsPermitted() const;
 
