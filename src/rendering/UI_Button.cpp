@@ -28,7 +28,7 @@ sf::Sprite& UI_Button::getSprite() {
 void UI_Button::update(float dt) {
 
     if (disabled) {
-        sprite.setColor(sf::Color::Yellow);
+        sprite.setColor(sf::Color::Blue);
         return;
     }
 

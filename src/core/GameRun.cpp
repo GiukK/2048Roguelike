@@ -19,11 +19,10 @@ GameRun::GameRun(RenderSystem& renderer, PlayState* playState) :
 
 
 
-
-    //to fix this using local time
-    auto rd = std::random_device{};
+    std::random_device rd;
     randomSeed = rd();
-    rng.seed(randomSeed);
+    rng.seed(67);
+
 
     gameStarted = true;
 
@@ -109,11 +108,11 @@ void GameRun::drawCounter(sf::RenderWindow& window, unsigned int count, std::str
 
     if (asset == "turns") {
 
-        XSHIFT = 250.f;
+        XSHIFT = 350.f;
     }
     else if (asset == "coins") {
 
-        XSHIFT = 1180.f;
+        XSHIFT = 1380.f;
     }
 
     for (std::size_t i = 0; i < countStr.size(); ++i) {
@@ -206,8 +205,9 @@ void GameRun::addItem(std::string item_name) {
 
     //hard positioning for gamerun ui -> to be deprecated and centralized into an UI manager
 
-    itemButton.getSprite().setPosition({1500.f, 400.f + 100.f * inventoryButtons.size()});
-    itemButton.getSprite().setScale({ 1.f, 1.f });
+    itemButton.getSprite().setPosition({1500.f, 350.f + 200.f * inventoryButtons.size()});
+
+    renderer.resizeSprite(item_name, itemButton.getSprite());
     //
 
     //in the future this will be a better structured container and class/struct
@@ -224,8 +224,8 @@ void GameRun::popInventory() {
     
     for (auto& button : inventoryButtons) {
 
-        button.getSprite().setPosition({ 1500.f, 400.f + 100.f * index });
-        button.getSprite().setScale({ 1.f, 1.f });
+        button.getSprite().setPosition({ 1500.f, 350.f + 200.f * index }); //careful in repositioning
+
 
         index++;
     }

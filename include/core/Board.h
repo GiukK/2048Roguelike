@@ -35,10 +35,7 @@ public:
     //-----------------------------------------------------------------
 
 
-    //hard sets rng (useful for future seed replication) (GameRun should handle it fully?)
-    void setRng(std::mt19937 rng);
-
-    //spawns random tile in random empty slot (to be made modular) - uses internal rng
+    //spawns random tile in random empty slot (to be made modular)
     void spawnTileInRandomEmptySlot();
     //
     void generateCoins();
@@ -95,11 +92,8 @@ private:
     std::pair<int, int> col_range{ -1, 3 };
     std::pair<int, int> row_range{ 0, 3 };
     //------
-    
 
 
-    //internal rng (GameRun should handle it fully?)
-    std::mt19937 rng{};
     //------ rng utils
     int getRandomInt(int min, int max);
     float getRandomFloat(float min, float max);

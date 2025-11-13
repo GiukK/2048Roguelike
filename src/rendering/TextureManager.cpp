@@ -16,6 +16,8 @@ void TextureManager::initialize() {
     load("coin_animation", "assets/textures/coin_animation.png");
 
     load("use_button", "assets/textures/use_button.png"); //better ui in the future
+    load("discard_button", "assets/textures/discard_button.png"); //better ui in the future
+    load("exit_button", "assets/textures/exit_button.png"); //better ui in the future
     //Turn(no)
     load("monstro", "assets/textures/monstro.png");   //bosses?
 

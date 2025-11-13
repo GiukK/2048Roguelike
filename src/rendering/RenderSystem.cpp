@@ -15,6 +15,7 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
 
     std::cout << "Assets loading..." << std::endl;
 
+
     //Menu
     scalingRules["background"] = { 192 , 108};
     scalingRules["startb"] = { 192, 108 };
@@ -22,13 +23,15 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
 
     //shop
     scalingRules["shop"] = { 192 * 4, 108 * 4 };
-    scalingRules["coin_bag"] = { 192 * 4, 108 * 4 };
+    scalingRules["coin_bag"] = { 192, 108 };
 
     //GameRun
-    scalingRules["backUI"] = {192 * 4, 108 * 4 };
+    scalingRules["backUI"] = {192, 108 };
     scalingRules["coin_animation"] = { 192 * 4, 108 * 4 };
 
     scalingRules["use_button"] = { 192 * 4, 108 * 4 }; //better ui in the future
+    scalingRules["discard_button"] = { 192 * 4, 108 * 4 }; //better ui in the future
+    scalingRules["exit_button"] = { 192 * 4, 108 * 4 }; //better ui in the future
 
     //Turn (no)
     scalingRules["monstro"] = { 192 * 4, 108 * 4 };
@@ -36,11 +39,11 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     scalingRules["board"] = { 192, 108 };
 
     //Slot
-    scalingRules["slot"] = { 192 * 4, 108 * 4 };
-    scalingRules["shopslot"] = { 192, 108 };
+    scalingRules["slot"] = { 192 * 2, 108 * 2 };
+    scalingRules["shopslot"] = { 192, 108 }; // we probably dont even call this (consider using tags for groups of assets as "slots" and "tiles"
 
     //Tile
-    scalingRules["2"] = { 192, 108 }; //has to do with internal scaling? prob (not x4) to be fixed
+    scalingRules["2"] = { 192 * 2, 108 *2}; //all tiles are the same beacuase we set scale only at start
     scalingRules["4"] = { 192, 108 };
     scalingRules["8"] = { 192, 108 };
     scalingRules["16"] = { 192, 108 };
@@ -52,9 +55,8 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     scalingRules["1024"] = { 192, 108 };
     scalingRules["2048"] = { 192, 108 };
 
-    //new assets are to be added here...
-
     //end
+
     std::cout << "Loading ended!" << std::endl;
 
 }

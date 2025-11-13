@@ -61,14 +61,14 @@ public:
     // essential for go_back and future effects
     // 
     //---------------------------------------------------------
+    //raw ptr back to owner GameRun (first pointer to gamerun, then board, problem with rng)
+    GameRun* game_run;
 
     //internal board of the turn
     Board board;
     //useful for restoring the turn's state
     Board boardBegin;
 
-    //raw ptr back to owner GameRun
-    GameRun* game_run;
 
     //internal currentmove made - None if not yet chosen
     Direction move = Direction::None;
@@ -85,8 +85,8 @@ public:
     //requests shop to be handled by GameRun (possible change)
     void requestShop();
 
-
 private:
+
 
     //trivial flag for input of move (to be depracated)
     bool inputReceived = 0;

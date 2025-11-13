@@ -24,6 +24,7 @@ Turn::Turn(RenderSystem& renderer , GameRun* game_run,const Board& initial_board
     board(Board::cloneFrom(initial_board, this)),
     boardBegin(Board::cloneFrom(initial_board, this))
 {
+
 }
 
 void Turn::nextPhase() {

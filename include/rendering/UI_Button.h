@@ -17,7 +17,7 @@ public:
                 const std::string& idle_id,
     //            std::string& hover_id,
     //            std::string& pressed_id,
-                std::function<void()> onClick);
+                std::function<void()> onClick); //create a map id-> effect
                 
 
     void update(float dt);

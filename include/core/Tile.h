@@ -32,6 +32,7 @@ public:
     //tile merge
     void mergeIntoSlot(Slot* other);
 
+    bool mergedThisSweep = false;
 
     //game value of tile
     int getValue() const;

@@ -50,6 +50,11 @@ public:
     const RenderSystem& getRenderer() const;
     const int getCoins() const;
 
+    int getRandomInt(int min, int max);
+    float getRandomFloat(float min, float max);
+
+
+
 private:
 
     unsigned int randomSeed;
@@ -83,7 +88,5 @@ private:
     //------
 
 
-    int getRandomInt(int min, int max);
-    float getRandomFloat(float min, float max);
 
 };

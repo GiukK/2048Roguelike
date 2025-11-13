@@ -3,6 +3,7 @@
 #include "core/Slot.h"
 #include "effects/ShopEffect.h"
 #include "core/Turn.h"
+#include "core/GameRun.h"
 #include "rendering/RenderSystem.h"
 
 
@@ -30,7 +31,6 @@ void Board::copyStateFrom(const Board& other) {
     board = other.board;
     col_range = other.col_range;
     row_range = other.row_range;
-    rng = other.rng;
 
     //restore flags at the end of the round
     isResolvingMovementFlag = false;
@@ -45,6 +45,21 @@ void Board::copyStateFrom(const Board& other) {
         if (!slotPtr->isEmpty()) {
             Slot* mySlot = slots[coord].get();
             const Tile* originalTile = slotPtr->tile.get();
+
+            /*
+
+                            CAREFUL - DOUBLE MERGE AND SIMPLE COPY OF TILE
+
+            this is the only piece of code that holds the "double merge" feature in place. (with flag)
+
+            the fact is that we do not still have a function to "copy" the tile from a board to another
+            so creating another one with the flag initialized as normal is like starting a new board, which NOW is convenient
+
+            BUT if in the future we would like to have tiles that HOLD characteristics other than value, than a simple copy
+            like this would be WRONG.
+
+            */
+
             mySlot->setTile(std::make_unique<Tile>(renderer, mySlot, originalTile->getValue()));
         }
     }
@@ -125,18 +140,11 @@ void Board::update(float deltaTime) {
     }
 }
 
-
-void Board::setRng(std::mt19937 rng) {
-    this->rng = rng;
-}
-
 int Board::getRandomInt(int min, int max) {
-    std::uniform_int_distribution<int> dist(min, max);
-    return dist(rng);
+    return turn->game_run->getRandomInt(min, max);
 }
 float Board::getRandomFloat(float min, float max) {
-    std::uniform_real_distribution<float> dist(min, max);
-    return dist(rng);
+    return turn->game_run->getRandomFloat(min, max);
 }
 
 // Function to spawn a tile in a random empty slot - this will be modular in the future
@@ -201,6 +209,7 @@ void Board::move(Direction dir) {
     while (!movementQueue.empty()) {
         resolveNextTileMove(dir);
     }
+
 
     isResolvingMovementFlag = false;
 
@@ -286,7 +295,10 @@ void Board::resolveNextTileMove(Direction moveDirection) {
         moveIsPermittedFlag = true;
 
         current = next; // Avanza la posizione
+
     }
+
+    if (tile->mergedThisSweep) return;  // to not double merge 
 
     // Step 2: prova merge con la tile successiva
     Coord mergeCoord = getNextCoord(current, moveDirection);
@@ -299,12 +311,16 @@ void Board::resolveNextTileMove(Direction moveDirection) {
 
         if (!neighbor->isEmpty() and                                //the neighbor slot must be empty
             neighbor->tile->getValue() == tile->getValue() and      //it must have the same value
-            slots[current]->canTileStepOut)                         //the current slot must not be locked
+            slots[current]->canTileStepOut and                      //the current slot must not be locked
+            !tile->mergedThisSweep and                              
+            !neighbor->tile->mergedThisSweep)                       //check to not double merge  
         {
 
             tile->mergeIntoSlot(neighbor);
 
             moveIsPermittedFlag = true;
+
+            return;
         }
     }
 }

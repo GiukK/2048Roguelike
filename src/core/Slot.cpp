@@ -46,7 +46,10 @@ void Slot::fixVisualAssets() {
     //slot.setPosition({ float(windowSize.x) / 2, float(windowSize.y) / 2 }); //  up shift (-) 
 
     const float shift = 300.f;
-    slot.setPosition({ 198.f * col + shift, 198.f * row + shift });
+
+    const float slot_size = 128.f;
+
+    slot.setPosition({ slot_size * col + shift, slot_size * row + shift });
 
     std::cout << "Slot visual assets: ready" << std::endl;
 }

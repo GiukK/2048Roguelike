@@ -2,7 +2,6 @@
 #include "core/Slot.h"
 #include "rendering/RenderSystem.h"
 
-
 //the entirety of this class has to be rethought as a more solid and less visual-oriented (sprites)
 
 Tile::Tile(RenderSystem& renderer , Slot* slot, int value) :
@@ -20,14 +19,22 @@ slot(slot)
 void Tile::fixVisualAssets() {
 
 	tile.setOrigin({ tile.getGlobalBounds().size.x / 2 , tile.getGlobalBounds().size.y / 2 });
-	tile.setScale({ 2.f, 2.f });
 	tile.setPosition(slot->getSlotSprite().getPosition());
+
+	//asset resizing --- all tiles are the same -> bad practice
+	renderer.resizeSprite("2" , tile);
 
 }
 
 
 
 void Tile::render( RenderSystem& renderer) {
+
+	if (mergedThisSweep) { 
+
+		tile.setColor(sf::Color::Red); 
+
+	}
 
 	renderer.draw(tile);
 
@@ -87,8 +94,9 @@ void Tile::mergeIntoSlot(Slot* other) {
 	other->tile->changeSprite();
 	other->triggerMergeEffects();
 
-	//in the future the animation of merging and the logic should be separated
+	mergedThisSweep = true;
 
+	//in the future the animation of merging and the logic should be separated
 
 
 }
