@@ -32,10 +32,13 @@ private:
     RenderSystem& renderer;
 
     sf::Sprite sprite;
+    
+    bool resizeFlag{ false };
+
+
 
     std::function<void()> onClick;
 
     State currentState = State::Idle;
-
 
 };

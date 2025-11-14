@@ -1,5 +1,6 @@
 #include "rendering/RenderSystem.h"
 #include "rendering/UI_Button.h"
+#include "SFML/Audio.hpp"
 
 UI_Button::UI_Button(   RenderSystem& renderer,
                         const std::string& idle_id,
@@ -10,7 +11,8 @@ UI_Button::UI_Button(   RenderSystem& renderer,
 renderer(renderer),
 sprite(renderer.getTextureManager().get(idle_id)),
 onClick(onClick)
-{ }
+{
+}
 
 UI_Button::State UI_Button::getState() const {
 
@@ -40,14 +42,24 @@ void UI_Button::update(float dt) {
                 currentState = State::Idle;
                 sprite.setColor(sf::Color::White);
 
+                if (resizeFlag) {
+                    sprite.setScale(sprite.getScale() / 1.1f);
+                    resizeFlag = false;
+                }
+
     }
     else if (currentState == State::Idle and //Idle -> Hover
         sprite.getGlobalBounds().contains(static_cast<sf::Vector2f>(mousePos)) )
     { 
 
-
         currentState = State::Hovered;
         sprite.setColor(sf::Color::Red);
+        
+        if (not resizeFlag) {
+            sprite.setScale(sprite.getScale() * 1.1f);
+            resizeFlag = true;
+        }
+
 
     }
     else if (   currentState == State::Hovered and  // Hover -> Pressed

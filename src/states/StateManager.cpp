@@ -33,6 +33,22 @@ void StateManager::changeState(std::unique_ptr<GameState> state) { //?? weird an
 }
 */
 
+void StateManager::requestPop() {
+    pendingOps.push_back(Op::Pop);
+}
+
+void StateManager::applyPending() {
+    if (pendingOps.empty()) return;
+    for (auto op : pendingOps) {
+        if (op == Op::Pop) popState(); // actually perform it now, safely
+    }
+    pendingOps.clear();
+}
+
+
+
+//-----
+
 void StateManager::handleInput(sf::Event& event) {
     if (!states.empty()) {
         states.top()->handleInput(event);
@@ -43,6 +59,8 @@ void StateManager::update(float deltaTime) {
     if (!states.empty()) {
         states.top()->update(deltaTime);
     }
+
+    applyPending(); //can pop state at the end, without risking to access freed memory
 }
 
 void StateManager::render(RenderSystem& renderer) {

@@ -3,6 +3,10 @@
 #include "states/GameState.h"
 #include "states/StateManager.h"
 #include "core/GameRun.h"
+
+
+
+#include "rendering/UI_Button.h"
 #include "rendering/RenderSystem.h"
 
 
@@ -25,6 +29,8 @@ public:
 private:
 
     std::unique_ptr<GameRun> currentRun;
+
+    std::vector<UI_Button> buttons;
 
 
 };

@@ -31,7 +31,7 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
 
     scalingRules["use_button"] = { 192 * 4, 108 * 4 }; //better ui in the future
     scalingRules["discard_button"] = { 192 * 4, 108 * 4 }; //better ui in the future
-    scalingRules["exit_button"] = { 192 * 4, 108 * 4 }; //better ui in the future
+    scalingRules["exit_button"] = { 192 * 2, 108 * 2 }; //better ui in the future
 
     //Turn (no)
     scalingRules["monstro"] = { 192 * 4, 108 * 4 };

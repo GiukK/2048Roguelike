@@ -6,6 +6,28 @@ PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer) :
     renderer(renderer),
     currentRun(std::make_unique<GameRun>(renderer, this))
 {
+
+    UI_Button exitButton(renderer, "exit_button", [this]() {
+
+        this->stateManager.requestPop();
+
+        std::cout << "pop requested from exit_button" << std::endl;
+
+        });
+
+
+    //---- maybe it would be useful to build a function 
+    sf::Sprite& exitButtonSprite = exitButton.getSprite();
+    exitButtonSprite.setPosition({ 1800.f, 100.f });
+    exitButtonSprite.setOrigin(exitButtonSprite.getLocalBounds().getCenter());
+    //----
+
+    renderer.resizeSprite("exit_button", exitButton.getSprite());
+
+    buttons.emplace_back(std::move(exitButton));
+    //
+
+
     enter(); // Open game
 }
 
@@ -43,12 +65,27 @@ void PlayState::handleInput(sf::Event& event) {
 
 void PlayState::update(float deltaTime) {
 
+    //draw buttons
+    for (auto& button : buttons) {
+
+        button.update(deltaTime);
+
+    }
+
     currentRun->update(deltaTime);
 
 }
 
 void PlayState::render(RenderSystem& renderer) {
 
+
     //Text UI deprecated
     currentRun->render(renderer);
+
+    //draw buttons
+    for (auto& button : buttons) {
+
+        renderer.draw(button.getSprite());
+
+    }
 }
