@@ -5,6 +5,8 @@
 #include "core/GameRun.h"
 #include "rendering/RenderSystem.h"
 #include "rendering/UI_Button.h"
+#include "rendering/Animation.h"
+
 
 
 #include "SFML/Audio.hpp"
@@ -36,10 +38,8 @@ private:
 
     sf::Sprite shopSprite;
 
-    //ani try
-    sf::Sprite coin_animation;
-    char coin_ani_frame{ 0 };
-    float coin_ani_elapsed{ 0 };
+    //ani
+    std::vector<Animation> animations;
     //
 
     std::vector<UI_Button> itemsForSale;

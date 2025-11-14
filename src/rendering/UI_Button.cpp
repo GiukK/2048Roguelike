@@ -1,6 +1,5 @@
 #include "rendering/RenderSystem.h"
 #include "rendering/UI_Button.h"
-#include "SFML/Audio.hpp"
 
 UI_Button::UI_Button(   RenderSystem& renderer,
                         const std::string& idle_id,
