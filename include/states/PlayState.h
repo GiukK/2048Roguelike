@@ -7,6 +7,7 @@
 
 
 #include "rendering/UI_Button.h"
+#include "rendering/Animation.h"
 #include "rendering/RenderSystem.h"
 
 
@@ -26,11 +27,16 @@ public:
     StateManager& stateManager;
     RenderSystem& renderer;
 
+    void addAnimation(std::unique_ptr<Animation> ani);
+
 private:
 
     std::unique_ptr<GameRun> currentRun;
 
     std::vector<UI_Button> buttons;
+
+    //ani
+    std::vector<std::unique_ptr<Animation>> animations;
 
 
 };

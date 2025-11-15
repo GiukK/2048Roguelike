@@ -1,6 +1,12 @@
 #include "core/Tile.h"
 #include "core/Slot.h"
+#include "core/Board.h"
+#include "core/Turn.h"
+#include "core/GameRun.h"
+#include "states/PlayState.h"
 #include "rendering/RenderSystem.h"
+#include "rendering/Animation.h"
+
 
 //the entirety of this class has to be rethought as a more solid and less visual-oriented (sprites)
 
@@ -37,6 +43,7 @@ void Tile::render( RenderSystem& renderer) {
 	}
 
 	renderer.draw(tile);
+
 
 }
 
@@ -98,7 +105,21 @@ void Tile::mergeIntoSlot(Slot* other) {
 
 	//in the future the animation of merging and the logic should be separated
 
+	/*  WORKING ON MERGE PARTICLE COMPONENT
 
+
+	auto ani = std::make_unique<Animation>(
+		renderer,           // riferimento al tuo RenderSystem
+		"coin_animation",         // id o nome della sprite-sheet registrata
+		sf::Vector2i(32, 32),// dimensione di ogni frame
+		8,                  // numero di frame totali
+		tile.getLocalBounds().getCenter()                // posizione in mondo
+	);
+	ani->shouldLoop = false;
+
+
+
+	*/
 }
 
 
@@ -111,6 +132,7 @@ void Tile::changeSprite() {
 }
 
 void Tile::update(float deltaTime) {
+
 	if (!animating) return;
 
 	animationTime += deltaTime;

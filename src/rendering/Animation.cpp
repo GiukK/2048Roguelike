@@ -15,6 +15,7 @@ Animation::Animation(RenderSystem& renderer,
     sprite(renderer.getTextureManager().get(idle_id))
 {
     //ANI TRY -------
+    sprite.setOrigin({(float)size.x/2,(float)size.y/2});
 
     renderer.resizeSprite(idle_id, sprite);
     sprite.setPosition(pos);

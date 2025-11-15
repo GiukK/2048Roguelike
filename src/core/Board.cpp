@@ -4,7 +4,10 @@
 #include "effects/ShopEffect.h"
 #include "core/Turn.h"
 #include "core/GameRun.h"
+#include "states/PlayState.h"
 #include "rendering/RenderSystem.h"
+#include "rendering/Animation.h"
+
 
 
 Board::Board(RenderSystem& renderer, Turn* turn, bool doInitialSetup) :
@@ -61,6 +64,7 @@ void Board::copyStateFrom(const Board& other) {
             */
 
             mySlot->setTile(std::make_unique<Tile>(renderer, mySlot, originalTile->getValue()));
+
         }
     }
 }
@@ -298,7 +302,11 @@ void Board::resolveNextTileMove(Direction moveDirection) {
 
     }
 
-    if (tile->mergedThisSweep) return;  // to not double merge 
+    if (tile->mergedThisSweep) { 
+        
+        return; }  // to not double merge 
+
+    //------
 
     // Step 2: prova merge con la tile successiva
     Coord mergeCoord = getNextCoord(current, moveDirection);
@@ -318,6 +326,21 @@ void Board::resolveNextTileMove(Direction moveDirection) {
 
             tile->mergeIntoSlot(neighbor);
 
+            //------
+
+            auto ani = std::make_unique<Animation>(
+                renderer,           // riferimento al tuo RenderSystem
+                "merge_animation",         // id o nome della sprite-sheet registrata
+                sf::Vector2i(23, 23),// dimensione di ogni frame
+                5,                  // numero di frame totali
+                tile->slot->getSlotSprite().getPosition()             // posizione in mondo
+            );
+            ani->shouldLoop = false;
+
+            turn->game_run->getPlayState()->addAnimation(std::move(ani));
+
+
+            ///-----
             moveIsPermittedFlag = true;
 
             return;

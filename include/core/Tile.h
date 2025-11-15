@@ -3,11 +3,10 @@
 #include <iostream>
 
 #include <SFML/Graphics.hpp>
-
+#include "rendering/Animation.h"
 
 class Slot;
 class RenderSystem;
-
 
 class Tile{
 
@@ -50,7 +49,7 @@ private:
     //game value
     int value{2};
 
-    //------ANIMATION
+    //------MOVING ANIMATION
     sf::Vector2f targetPosition; // Destination to move toward
     float moveSpeed = 800.f;   // Pixels per second
     bool animating = false;
@@ -58,9 +57,6 @@ private:
     sf::Vector2f startPosition;
     float animationTime = 0.f;
     float animationDuration = 0.1f; // Total animation time in seconds
-
-
-
     //-----------------
 
 

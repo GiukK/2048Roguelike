@@ -48,6 +48,8 @@ public:
     void popInventory(); //temporary to make items disappear
 
     const RenderSystem& getRenderer() const;
+    PlayState* getPlayState();
+
     const int getCoins() const;
 
     int getRandomInt(int min, int max);
@@ -69,6 +71,7 @@ private:
     void drawCounter(sf::RenderWindow& window, unsigned int count, std::string asset);
 
     RenderSystem& renderer;
+    PlayState* playState;
 
     sf::Sprite backUI;
 
@@ -82,7 +85,6 @@ private:
 
     unsigned short int maxInventorySize{ 3 } ;
 
-    PlayState* playState;
     std::stack<std::unique_ptr<Turn>> run_turns;
 
     //------

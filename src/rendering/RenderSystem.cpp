@@ -28,6 +28,7 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     //GameRun
     scalingRules["backUI"] = {192, 108 };
     scalingRules["coin_animation"] = { 192 * 2, 108 * 2 };
+    scalingRules["merge_animation"] = { 192 * 2, 108 * 2 };
 
     scalingRules["use_button"] = { 192 * 4, 108 * 4 }; //better ui in the future
     scalingRules["discard_button"] = { 192 * 4, 108 * 4 }; //better ui in the future

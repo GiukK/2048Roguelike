@@ -13,6 +13,8 @@ void TextureManager::initialize() {
     load("coin_bag", "assets/textures/coin_bag.png");
     //GameRun
     load("backUI", "assets/textures/backUI.png");
+
+    load("merge_animation", "assets/textures/merge_animation.png");
     load("coin_animation", "assets/textures/coin_animation.png");
 
     load("use_button", "assets/textures/use_button.png"); //better ui in the future

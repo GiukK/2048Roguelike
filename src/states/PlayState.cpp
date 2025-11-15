@@ -1,5 +1,6 @@
 #include "states/PlayState.h"
 #include <iostream>
+#include <algorithm>
 
 PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer) :
     stateManager(stateManager),
@@ -65,6 +66,8 @@ void PlayState::handleInput(sf::Event& event) {
 
 void PlayState::update(float deltaTime) {
 
+    currentRun->update(deltaTime);
+
     //draw buttons
     for (auto& button : buttons) {
 
@@ -72,7 +75,17 @@ void PlayState::update(float deltaTime) {
 
     }
 
-    currentRun->update(deltaTime);
+    for (auto& ani : animations) {
+
+        ani->update(deltaTime);
+    }
+
+    animations.erase(
+        std::remove_if(animations.begin(), animations.end(),
+            [](const std::unique_ptr<Animation>& ani) {
+                return ani->isEnded();
+            }),
+        animations.end());
 
 }
 
@@ -88,4 +101,15 @@ void PlayState::render(RenderSystem& renderer) {
         renderer.draw(button.getSprite());
 
     }
+
+    //render animation
+    for (auto& ani : animations) {
+
+        renderer.draw(ani->getSprite());
+    }
+}
+
+void PlayState::addAnimation(std::unique_ptr<Animation> ani) {
+    if (!ani) return;
+    animations.push_back(std::move(ani));  
 }

@@ -171,6 +171,12 @@ const RenderSystem& GameRun::getRenderer() const {
 
 }
 
+PlayState* GameRun::getPlayState() {
+
+    return playState;
+
+}
+
 void GameRun::addCoins(int count) {
 
     coins += count;
