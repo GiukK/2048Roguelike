@@ -10,13 +10,19 @@ MenuState::MenuState(StateManager& stateManager, RenderSystem& renderer) :
     renderer(renderer),
     background(renderer.getTextureManager().get("background")) //not movable
 {
-    //fixes button and assset size,position and origin of sprites.
-    buttons.emplace_back(renderer, "startb", [&stateManager, &renderer]() {
+    //asset positioning
+    auto windowSize = renderer.getWindowSize();
+    const float verticalShift = 100.f; //this is a visual shift: START, OPTIONS
+
+    UI_Button startb(renderer, "startb", { float(windowSize.x) / 2, -verticalShift + float(windowSize.y) / 2 }, [&stateManager, &renderer]() {
         stateManager.pushState(std::make_unique<PlayState>(stateManager, renderer));
         });
-    buttons.emplace_back(renderer, "optionsb", []() {
+    UI_Button optionsb(renderer, "optionsb", { float(windowSize.x) / 2, verticalShift + float(windowSize.y) / 2 }, []() {
         std::cout << "Options clicked!\n";
         });
+
+    buttons.emplace_back(startb);
+    buttons.emplace_back(optionsb);
 
     fixVisualAssets();
 
@@ -26,27 +32,7 @@ MenuState::MenuState(StateManager& stateManager, RenderSystem& renderer) :
 
 void MenuState::fixVisualAssets() {
 
-    sf::Sprite& startbSprite = buttons[0].getSprite();
-    sf::Sprite& optionsbSprite = buttons[1].getSprite();
-
-    //asset resizing
     renderer.resizeSprite("background", background);
-    renderer.resizeSprite("startb", startbSprite);
-    renderer.resizeSprite("optionsb", optionsbSprite);
-
-    //asset origin setting
-
-    startbSprite.setOrigin(startbSprite.getLocalBounds().getCenter());
-    optionsbSprite.setOrigin(optionsbSprite.getLocalBounds().getCenter());
-
-
-    //asset positioning
-    auto windowSize = renderer.getWindowSize();
-
-    const float verticalShift = 100.f; //this is a visual shift needed to set up the correct position for the two buttons : START, OPTIONS
-
-    startbSprite.setPosition({ float(windowSize.x) / 2, -verticalShift + float(windowSize.y) / 2 }); //  up shift (-) 
-    optionsbSprite.setPosition({ float(windowSize.x) / 2, verticalShift + float(windowSize.y) / 2 }); // down shift
 
     std::cout << "MenuState visual assets: ready" << std::endl;
 }

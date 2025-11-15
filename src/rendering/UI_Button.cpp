@@ -3,6 +3,7 @@
 
 UI_Button::UI_Button(   RenderSystem& renderer,
                         const std::string& idle_id,
+                        sf::Vector2f pos,
     //                  std::string& hover_id,
     //                  std::string& pressed_id,
                         std::function<void()> onClick) : 
@@ -11,6 +12,11 @@ renderer(renderer),
 sprite(renderer.getTextureManager().get(idle_id)),
 onClick(onClick)
 {
+
+    sprite.setOrigin(sprite.getLocalBounds().getCenter());
+    sprite.setPosition(pos);
+    renderer.resizeSprite(idle_id, sprite);
+
 }
 
 UI_Button::State UI_Button::getState() const {

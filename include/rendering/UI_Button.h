@@ -15,6 +15,7 @@ public:
 
     UI_Button(  RenderSystem& renderer,
                 const std::string& idle_id,
+                sf::Vector2f pos,
     //            std::string& hover_id,
     //            std::string& pressed_id,
                 std::function<void()> onClick); //create a map id-> effect

@@ -14,7 +14,7 @@ Turn::Turn(RenderSystem& renderer , GameRun* game_run) :
     boardBegin(Board::cloneFrom(board, this))
 
 {
-    std::cout << " -------------------------------  Turn 1  -------------------------------" << std::endl;
+    std::cout << "Turn 1 ready" << std::endl;
 }
 
 
@@ -29,7 +29,7 @@ Turn::Turn(RenderSystem& renderer , GameRun* game_run,const Board& initial_board
 
 void Turn::nextPhase() {
 
-    std::cout << "[FSM] Transitioning from " << toString(currentPhase);
+    std::cout << "[FSM] Transitioning from " << toString(currentPhase) << std::endl;
 
     switch (currentPhase) {
     case Phase::Begin:
@@ -49,8 +49,6 @@ void Turn::nextPhase() {
     default:
         break;
     }
-
-    std::cout << " to " << toString(currentPhase) << std::endl;
 }
 
 
@@ -73,7 +71,9 @@ void Turn::end_turn() {
 
 void Turn::requestShop() {
 
-    game_run->openShop(); // managed by GameRun, to avoid multiple shops by consecutive merges. (possible feature?)
+    shopRequested = 1;
+
+    std::cout << "SHOP HAS BEEN REQUESTED" << std::endl;
 
 }
 
@@ -141,7 +141,16 @@ void Turn::update(float delta) {
         break;
     case Phase::End:
 
-        end_turn();
+        if (shopRequested) {
+            game_run->openShop();
+            shopRequested = 0;
+        }
+        
+        if (not game_run->shopOpen) {
+
+            nextPhase(); //end turn only if the player has exited shop
+
+        }
         break;
 
     default:

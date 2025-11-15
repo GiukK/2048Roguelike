@@ -32,7 +32,7 @@ GameRun::GameRun(RenderSystem& renderer, PlayState* playState) :
 
 void GameRun::enter() {
 
-	std::cout << "currentRun entered" << std::endl;
+    std::cout << "Entering current GameRun" << std::endl;
 
 }
 
@@ -201,20 +201,13 @@ bool GameRun::isInventoryFull() {
 void GameRun::addItem(std::string item_name) {
 
 
-    UI_Button itemButton(renderer, item_name, [this](){
+    UI_Button itemButton(renderer, item_name, { 1500.f, 350.f + 200.f * inventoryButtons.size() }, [this](){
         this->addCoins(+50); //in the future there will need to be a way to understand what each button should do based on 
                              //a table sheet of key - effects
 
         this->popInventory();
                              //there will probably be a virtual class to better handle UI input
         });
-
-    //hard positioning for gamerun ui -> to be deprecated and centralized into an UI manager
-
-    itemButton.getSprite().setPosition({1500.f, 350.f + 200.f * inventoryButtons.size()});
-
-    renderer.resizeSprite(item_name, itemButton.getSprite());
-    //
 
     //in the future this will be a better structured container and class/struct
     inventoryButtons.push_back(itemButton);

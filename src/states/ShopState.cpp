@@ -24,12 +24,9 @@ void ShopState::fixVisualAssets() {
         //ani
         Animation anim(renderer, "coin_animation", { 32, 32 }, 8, { 120.f * i, 900.f });
     
-        animations.emplace_back(anim);
+        animations.emplace_back(std::move(anim));
 
     }
-
-    //animations.emplace_back(std::move(anim));
-
 
     //......
     //asset resizing
@@ -41,13 +38,6 @@ void ShopState::fixVisualAssets() {
     shopSprite.setPosition({ float(windowSize.x) / 2, float(windowSize.y) / 2 }); //  up shift (-) 
 
     std::cout << "ShopState visual assets: ready" << std::endl;
-
-
-
-    //button -> no risize
-    itemsForSale[0].getSprite().setOrigin(itemsForSale[0].getSprite().getLocalBounds().getCenter());
-    itemsForSale[0].getSprite().setScale({ 6.f , 6.f });
-    itemsForSale[0].getSprite().setPosition({ float(windowSize.x) / 2, float(windowSize.y) / 2 });
 
 }
 
@@ -62,10 +52,7 @@ void ShopState::enter() {
 
 void ShopState::generateShop() {
     
-    //right now the shop generates only a coin bag
-    itemsForSale.emplace_back(renderer, "coin_bag", [this]() {
-        this->buyItem("coin_bag");
-        });
+    std::cout << "shop generated - empty" << std::endl;
 
 }
 
@@ -98,16 +85,15 @@ void ShopState::update(float deltaTime) {
 
     currentRun->update(deltaTime);
 
-    for (auto& itemButton : itemsForSale) {
-
-        itemButton.update(deltaTime);
-    }
-
     for (auto& ani : animations) {
 
         ani.update(deltaTime);
     }
 
+    for (auto& itemButton : itemsForSale) {
+
+        itemButton.update(deltaTime);
+    }
 }
 
 void ShopState::render(RenderSystem& renderer) {
@@ -117,7 +103,6 @@ void ShopState::render(RenderSystem& renderer) {
     currentRun->render(renderer);
 
     renderer.draw(shopSprite);
-
 
     //render items for sale
     for (auto& itemButton : itemsForSale) {
@@ -130,8 +115,6 @@ void ShopState::render(RenderSystem& renderer) {
 
         renderer.draw(ani.getSprite());
     }
-
-
 }
 
 void ShopState::handleClick(sf::Vector2f worldPos) {
@@ -142,26 +125,6 @@ void ShopState::handleClick(sf::Vector2f worldPos) {
 //TODO
 void ShopState::buyItem(const std::string & itemButton) {
 
-    if (1 > currentRun->getCoins()) { //item cannot be bought (possible feature to go in debt?)
-        
-        std::cout << "ITEM : cannot be bought: it costs " <<
-            1 << " and you have " << currentRun->getCoins() << std::endl;
-        return;
-    }
-    if (currentRun->isInventoryFull()) {
-
-        std::cout << "Inventory is full!\n" << std::endl;
-        return;
-
-    }
-
-    itemsForSale[0].disabled = true; //to be fixed
-
-    std::cout << "ITEM BOUGHT :  has been added to the inventory!\n";
-
-    currentRun->addCoins(-1); // in the future it will be useful to add "subtract coins etc..."
-
-    currentRun->addItem("coin_bag");
 
 }
 

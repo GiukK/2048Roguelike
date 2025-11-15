@@ -36,7 +36,7 @@ void Animation::update(float dt)
         if (currentframe >= nframes and shouldLoop) {
             currentframe = 0;
         }
-        else if (currentframe >= nframes and not shouldLoop) {
+        else if (currentframe > nframes and not shouldLoop) {
 
             std::cout << "animation should be deleted!";
         }

@@ -89,7 +89,10 @@ private:
 
 
     //trivial flag for input of move (to be depracated)
+
     bool inputReceived = 0;
+
+    bool shopRequested = 0;
 
     RenderSystem& renderer;
 

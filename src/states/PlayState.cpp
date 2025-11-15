@@ -8,7 +8,7 @@ PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer) :
     currentRun(std::make_unique<GameRun>(renderer, this))
 {
 
-    UI_Button exitButton(renderer, "exit_button", [this]() {
+    UI_Button exitButton(renderer, "exit_button", {1800.f, 100.f}, [this]() {
 
         this->stateManager.requestPop();
 
@@ -17,17 +17,7 @@ PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer) :
         });
 
 
-    //---- maybe it would be useful to build a function 
-    sf::Sprite& exitButtonSprite = exitButton.getSprite();
-    exitButtonSprite.setPosition({ 1800.f, 100.f });
-    exitButtonSprite.setOrigin(exitButtonSprite.getLocalBounds().getCenter());
-    //----
-
-    renderer.resizeSprite("exit_button", exitButton.getSprite());
-
     buttons.emplace_back(std::move(exitButton));
-    //
-
 
     enter(); // Open game
 }
@@ -36,8 +26,6 @@ void PlayState::enter() {
     std::cout << "Entering Play State - PlayState::enter()" << std::endl;
 
     currentRun->enter();
-
-    std::cout << "Entering current GameRun" << std::endl;
 }
 
 void PlayState::exit() {
