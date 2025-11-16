@@ -12,6 +12,17 @@ class Tile{
 
 public:
 
+    enum class State {
+        Idle,
+        Hovered,
+        Pressed
+    };
+
+    bool selected{ false };
+
+    State currentState = State::Idle;
+    bool resizeFlag{ false };
+
     Tile(RenderSystem& renderer , Slot* slot, int value);
     //raw ptr to owner - Slot
     Slot* slot;
@@ -42,6 +53,12 @@ private:
 
     RenderSystem& renderer;
     sf::Sprite tile;
+
+    // rendering (bad)
+    bool mouseDownLastFrame = false;
+    bool wasHovering = false;
+    bool pressedInside = false;
+
 
     void fixVisualAssets();
 

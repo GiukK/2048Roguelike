@@ -145,6 +145,7 @@
   <ItemGroup>
     <ClCompile Include="src\core\Board.cpp" />
     <ClCompile Include="src\core\GameRun.cpp" />
+    <ClCompile Include="src\core\ItemManager.cpp" />
     <ClCompile Include="src\core\utils\MovementQueue.cpp" />
     <ClCompile Include="src\effects\ShopEffect.cpp" />
     <ClCompile Include="src\core\Slot.cpp" />
@@ -166,6 +167,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\core\Board.h" />
+    <ClInclude Include="include\core\ItemManager.h" />
     <ClInclude Include="include\core\utils\Coord.h" />
     <ClInclude Include="include\core\utils\Direction.h" />
     <ClInclude Include="include\core\GameRun.h" />

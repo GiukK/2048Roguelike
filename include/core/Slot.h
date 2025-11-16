@@ -13,6 +13,13 @@ class Tile;
 
 class Slot {
 public:
+
+    enum class State {
+        Idle,
+        Hovered,
+        Pressed
+    };
+
     //------
     Slot(int col, int row, Board* board, RenderSystem& renderer);
 

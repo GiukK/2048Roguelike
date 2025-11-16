@@ -34,18 +34,19 @@ void Tile::fixVisualAssets() {
 
 
 
-void Tile::render( RenderSystem& renderer) {
+void Tile::render(RenderSystem& renderer) {
 
-	if (mergedThisSweep) { 
+    // evidenziazione merge (se la usi per un solo frame, magari rimetti false dopo il draw)
+    if (mergedThisSweep) {
+        tile.setColor(sf::Color::Red);
+    }
 
-		tile.setColor(sf::Color::Red); 
-
-	}
-
-	renderer.draw(tile);
+    // --- DRAW -----------------------------------------------------------------
+    renderer.draw(tile);
 
 
 }
+
 
 //changes ownership of tile ALSO manages internal slot ownership (tile-><-slot) 
 void Tile::changeSlot(Slot* a, Slot* b) {
@@ -132,6 +133,75 @@ void Tile::changeSprite() {
 }
 
 void Tile::update(float deltaTime) {
+	//----------------------------------------------------------------------------------------------------------
+
+		// --- INPUT & HIT-TEST -----------------------------------------------------
+	// usa mapPixelToCoords per essere robusti a view/zoom
+	sf::Vector2i mousePosI = sf::Mouse::getPosition(renderer.getWindow());
+	sf::Vector2f mousePos = renderer.getWindow().mapPixelToCoords(mousePosI);
+
+	bool hovering = tile.getGlobalBounds().contains(mousePos);
+	bool mouseDown = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
+
+	// edge detection
+	bool justPressed = mouseDown && !mouseDownLastFrame;
+	bool justReleased = !mouseDown && mouseDownLastFrame;
+
+	// --- HOVER: entra/esci una sola volta (niente pompaggio di scala) ---------
+	if (hovering && !wasHovering) {
+		currentState = State::Hovered;
+
+		if (!resizeFlag) {
+			tile.setScale(tile.getScale() * 1.1f);
+			resizeFlag = true;
+		}
+	}
+	if (!hovering && wasHovering) {
+		// non forzare Idle se stai “premendo” sopra
+		if (currentState != State::Pressed) {
+			currentState = State::Idle;
+		}
+
+		if (resizeFlag) {
+			tile.setScale(tile.getScale() / 1.1f);
+			resizeFlag = false;
+		}
+	}
+	wasHovering = hovering;
+
+	// --- CLICK: toggle SOLO su release (press+release dentro) -----------------
+	if (justPressed && hovering) {
+		currentState = State::Pressed;
+		pressedInside = true;
+	}
+
+	if (justReleased) {
+		if (pressedInside && hovering) {
+			// <— toggle UNA volta per click completo
+			selected = !selected;
+		}
+		pressedInside = false;
+
+		// torna allo stato coerente con il puntatore
+		currentState = hovering ? State::Hovered : State::Idle;
+	}
+
+	// --- COLORE: guidato da selected + hover (se non è merge “forzato”) -------
+	if (!mergedThisSweep) {
+		if (selected) {
+			// leggermente chiaro quando hover
+			tile.setColor(hovering ? sf::Color(255, 120, 120) : sf::Color::Red);
+		}
+		else {
+			tile.setColor(hovering ? sf::Color(200, 200, 200) : sf::Color::White);
+		}
+	}
+
+	// --- BOOKKEEPING FINALE ---------------------------------------------------
+	mouseDownLastFrame = mouseDown;
+
+
+	//----------------------------------------------------------------------------------------------------------
 
 	if (!animating) return;
 

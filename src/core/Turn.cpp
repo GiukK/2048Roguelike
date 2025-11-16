@@ -90,6 +90,8 @@ void Turn::update(float delta) {
 
         board.generateCoins();
 
+        board.update(delta);
+
 
         if (inputReceived) {
             nextPhase();

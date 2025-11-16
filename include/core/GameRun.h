@@ -18,8 +18,6 @@ public:
 
     //------
 
-    //------
-
     GameRun(RenderSystem& renderer, PlayState* playState);
 
     void enter() ;
@@ -28,17 +26,13 @@ public:
     void new_turn(const Board& initial_board);
     void go_back();
 
+    bool shopOpen{ 0 };
     void openShop();
 
     void handleInput(sf::Event& event) ;
     void update(float deltaTime) ;
     void render(RenderSystem& renderer);
 
-
-    // right now this field is public since the closing of the shop is currently handled by ShopState
-    // in the future it will probably make sense to fully handle the UI internally by creating public functions that modify private fields.
-
-    bool shopOpen{ 0 };
 
     void addCoins(int count);
     void addItem(std::string item_name);
