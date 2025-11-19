@@ -27,6 +27,7 @@ public:
     void go_back();
 
     bool shopOpen{ 0 };
+
     void openShop();
 
     void handleInput(sf::Event& event) ;

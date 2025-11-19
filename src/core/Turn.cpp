@@ -144,14 +144,18 @@ void Turn::update(float delta) {
         break;
     case Phase::End:
 
-        if (not shopRequested) { nextPhase(); }                                     //if shop is not requested you can directly skip turn
-        else if (not game_run->getPlayState()->isAnimationEmpty()) { break; }       //if it is but ani is still going stay in turn but loop
-        else {                                                                      
+        if (not shopRequested and not game_run->shopOpen) { nextPhase(); break;}    //shop not requested or ended : skip turn
+        
+        else if (not shopRequested and game_run->shopOpen) { break; }               //shop still has to be closed : wait
+
+        else if (not game_run->getPlayState()->isAnimationEmpty()) { break; }       //shop must be opened : wait for ani to end
+        
+        else if (shopRequested and not game_run->shopOpen) {
+
             game_run->openShop();
-            shopRequested = 0;                                                      //else just open shop
+            shopRequested = false;                                                   //ani waited and shop req : open shop
+            break;
         }
-        if (not game_run->shopOpen) {nextPhase();}                                  //and skip turn only when it closes.
-        break;
 
     default:
         break;

@@ -37,9 +37,13 @@ void Tile::fixVisualAssets() {
 void Tile::render(RenderSystem& renderer) {
 
     // evidenziazione merge (se la usi per un solo frame, magari rimetti false dopo il draw)
+
+	/*
     if (mergedThisSweep) {
         tile.setColor(sf::Color::Red);
     }
+	*/
+
 
     // --- DRAW -----------------------------------------------------------------
     renderer.draw(tile);
