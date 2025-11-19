@@ -2,6 +2,7 @@
 #include "core/GameRun.h"
 #include "core/Board.h"
 #include "core/utils/Direction.h"
+#include "states/PlayState.h"
 
 
 #include "rendering/RenderSystem.h"
@@ -143,16 +144,13 @@ void Turn::update(float delta) {
         break;
     case Phase::End:
 
-        if (shopRequested) {
+        if (not shopRequested) { nextPhase(); }                                     //if shop is not requested you can directly skip turn
+        else if (not game_run->getPlayState()->isAnimationEmpty()) { break; }       //if it is but ani is still going stay in turn but loop
+        else {                                                                      
             game_run->openShop();
-            shopRequested = 0;
+            shopRequested = 0;                                                      //else just open shop
         }
-        
-        if (not game_run->shopOpen) {
-
-            nextPhase(); //end turn only if the player has exited shop
-
-        }
+        if (not game_run->shopOpen) {nextPhase();}                                  //and skip turn only when it closes.
         break;
 
     default:

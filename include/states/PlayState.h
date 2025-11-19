@@ -29,6 +29,8 @@ public:
 
     void addAnimation(std::unique_ptr<Animation> ani);
 
+    bool isAnimationEmpty() const { return animations.empty(); }
+
 private:
 
     std::unique_ptr<GameRun> currentRun;

@@ -29,8 +29,6 @@ public:
     const sf::Vector2u& getWindowSize() const;
     sf::RenderWindow& getWindow();
 
-    bool checkMouseSelection();
-
     void draw(sf::Drawable& sprite);
     void close();
 
