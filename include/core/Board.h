@@ -47,6 +47,7 @@ public:
     std::vector<Tile*> getSelectedTiles() const;
     void clearSelection();
     void destroyTile(Tile* tile);
+    void swapTiles(Tile* a, Tile* b);
 
     Turn* turn;
 

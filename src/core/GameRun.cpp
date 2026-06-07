@@ -19,9 +19,17 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
     itemRegistry.registerItem({"bomb", "bomb", 50, 0.5f,
         [](GameRun& run) -> bool {
             auto tiles = run.getSelectedTiles();
-            // Bomb requires exactly one tile selected as target
             if (tiles.size() != 1) return false;
             run.destroyTile(tiles[0]);
+            return true;
+        }
+    });
+
+    itemRegistry.registerItem({"switch", "switch", 50, 0.25f,
+        [](GameRun& run) -> bool {
+            auto tiles = run.getSelectedTiles();
+            if (tiles.size() != 2) return false;
+            run.swapTiles(tiles[0], tiles[1]);
             return true;
         }
     });
@@ -162,6 +170,9 @@ void GameRun::useItem(size_t index) {
 
     inventoryItems.erase(inventoryItems.begin() + static_cast<ptrdiff_t>(index));
     clearSelection();
+    // A consumed item finishes its interaction with the board, so any tiles it had
+    // targeted should no longer stay selected (e.g. SWITCH leaving both tiles red).
+    clearBoardSelection();
     rebuildInventoryButtons();
 }
 
@@ -202,6 +213,12 @@ std::vector<Tile*> GameRun::getSelectedTiles() const {
 void GameRun::destroyTile(Tile* tile) {
     if (!turns.empty()) {
         turns.top()->board.destroyTile(tile);
+    }
+}
+
+void GameRun::swapTiles(Tile* a, Tile* b) {
+    if (!turns.empty()) {
+        turns.top()->board.swapTiles(a, b);
     }
 }
 

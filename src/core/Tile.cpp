@@ -108,6 +108,13 @@ void Tile::changeSlot(Slot* from, Slot* to) {
     animating = true;
 }
 
+void Tile::animateTo(sf::Vector2f target) {
+    startPos = sprite.getPosition();
+    targetPos = target;
+    animTime = 0.f;
+    animating = true;
+}
+
 void Tile::mergeIntoSlot(Slot* target) {
     int sum = value + target->tile->getValue();
 

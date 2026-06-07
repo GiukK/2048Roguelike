@@ -146,7 +146,31 @@ std::vector<Tile*> Board::getSelectedTiles() const {
 
 void Board::destroyTile(Tile* tile) {
     if (!tile || !tile->slot) return;
+    // hoveredTile is a raw back-pointer kept across frames by updateHoverState();
+    // if we destroy the tile it points at, the next hover update would dereference
+    // freed memory. Drop the reference before the tile dies.
+    if (tile == hoveredTile) hoveredTile = nullptr;
     tile->slot->removeTile();
+}
+
+void Board::swapTiles(Tile* a, Tile* b) {
+    if (!a || !b || !a->slot || !b->slot) return;
+
+    Slot* slotA = a->slot;
+    Slot* slotB = b->slot;
+
+    auto tileA = slotA->releaseTile();
+    auto tileB = slotB->releaseTile();
+
+    tileA->slot = slotB;
+    tileB->slot = slotA;
+
+    slotA->setTile(std::move(tileB));
+    slotB->setTile(std::move(tileA));
+
+    // Future: insert swap animation/effect here
+    slotA->tile->animateTo(slotA->getSlotSprite().getPosition());
+    slotB->tile->animateTo(slotB->getSlotSprite().getPosition());
 }
 
 void Board::clearSelection() {
@@ -192,6 +216,17 @@ void Board::spawnTileInRandomEmptySlot() {
 // --- Movement ---
 
 void Board::move(Direction dir) {
+    // A move can merge tiles, which destroys the stationary tile of each pair.
+    // hoveredTile is a raw pointer held across frames; if it points at a tile that
+    // gets merged away, the next updateHoverState() would use-after-free it. Reset
+    // the hover here (while every tile is still alive) and let it be re-detected
+    // next frame. This is what made SWITCH crash: selecting tiles leaves the mouse
+    // over the board, so hoveredTile is live right when a merge frees that tile.
+    if (hoveredTile) {
+        hoveredTile->setVisual(Tile::Visual::Idle);
+        hoveredTile = nullptr;
+    }
+
     initializeMovementQueue(dir);
     while (!movementQueue.empty()) {
         resolveNextTileMove(dir);
@@ -289,6 +324,8 @@ Coord Board::getNextCoord(Coord from, Direction dir) {
 }
 
 void Board::clear() {
+    // All tiles are about to be destroyed; drop the dangling-prone hover pointer.
+    hoveredTile = nullptr;
     for (const auto& [_, slot] : slots) {
         if (!slot->isEmpty()) {
             slot->removeTile();

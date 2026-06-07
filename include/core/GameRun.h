@@ -57,6 +57,7 @@ public:
     // Item effects use these to interact with targeted tiles.
     std::vector<Tile*> getSelectedTiles() const;
     void destroyTile(Tile* tile);
+    void swapTiles(Tile* a, Tile* b);
     void clearBoardSelection();
 
     int getRandomInt(int min, int max);

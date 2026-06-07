@@ -22,6 +22,7 @@ public:
     void changeSprite();
     void changeSlot(Slot* from, Slot* to);
     void mergeIntoSlot(Slot* target);
+    void animateTo(sf::Vector2f target);
 
     bool isAnimating() const { return animating; }
 

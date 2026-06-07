@@ -34,6 +34,7 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     scalingRules["shopslot"]  = {192, 108};
     scalingRules["monstro"]   = {192 * 4, 108 * 4};
     scalingRules["bomb"]      = {192, 108};
+    scalingRules["switch"]    = {192, 108};
 
     // Tiles (all share the same scale)
     ScaleRule tileScale = {192 * 2, 108 * 2};
