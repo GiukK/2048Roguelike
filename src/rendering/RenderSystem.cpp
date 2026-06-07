@@ -1,68 +1,46 @@
-
-#include <SFML/Graphics.hpp>
 #include "rendering/RenderSystem.h"
-#include <iostream>
 
-
-RenderSystem::RenderSystem( sf::RenderWindow& window):
-    window(window)
-{ }
-
+RenderSystem::RenderSystem(sf::RenderWindow& window)
+    : window(window)
+{}
 
 void RenderSystem::initialize(const sf::Vector2u& size) {
-    windowSize = size; //stores window size for screen scaling 
+    windowSize = size;
     textureManager.initialize();
 
-    std::cout << "Assets loading..." << std::endl;
+    // Scale rules: {virtualWidth, virtualHeight}
+    // sprite.scale = windowSize / virtual => larger virtual = smaller sprite
 
+    // Menu
+    scalingRules["background"]  = {192, 108};
+    scalingRules["startb"]      = {192, 108};
+    scalingRules["optionsb"]    = {192, 108};
 
-    //Menu
-    scalingRules["background"] = { 192 , 108};
-    scalingRules["startb"] = { 192, 108 };
-    scalingRules["optionsb"] = { 192, 108 };
+    // Shop
+    scalingRules["shop"]        = {192 * 4, 108 * 4};
+    scalingRules["coin_bag"]    = {192, 108};
 
-    //shop
-    scalingRules["shop"] = { 192 * 4, 108 * 4 };
-    scalingRules["coin_bag"] = { 192, 108 };
+    // GameRun UI
+    scalingRules["backUI"]           = {192, 108};
+    scalingRules["coin_animation"]   = {192 * 2, 108 * 2};
+    scalingRules["merge_animation"]  = {192 * 2, 108 * 2};
+    scalingRules["use_button"]       = {192 * 4, 108 * 4};
+    scalingRules["discard_button"]   = {192 * 4, 108 * 4};
+    scalingRules["exit_button"]      = {192 * 2, 108 * 2};
 
-    //GameRun
-    scalingRules["backUI"] = {192, 108 };
-    scalingRules["coin_animation"] = { 192 * 2, 108 * 2 };
-    scalingRules["merge_animation"] = { 192 * 2, 108 * 2 };
+    // Board & Slots
+    scalingRules["board"]     = {192, 108};
+    scalingRules["slot"]      = {192 * 2, 108 * 2};
+    scalingRules["shopslot"]  = {192, 108};
+    scalingRules["monstro"]   = {192 * 4, 108 * 4};
+    scalingRules["bomb"]      = {192, 108};
 
-    scalingRules["use_button"] = { 192 * 4, 108 * 4 }; //better ui in the future
-    scalingRules["discard_button"] = { 192 * 4, 108 * 4 }; //better ui in the future
-    scalingRules["exit_button"] = { 192 * 2, 108 * 2 }; //better ui in the future
-
-    //Turn (no)
-    scalingRules["monstro"] = { 192 * 4, 108 * 4 };
-    //Board
-    scalingRules["board"] = { 192, 108 };
-
-    //Slot
-    scalingRules["slot"] = { 192 * 2, 108 * 2 };
-    scalingRules["shopslot"] = { 192, 108 }; // we probably dont even call this (consider using tags for groups of assets as "slots" and "tiles"
-
-    //Tile
-    scalingRules["2"] = { 192 * 2, 108 *2}; //all tiles are the same beacuase we set scale only at start
-    scalingRules["4"] = { 192, 108 };
-    scalingRules["8"] = { 192, 108 };
-    scalingRules["16"] = { 192, 108 };
-    scalingRules["32"] = { 192, 108 };
-    scalingRules["64"] = { 192, 108 };
-    scalingRules["128"] = { 192, 108 };
-    scalingRules["256"] = { 192, 108 };
-    scalingRules["512"] = { 192, 108 };
-    scalingRules["1024"] = { 192, 108 };
-    scalingRules["2048"] = { 192, 108 };
-
-    //end
-
-    std::cout << "Loading ended!" << std::endl;
-
+    // Tiles (all share the same scale)
+    ScaleRule tileScale = {192 * 2, 108 * 2};
+    for (const auto& id : {"2","4","8","16","32","64","128","256","512","1024","2048"}) {
+        scalingRules[id] = tileScale;
+    }
 }
-
-
 
 void RenderSystem::resizeSprite(const std::string& id, sf::Sprite& sprite) {
     auto it = scalingRules.find(id);
@@ -70,27 +48,40 @@ void RenderSystem::resizeSprite(const std::string& id, sf::Sprite& sprite) {
         std::cerr << "No scaling rule for asset: " << id << std::endl;
         return;
     }
-
-    const auto& scale = it->second;
-
-    float xscaling = windowSize.x / scale.width;
-    float yscaling = windowSize.y / scale.height;
-
-    sprite.setScale({xscaling, yscaling});
+    float sx = static_cast<float>(windowSize.x) / it->second.width;
+    float sy = static_cast<float>(windowSize.y) / it->second.height;
+    sprite.setScale({sx, sy});
 }
 
-void RenderSystem::draw(sf::Drawable& sprite) {
+void RenderSystem::draw(sf::Drawable& drawable) {
+    window.draw(drawable);
+}
 
-    window.draw(sprite);
+void RenderSystem::drawNumber(unsigned int value, sf::Vector2f center, float scale) {
+    static constexpr float DIGIT_W = 5.f;
+    static constexpr float DIGIT_H = 7.f;
 
+    std::string text = std::to_string(value);
+    float totalWidth = static_cast<float>(text.size()) * DIGIT_W * scale;
+    float startX = center.x - totalWidth / 2.f;
+
+    const sf::Texture& tex = textureManager.get("digits");
+
+    for (size_t i = 0; i < text.size(); ++i) {
+        int digit = text[i] - '0';
+        sf::Sprite s(tex);
+        s.setTextureRect(sf::IntRect(
+            {static_cast<int>(digit * DIGIT_W), 0},
+            {static_cast<int>(DIGIT_W), static_cast<int>(DIGIT_H)}));
+        s.setScale({scale, scale});
+        s.setPosition({startX + i * DIGIT_W * scale, center.y});
+        window.draw(s);
+    }
 }
 
 void RenderSystem::close() {
-
     window.close();
 }
-
-//------GETTERS
 
 const TextureManager& RenderSystem::getTextureManager() const {
     return textureManager;

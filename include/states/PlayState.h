@@ -1,17 +1,16 @@
 #pragma once
 
 #include "states/GameState.h"
-#include "states/StateManager.h"
 #include "core/GameRun.h"
-
-
-
 #include "rendering/UI_Button.h"
 #include "rendering/Animation.h"
-#include "rendering/RenderSystem.h"
 
+#include <SFML/Graphics.hpp>
+#include <memory>
+#include <vector>
 
-#include "SFML/Audio.hpp"
+class StateManager;
+class RenderSystem;
 
 class PlayState : public GameState {
 public:
@@ -19,26 +18,18 @@ public:
 
     void enter() override;
     void exit() override;
-
     void handleInput(sf::Event& event) override;
     void update(float deltaTime) override;
     void render(RenderSystem& renderer) override;
 
+    void addAnimation(std::unique_ptr<Animation> anim);
+    bool hasActiveAnimations() const { return !animations.empty(); }
+
     StateManager& stateManager;
-    RenderSystem& renderer;
-
-    void addAnimation(std::unique_ptr<Animation> ani);
-
-    bool isAnimationEmpty() const { return animations.empty(); }
 
 private:
-
+    RenderSystem& renderer;
     std::unique_ptr<GameRun> currentRun;
-
     std::vector<UI_Button> buttons;
-
-    //ani
     std::vector<std::unique_ptr<Animation>> animations;
-
-
 };

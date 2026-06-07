@@ -1,45 +1,39 @@
-#include <SFML/Graphics.hpp>
 #include "Game.h"
-#include "states/MenuState.h"  // Start with the main menu
+#include "states/MenuState.h"
 
-Game::Game() : window(sf::VideoMode::getFullscreenModes()[0], "<0>", sf::Style::None), //set to None when deployed
-               renderer(window)
+Game::Game()
+    : window(sf::VideoMode::getFullscreenModes()[0], "<0>", sf::Style::None),
+      renderer(window)
 {
-    window.setFramerateLimit(100); //limit framerate
-
-    // Init layout and texture
+    window.setFramerateLimit(100);
     renderer.initialize(window.getSize());
-
-    stateManager.pushState(std::make_unique<MenuState>(stateManager, renderer));  // Push initial state
-
+    stateManager.pushState(std::make_unique<MenuState>(stateManager, renderer));
 }
 
-
-//game loop
 void Game::run() {
     while (window.isOpen()) {
-        processEvents(); //input handliing
-        update(clock.restart().asSeconds()); //clock restart and update deltaTime
-        render(); //rendering
+        processEvents();
+        update(clock.restart().asSeconds());
+        render();
     }
 }
 
 void Game::processEvents() {
-    std::optional<sf::Event> event;
-    while (event = window.pollEvent()) { 
-        if (event->is<sf::Event::Closed>())
+    while (auto event = window.pollEvent()) {
+        if (event->is<sf::Event::Closed>()) {
             window.close();
-
-        stateManager.handleInput(event.value());  // Delegate input handling to the current state
+            return;
+        }
+        stateManager.handleInput(event.value());
     }
 }
 
 void Game::update(float deltaTime) {
-    stateManager.update(deltaTime);  // Update the active game state
+    stateManager.update(deltaTime);
 }
 
 void Game::render() {
     window.clear();
-    stateManager.render(renderer);  // Render the current game state
+    stateManager.render(renderer);
     window.display();
 }

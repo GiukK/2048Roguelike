@@ -1,111 +1,77 @@
 #pragma once
 
-#include <iostream>
 #include <map>
 #include <memory>
-#include <vector>
-#include <random>
+#include <functional>
 
-#include "utils/Coord.h"
-#include "Slot.h"
-#include "utils/Direction.h"
-#include "utils/MovementQueue.h"
+#include "core/utils/Coord.h"
+#include "core/utils/Direction.h"
+#include "core/utils/MovementQueue.h"
+#include "core/Slot.h"
 
-#include "SFML/Graphics.hpp"
+#include <SFML/Graphics.hpp>
 
 class Turn;
 class RenderSystem;
-
+class Animation;
 
 class Board {
-
 public:
+    using AnimationCallback = std::function<void(std::unique_ptr<Animation>)>;
 
     Board(RenderSystem& renderer, Turn* turn, bool doInitialSetup = true);
 
     static Board cloneFrom(const Board& other, Turn* turn);
-    //copy for go_back()
     void copyStateFrom(const Board& other);
 
-
-    //-----------------------------------------------------------------
+    void handleInput(sf::Event& event);
     void render(RenderSystem& renderer);
-
     void update(float deltaTime);
-    //-----------------------------------------------------------------
 
-
-    //spawns random tile in random empty slot (to be made modular)
     void spawnTileInRandomEmptySlot();
-    //
-    void generateCoins();
-    
-    //handles board movement logic
     void move(Direction dir);
-    //initializes Deque of slots to be moved and considered - move dependent
-    void initializeMovementQueue(Direction dir);
-    //helper function to manage slot movement in Deque
-    void resolveNextTileMove(Direction dir);
-        //helper to decide tile position
-        Coord getNextCoord(Coord from, Direction dir);
-
-    //clears Board's TILES
     void clear();
 
-    //raw ptr to owner - Turn
+    bool allAnimationsFinished() const;
+    bool moveWasValid() const;
+
+    void setAnimationCallback(AnimationCallback callback);
+
+    // Tile selection — managed by Board input, queried by item effects.
+    // Items like bomb check getSelectedTiles().size() to validate targeting.
+    std::vector<Tile*> getSelectedTiles() const;
+    void clearSelection();
+    void destroyTile(Tile* tile);
+
     Turn* turn;
 
-    //getters
-    bool animationFinished() const;
-
-
-    bool isResolvingMovement() const;
-    bool moveIsPermitted() const;
-
-    //-----------------------------------------------TO BE ADDED
-    //void reset() //to reset all flags and state
-
-
-
-    //test
-    void handleClick(sf::Vector2f worldPos);
-
 private:
+    void setupInitialBoard();
+    void initVisuals();
 
-    void firstBoardSetUp();
+    void initializeMovementQueue(Direction dir);
+    void resolveNextTileMove(Direction dir);
+    Coord getNextCoord(Coord from, Direction dir);
 
-    //Sprite
+    // interaction
+    void updateHoverState();
+    void handleClick(sf::Vector2f worldPos);
+    Tile* findTileAt(sf::Vector2f pos) const;
+
+    int getRandomInt(int min, int max);
+
     RenderSystem& renderer;
-    sf::Sprite board;
+    sf::Sprite boardSprite;
 
-    void fixVisualAssets();
-
-    //internal slots
     std::map<Coord, std::unique_ptr<Slot>> slots;
-
-    //fundamental movement Deque class
     MovementQueue movementQueue;
 
+    std::pair<int, int> colRange{-1, 3};
+    std::pair<int, int> rowRange{0, 3};
 
-    //------
-    //range of coloumns and rows in the board (to be deprecated)
-    std::pair<int, int> col_range{ -1, 3 };
-    std::pair<int, int> row_range{ 0, 3 };
-    //------
+    bool moveValidFlag = false;
 
+    AnimationCallback animationCallback;
 
-    //------ rng utils
-    int getRandomInt(int min, int max);
-    float getRandomFloat(float min, float max);
-    //------
-
-
-
-
-
-    //trivial flag for movement handling
-    bool isResolvingMovementFlag = false;
-
-    bool moveIsPermittedFlag = false;
+    Tile* hoveredTile = nullptr;
 };
-

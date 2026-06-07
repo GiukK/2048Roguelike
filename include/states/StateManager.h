@@ -1,24 +1,19 @@
 #pragma once
 
-#include <iostream>
 #include <memory>
 #include <stack>
+#include <vector>
+
 #include <SFML/Graphics.hpp>
+#include "states/GameState.h"
 
-#include "rendering/RenderSystem.h"
-#include <states/GameState.h>
-
-
+class RenderSystem;
 
 class StateManager {
 public:
-
     void pushState(std::unique_ptr<GameState> state);
-    void popState();            // (kept, but prefer requestPop from states)
-    //void changeState(std::unique_ptr<GameState> state);
-
-    void requestPop();          // <— NEW: defer the pop
-
+    void popState();
+    void requestPop();
 
     void handleInput(sf::Event& event);
     void update(float deltaTime);
@@ -27,13 +22,9 @@ public:
     bool isEmpty() const { return states.empty(); }
 
 private:
+    void applyPending();
 
-    //new request feature
-    enum class Op { Pop };
-    std::vector<Op> pendingOps;
-
-    void applyPending();        
-
-
+    enum class PendingOp { Pop };
+    std::vector<PendingOp> pendingOps;
     std::stack<std::unique_ptr<GameState>> states;
 };

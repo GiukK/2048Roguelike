@@ -1,47 +1,43 @@
 #pragma once
 
 #include "states/GameState.h"
-#include "states/StateManager.h"
-#include "core/GameRun.h"
-#include "rendering/RenderSystem.h"
 #include "rendering/UI_Button.h"
 #include "rendering/Animation.h"
 
+#include <SFML/Graphics.hpp>
+#include <vector>
+#include <string>
 
-
-#include "SFML/Audio.hpp"
+class StateManager;
+class RenderSystem;
+class GameRun;
 
 class ShopState : public GameState {
 public:
-    ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* gamerun);
-
-    void fixVisualAssets();
+    ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* gameRun);
 
     void enter() override;
     void exit() override;
-
     void handleInput(sf::Event& event) override;
     void update(float deltaTime) override;
     void render(RenderSystem& renderer) override;
 
-    void handleClick(sf::Vector2f worldPos);
-
-    void generateShop();
-    void buyItem(const std::string& name);
-
 private:
-
-    GameRun* currentRun;
+    void initVisuals();
+    void generateShop();
+    void buyItem(size_t index);
+    void rebuildShopButtons();
 
     StateManager& stateManager;
     RenderSystem& renderer;
+    GameRun* gameRun;
 
     sf::Sprite shopSprite;
+    std::vector<Animation> decorAnimations;
 
-    //ani
-    std::vector<Animation> animations;
-    //
+    std::vector<std::string> shopItemIds;
+    std::vector<UI_Button> shopButtons;
+    int pendingBuyIndex = -1;
 
-    std::vector<UI_Button> itemsForSale;
-
+    static constexpr int SHOP_SLOTS = 3;
 };

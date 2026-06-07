@@ -1,8 +1,8 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
-#include "rendering/RenderSystem.h"
 
+class RenderSystem;
 
 class GameState {
 public:

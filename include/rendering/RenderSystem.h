@@ -5,21 +5,8 @@
 #include <unordered_map>
 #include "rendering/TextureManager.h"
 
-
-//------------------ VISUAL ASSET LOADING ------------------
-
-//this class handles screen-window scaling for sprites
-//
-//to add a new asset remember to:
-
-//1) add its scalingRules in RenderSystem->initialize() in .cpp
-//2) add its loading in TextureManager->initialize() in .cpp
-
-//-----------------------------------------------------------
-
 class RenderSystem {
 public:
-
     RenderSystem(sf::RenderWindow& window);
 
     void initialize(const sf::Vector2u& windowSize);
@@ -29,24 +16,22 @@ public:
     const sf::Vector2u& getWindowSize() const;
     sf::RenderWindow& getWindow();
 
-    void draw(sf::Drawable& sprite);
+    void draw(sf::Drawable& drawable);
+
+    // Draws an integer using the "digits" spritesheet, horizontally centered at `center`.
+    // Each digit is 5x7 px in the sheet, scaled by `scale`.
+    void drawNumber(unsigned int value, sf::Vector2f center, float scale = 10.f);
+
     void close();
 
 private:
-
-    struct AssetScale {
+    struct ScaleRule {
         float width;
         float height;
     };
 
     sf::RenderWindow& window;
-
     sf::Vector2u windowSize;
-
     TextureManager textureManager;
-
-    std::unordered_map<std::string, AssetScale> scalingRules;
-
-
-
+    std::unordered_map<std::string, ScaleRule> scalingRules;
 };

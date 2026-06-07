@@ -1,217 +1,134 @@
 #include "core/Turn.h"
 #include "core/GameRun.h"
-#include "core/Board.h"
-#include "core/utils/Direction.h"
-#include "states/PlayState.h"
-
-
 #include "rendering/RenderSystem.h"
 
-
-Turn::Turn(RenderSystem& renderer , GameRun* game_run) :
-    renderer(renderer),
-    game_run(game_run),
-    board(renderer , this),
-    boardBegin(Board::cloneFrom(board, this))
-
+Turn::Turn(RenderSystem& renderer, GameRun* gameRun)
+    : renderer(renderer),
+      gameRun(gameRun),
+      board(renderer, this),
+      boardSnapshot(Board::cloneFrom(board, this))
 {
-    std::cout << "Turn 1 ready" << std::endl;
+    board.setAnimationCallback(gameRun->getAnimationCallback());
 }
 
-
-Turn::Turn(RenderSystem& renderer , GameRun* game_run,const Board& initial_board) :
-    renderer(renderer),
-    game_run(game_run),
-    board(Board::cloneFrom(initial_board, this)),
-    boardBegin(Board::cloneFrom(initial_board, this))
+Turn::Turn(RenderSystem& renderer, GameRun* gameRun, const Board& initialBoard)
+    : renderer(renderer),
+      gameRun(gameRun),
+      board(Board::cloneFrom(initialBoard, this)),
+      boardSnapshot(Board::cloneFrom(initialBoard, this))
 {
-
+    board.setAnimationCallback(gameRun->getAnimationCallback());
 }
 
-void Turn::nextPhase() {
-
-    std::cout << "[FSM] Transitioning from " << toString(currentPhase) << std::endl;
-
-    switch (currentPhase) {
-    case Phase::Begin:
-        currentPhase = Phase::Movement;
-        break;
-    case Phase::Movement:
-        currentPhase = Phase::BoardResolution;
-        break;
-    case Phase::BoardResolution:
-        currentPhase = Phase::End;
-        break;
-    case Phase::End:
-        
-        end_turn();
-
-        break;
-    default:
-        break;
+const char* Turn::phaseToString(Phase phase) {
+    switch (phase) {
+    case Phase::Begin:            return "Begin";
+    case Phase::Movement:         return "Movement";
+    case Phase::BoardResolution:  return "BoardResolution";
+    case Phase::End:              return "End";
+    default:                      return "Unknown";
     }
 }
 
+void Turn::nextPhase() {
+    switch (currentPhase) {
+    case Phase::Begin:           currentPhase = Phase::Movement;        break;
+    case Phase::Movement:        currentPhase = Phase::BoardResolution; break;
+    case Phase::BoardResolution: currentPhase = Phase::End;             break;
+    case Phase::End:             endTurn();                             break;
+    }
+}
 
-//this function has to reverse every possible thing that might create bugs in the future if the player comes back to this TURN
-void Turn::end_turn() {
-
-    std::cout << "Turn ended with move: " << dirToString(move) << std::endl;
-
-    game_run->new_turn(this->board);
+void Turn::endTurn() {
+    gameRun->newTurn(board);
 
     currentPhase = Phase::Begin;
-
-    move = Direction::None; //backs to default
-    inputReceived = false; //backs to default for future possible go_backs
-                            //moved from update()->case Movement -> after move.
-
-    board.copyStateFrom(boardBegin); //useless reversing internals because of this(?)
-
+    currentMove = Direction::None;
+    inputReceived = false;
+    board.copyStateFrom(boardSnapshot);
 }
 
 void Turn::requestShop() {
-
-    shopRequested = 1;
-
-    std::cout << "SHOP HAS BEEN REQUESTED" << std::endl;
-
+    shopRequested = true;
 }
 
-
-/*
-Begin,
-Movement,
-BoardResolution,
-End
-*/
-void Turn::update(float delta) {
+void Turn::update(float deltaTime) {
     switch (currentPhase) {
+
     case Phase::Begin:
-
-        board.generateCoins();
-
-        board.update(delta);
-
-
+        board.update(deltaTime);
         if (inputReceived) {
             nextPhase();
         }
-
         break;
+
     case Phase::Movement:
-
-        //this part has to be fixed in the future since board.move() has an internal while loop and starts and ends with Resolving as a flag
-        //so I think a single thread will just proceed in order and therefore the flag MAY be useless + animation will need to be handled carfully
-        //since update() will handle frame skip and render() will draw.
-
-                //re-reading code, I probably was referring to the fact that i wanted to implement multi-thread for update() and render() but im not sure.
-                //either way, looking back there will probably need to be a moment in the turn steps (Resolving board?) where the animations are handled
-                //and the state of the board is transitioned from init to end.
-
-        //I feel like move() should be called once and then the animation will have to handle the transition or something
-
-        //moves just 1 time
         if (inputReceived) {
-            board.move(move);               
+            board.move(currentMove);
         }
+        board.update(deltaTime);
 
-        board.update(delta); //does nothing now
-
-
-        //the movement has to be processed to understand if the move is valid so this check has to be made here.
-        //in case the move fails the phase goes back to Begin
-        if (board.moveIsPermitted()) {
-
-            if (board.animationFinished()) {
-                nextPhase(); // Proceed to Phase::BoardResolution
+        if (board.moveWasValid()) {
+            if (board.allAnimationsFinished()) {
+                nextPhase();
             }
-        }
-        else { 
+        } else {
             currentPhase = Phase::Begin;
-            move = Direction::None; //backs to default (hardset)
-            inputReceived = false; //backs to default (hardset)
-
-            std::cout << "[FSM] Move invalid: Transitioning from Movement to Begin" << std::endl;
+            currentMove = Direction::None;
+            inputReceived = false;
         }
-
         break;
-    case Phase::BoardResolution:
 
+    case Phase::BoardResolution:
         board.spawnTileInRandomEmptySlot();
         nextPhase();
-
         break;
+
     case Phase::End:
-
-        if (not shopRequested and not game_run->shopOpen) { nextPhase(); break;}    //shop not requested or ended : skip turn
-        
-        else if (not shopRequested and game_run->shopOpen) { break; }               //shop still has to be closed : wait
-
-        else if (not game_run->getPlayState()->isAnimationEmpty()) { break; }       //shop must be opened : wait for ani to end
-        
-        else if (shopRequested and not game_run->shopOpen) {
-
-            game_run->openShop();
-            shopRequested = false;                                                   //ani waited and shop req : open shop
-            break;
+        if (!shopRequested && !gameRun->shopOpen) {
+            nextPhase();
+        } else if (shopRequested && gameRun->hasActiveAnimations()) {
+            // wait for animations to finish before opening shop
+        } else if (shopRequested && !gameRun->shopOpen) {
+            gameRun->openShop();
+            shopRequested = false;
         }
-
-    default:
+        // if shopOpen, wait for it to close
         break;
     }
 }
 
 void Turn::render(RenderSystem& renderer) {
-
     board.render(renderer);
 }
 
 void Turn::handleInput(sf::Event& event) {
-
-    switch (currentPhase) {
-    case Phase::Begin:
-
-        handleInput_BeginPhase(event);
-
-        break;
-    case Phase::SelectingConsumables:
-
-        break;
-    case Phase::Movement:
-
-        break;
-    case Phase::BoardResolution:
-
-        break;
-    case Phase::End:
-        break;
-
-    default:
-        break;
+    if (currentPhase == Phase::Begin) {
+        board.handleInput(event);
+        handleBeginInput(event);
     }
 }
 
-void Turn::handleInput_BeginPhase(sf::Event& event) {
-    if (const auto* keyPressed = event.getIf<sf::Event::KeyReleased>()) {
+void Turn::handleBeginInput(sf::Event& event) {
+    auto* key = event.getIf<sf::Event::KeyReleased>();
+    if (!key) return;
 
-        switch (keyPressed->scancode) { //sets inputReceived true-> update() -> calls nextPhase()
-        case sf::Keyboard::Scancode::A: move = Direction::Left; inputReceived = true; break;
-        case sf::Keyboard::Scancode::D: move = Direction::Right; inputReceived = true; break;
-        case sf::Keyboard::Scancode::W: move = Direction::Up; inputReceived = true; break;
-        case sf::Keyboard::Scancode::S: move = Direction::Down; inputReceived = true; break;
-        case sf::Keyboard::Scancode::X:
-            board.spawnTileInRandomEmptySlot();
-            return;
-        case sf::Keyboard::Scancode::Delete:
-            board.clear();
-            board.spawnTileInRandomEmptySlot();
-            return;
-        case sf::Keyboard::Scancode::B:
-            game_run->go_back();
-            return;
-        default:
-            return;
-        }
+    switch (key->scancode) {
+    case sf::Keyboard::Scancode::A: currentMove = Direction::Left;  inputReceived = true; break;
+    case sf::Keyboard::Scancode::D: currentMove = Direction::Right; inputReceived = true; break;
+    case sf::Keyboard::Scancode::W: currentMove = Direction::Up;    inputReceived = true; break;
+    case sf::Keyboard::Scancode::S: currentMove = Direction::Down;  inputReceived = true; break;
+    case sf::Keyboard::Scancode::X:
+        board.spawnTileInRandomEmptySlot();
+        break;
+    case sf::Keyboard::Scancode::Delete:
+        board.clear();
+        board.spawnTileInRandomEmptySlot();
+        break;
+    case sf::Keyboard::Scancode::B:
+        gameRun->goBack();
+        break;
+    default:
+        break;
     }
 }

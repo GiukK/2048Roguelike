@@ -2,44 +2,32 @@
 
 #include <SFML/Graphics.hpp>
 #include <functional>
+#include <string>
 
 class RenderSystem;
 
 class UI_Button {
 public:
-    enum class State {
-        Idle,
-        Hovered,
-        Pressed
-    };
+    enum class State { Idle, Hovered, Pressed };
 
-    UI_Button(  RenderSystem& renderer,
-                const std::string& idle_id,
-                sf::Vector2f pos,
-    //            std::string& hover_id,
-    //            std::string& pressed_id,
-                std::function<void()> onClick); //create a map id-> effect
-                
+    UI_Button(RenderSystem& renderer,
+              const std::string& textureId,
+              sf::Vector2f position,
+              std::function<void()> onClick);
+
+    UI_Button(UI_Button&& other) noexcept = default;
+    UI_Button& operator=(UI_Button&& other) noexcept = default;
 
     void update(float dt);
-
     State getState() const;
     sf::Sprite& getSprite();
 
-    bool disabled{ false };
+    bool disabled = false;
 
 private:
-
-    RenderSystem& renderer;
-
+    RenderSystem* renderer;
     sf::Sprite sprite;
-    
-    bool resizeFlag{ false };
-
-
-
     std::function<void()> onClick;
-
     State currentState = State::Idle;
-
+    bool enlarged = false;
 };

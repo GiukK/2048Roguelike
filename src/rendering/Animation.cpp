@@ -1,62 +1,46 @@
 #include "rendering/Animation.h"
-#include "rendering/RenderSystem.h"  // if RenderSystem is defined there
-#include <iostream>
+#include "rendering/RenderSystem.h"
 
-// Constructor
 Animation::Animation(RenderSystem& renderer,
-    const std::string& idle_id,
-    const sf::Vector2i size,
-    int nframes,
-    sf::Vector2f pos)
+                     const std::string& textureId,
+                     sf::Vector2i frameSize,
+                     int frameCount,
+                     sf::Vector2f position)
     : renderer(renderer),
-    idle_id(idle_id),
-    size(size),
-    nframes(nframes),
-    sprite(renderer.getTextureManager().get(idle_id))
+      textureId(textureId),
+      frameSize(frameSize),
+      frameCount(frameCount),
+      sprite(renderer.getTextureManager().get(textureId))
 {
-    //ANI TRY -------
-    sprite.setOrigin({(float)size.x/2,(float)size.y/2});
-
-    renderer.resizeSprite(idle_id, sprite);
-    sprite.setPosition(pos);
-    //animation starts at 0, avoids full sprite artifact
-    sprite.setTextureRect(sf::IntRect({ int(currentframe * size.x), 0 }, { size.x, size.y }));
-    //----------
+    sprite.setOrigin({static_cast<float>(frameSize.x) / 2.f,
+                      static_cast<float>(frameSize.y) / 2.f});
+    renderer.resizeSprite(textureId, sprite);
+    sprite.setPosition(position);
+    sprite.setTextureRect(sf::IntRect({0, 0}, {frameSize.x, frameSize.y}));
 }
 
-// Update animation state based on delta time
-void Animation::update(float dt)
-{
-    time_elapsed += dt;
+void Animation::update(float dt) {
+    elapsed += dt;
+    if (elapsed < FRAME_DURATION) return;
 
-    if (time_elapsed > 1.f / 12.f) {
+    elapsed = 0.f;
+    currentFrame++;
 
-        currentframe += 1;
-
-        if (currentframe >= nframes and shouldLoop) {
-            currentframe = 0;
+    if (currentFrame >= frameCount) {
+        if (looping) {
+            currentFrame = 0;
         }
-        else if (currentframe > nframes and not shouldLoop) {
-
-            std::cout << "animation should be deleted!";
-        }
-
-        sprite.setTextureRect(sf::IntRect({ int(currentframe * size.x), 0 }, { size.x, size.y })); //animation starts at 0
-
-        time_elapsed = 0;
+        return;
     }
 
-    return;
+    sprite.setTextureRect(sf::IntRect({currentFrame * frameSize.x, 0},
+                                       {frameSize.x, frameSize.y}));
 }
 
-// Check if animation has finished playing
-bool Animation::isEnded()
-{
-    return (currentframe == nframes);
+bool Animation::isFinished() const {
+    return !looping && currentFrame >= frameCount;
 }
 
-// Accessor for the sprite
-sf::Sprite& Animation::getSprite()
-{
+sf::Sprite& Animation::getSprite() {
     return sprite;
 }

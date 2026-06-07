@@ -1,12 +1,13 @@
 #pragma once
 
 struct Coord {
-    int x, y;
+    int x;
+    int y;
 
-    //make Coord comparable so it can be used as a key in the map
+    bool operator==(const Coord& other) const { return x == other.x && y == other.y; }
+    bool operator!=(const Coord& other) const { return !(*this == other); }
     bool operator<(const Coord& other) const {
-        return (x < other.x) || (x == other.x && y < other.y);
+        if (x != other.x) return x < other.x;
+        return y < other.y;
     }
-
-
 };

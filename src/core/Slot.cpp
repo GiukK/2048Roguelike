@@ -2,111 +2,37 @@
 #include "core/Board.h"
 #include "rendering/RenderSystem.h"
 
-
-
-
-Slot::Slot(int col, int row, Board* board, RenderSystem& renderer) :
-    renderer(renderer),
-    slot(renderer.getTextureManager().get("slot")),
-    col(col),
-    row(row),
-    board(board)
-{ 
-    fixVisualAssets();
+Slot::Slot(int col, int row, Board* board, RenderSystem& renderer)
+    : col(col), row(row), board(board), renderer(renderer),
+      sprite(renderer.getTextureManager().get("slot"))
+{
+    initVisuals();
 }
 
-Slot::Slot(const Slot& other, Board* newBoard) :
-    renderer(other.renderer),
-    slot(other.slot),
-    board(newBoard),
-    col(other.col),
-    row(other.row),
-    canTileStepIn(other.canTileStepIn),
-    canTileStepOut(other.canTileStepOut)
+Slot::Slot(const Slot& other, Board* newBoard)
+    : col(other.col), row(other.row), board(newBoard), renderer(other.renderer),
+      sprite(other.sprite),
+      canTileStepIn(other.canTileStepIn),
+      canTileStepOut(other.canTileStepOut)
 {
-    // Copia profonda degli effetti
     for (const auto& effect : other.effects) {
         effects.push_back(effect->clone());
     }
-
-    // Nota: la tile non viene copiata qui, viene gestita separatamente dalla Board
 }
 
-void Slot::fixVisualAssets() {
+void Slot::initVisuals() {
+    renderer.resizeSprite("slot", sprite);
+    sprite.setOrigin(sprite.getLocalBounds().getCenter());
 
-    //asset resizing
-    renderer.resizeSprite("slot", slot);
-    //asset origin setting
-
-    slot.setOrigin(slot.getLocalBounds().getCenter());
-
-    //asset positioning
-    auto windowSize = renderer.getWindowSize();
-
-    //slot.setPosition({ float(windowSize.x) / 2, float(windowSize.y) / 2 }); //  up shift (-) 
-
-    const float shift = 300.f;
-
-    const float slot_size = 128.f;
-
-    slot.setPosition({ slot_size * col + shift, slot_size * row + shift });
-
-    std::cout << "Slot visual assets: ready" << std::endl;
+    const float offset = 300.f;
+    const float slotSize = 128.f;
+    sprite.setPosition({slotSize * col + offset, slotSize * row + offset});
 }
 
 void Slot::render(RenderSystem& renderer) {
-
-    renderer.draw(slot);
-
+    renderer.draw(sprite);
     if (!isEmpty()) {
         tile->render(renderer);
-    }
-}
-
-bool Slot::isEmpty() const {
-    return tile == nullptr;
-}
-
-Coord Slot::getCoord() const {
-    return { col, row };
-}
-
-void Slot::setTile(std::unique_ptr<Tile> newTile) {
-    tile = std::move(newTile);  // Takes ownership using move semantics
-}
-
-std::unique_ptr<Tile> Slot::releaseTile() {
-    auto t = std::move(tile);
-    removeTile();
-    return t;
-}
-
-
-void Slot::removeTile() {
-    tile.reset();  // Properly destroys the tile
-}
-
-void Slot::addEffect(std::unique_ptr<SlotEffect> effect) {
-
-    //this function has no longer access to slot's sprite
-    
-    effects.push_back(std::move(effect));
-
-    //this only adds the shop effect rn
-    //Effect -> toString()
-    sf::Sprite spriteload(renderer.getTextureManager().get("shopslot"));
-
-    spriteload.setOrigin(slot.getOrigin());
-    spriteload.setScale(slot.getScale());
-    spriteload.setPosition(slot.getPosition());
-
-    slot = spriteload;
-
-}
-
-void Slot::triggerMergeEffects() {
-    for (auto& effect : effects) {
-        effect->onMerge(this);
     }
 }
 
@@ -116,13 +42,43 @@ void Slot::update(float deltaTime) {
     }
 }
 
-//GETTERS
-
-
-sf::Sprite& Slot::getSlotSprite() {
-
-    return slot;
-
+Coord Slot::getCoord() const {
+    return {col, row};
 }
 
-//TRY
+sf::Sprite& Slot::getSlotSprite() {
+    return sprite;
+}
+
+bool Slot::isEmpty() const {
+    return tile == nullptr;
+}
+
+void Slot::setTile(std::unique_ptr<Tile> newTile) {
+    tile = std::move(newTile);
+}
+
+void Slot::removeTile() {
+    tile.reset();
+}
+
+std::unique_ptr<Tile> Slot::releaseTile() {
+    return std::move(tile);
+}
+
+void Slot::addEffect(std::unique_ptr<SlotEffect> effect) {
+    effects.push_back(std::move(effect));
+
+    // swap sprite to the effect-specific texture
+    sf::Sprite effectSprite(renderer.getTextureManager().get("shopslot"));
+    effectSprite.setOrigin(sprite.getOrigin());
+    effectSprite.setScale(sprite.getScale());
+    effectSprite.setPosition(sprite.getPosition());
+    sprite = effectSprite;
+}
+
+void Slot::triggerMergeEffects() {
+    for (auto& effect : effects) {
+        effect->onMerge(this);
+    }
+}

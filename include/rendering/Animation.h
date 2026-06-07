@@ -1,40 +1,33 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include <string>
 
 class RenderSystem;
 
 class Animation {
 public:
-
     Animation(RenderSystem& renderer,
-              const std::string& idle_id,
-                const sf::Vector2i size,
-              int nframes,
-              sf::Vector2f pos);
-
+              const std::string& textureId,
+              sf::Vector2i frameSize,
+              int frameCount,
+              sf::Vector2f position);
 
     void update(float dt);
+    bool isFinished() const;
 
-    bool isEnded();
-
-    bool shouldLoop{ true };
+    bool looping = true;
 
     sf::Sprite& getSprite();
 
 private:
-
     RenderSystem& renderer;
-
-    const std::string& idle_id;
-    const sf::Vector2i size;
-    int nframes{0};
-
+    std::string textureId;
+    sf::Vector2i frameSize;
+    int frameCount;
     sf::Sprite sprite;
 
-    //---
-
-    int currentframe{ 0 };
-    float time_elapsed{ 0.f };
-
+    int currentFrame = 0;
+    float elapsed = 0.f;
+    static constexpr float FRAME_DURATION = 1.f / 12.f;
 };

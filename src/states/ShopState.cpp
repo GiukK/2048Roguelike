@@ -1,134 +1,138 @@
 #include "states/ShopState.h"
-#include "rendering/UI_Button.h"
-#include "rendering/Animation.h"
+#include "states/StateManager.h"
+#include "core/GameRun.h"
+#include "core/ItemRegistry.h"
+#include "rendering/RenderSystem.h"
 
-#include <iostream>
-
-ShopState::ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* current_run) :
-    stateManager(stateManager),
-    renderer(renderer),
-    currentRun(current_run),
-    shopSprite(renderer.getTextureManager().get("shop"))
+ShopState::ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* gameRun)
+    : stateManager(stateManager),
+      renderer(renderer),
+      gameRun(gameRun),
+      shopSprite(renderer.getTextureManager().get("shop"))
 {
-    enter(); // Open shop
-
-    fixVisualAssets();
-
+    initVisuals();
+    enter();
 }
 
-
-void ShopState::fixVisualAssets() {
-
-    for (int i = 1; i <= 14; i++) {
-        
-        //ani
-        Animation anim(renderer, "coin_animation", { 32, 32 }, 8, { 120.f * i, 900.f });
-    
-        animations.emplace_back(std::move(anim));
-
+void ShopState::initVisuals() {
+    for (int i = 1; i <= 14; ++i) {
+        decorAnimations.emplace_back(renderer, "coin_animation",
+            sf::Vector2i{32, 32}, 8, sf::Vector2f{120.f * i, 900.f});
     }
 
-    //......
-    //asset resizing
     renderer.resizeSprite("shop", shopSprite);
     shopSprite.setOrigin(shopSprite.getLocalBounds().getCenter());
-
-    //asset positioning
-    auto windowSize = renderer.getWindowSize();
-    shopSprite.setPosition({ float(windowSize.x) / 2, float(windowSize.y) / 2 }); //  up shift (-) 
-
-    std::cout << "ShopState visual assets: ready" << std::endl;
-
+    auto ws = renderer.getWindowSize();
+    shopSprite.setPosition({static_cast<float>(ws.x) / 2.f,
+                            static_cast<float>(ws.y) / 2.f});
 }
-
-
 
 void ShopState::enter() {
-    std::cout << "Entering Shop ------------------------" << std::endl;
-
     generateShop();
-
-}
-
-void ShopState::generateShop() {
-    
-    std::cout << "shop generated - empty" << std::endl;
-
 }
 
 void ShopState::exit() {
+    shopItemIds.clear();
+    shopButtons.clear();
+    gameRun->shopOpen = false;
+    stateManager.requestPop();
+}
 
-    std::cout << "Exiting Shop ------------------------" << std::endl;
+void ShopState::generateShop() {
+    shopItemIds.clear();
+    shopButtons.clear();
 
-    itemsForSale.clear();
+    // Picks items weighted by rarity. Duplicates are intentional:
+    // a common item can fill multiple slots, rare items appear less often.
+    auto picks = gameRun->pickShopItems(SHOP_SLOTS);
 
-    currentRun->shopOpen = false;
+    for (const auto* def : picks) {
+        if (def) {
+            shopItemIds.push_back(def->id);
+        }
+    }
 
-    stateManager.popState();
+    rebuildShopButtons();
+}
+
+void ShopState::rebuildShopButtons() {
+    shopButtons.clear();
+
+    auto ws = renderer.getWindowSize();
+    float centerX = static_cast<float>(ws.x) / 2.f;
+    float centerY = static_cast<float>(ws.y) / 2.f - 50.f;
+    float spacing = 250.f;
+    float startX = centerX - (static_cast<float>(shopItemIds.size()) - 1.f) / 2.f * spacing;
+
+    for (size_t i = 0; i < shopItemIds.size(); ++i) {
+        const auto& def = gameRun->getItemRegistry().get(shopItemIds[i]);
+        float x = startX + static_cast<float>(i) * spacing;
+        size_t idx = i;
+
+        shopButtons.emplace_back(renderer, def.textureId,
+            sf::Vector2f{x, centerY},
+            [this, idx]() { pendingBuyIndex = static_cast<int>(idx); });
+    }
+}
+
+void ShopState::buyItem(size_t index) {
+    if (index >= shopItemIds.size()) return;
+
+    const auto& def = gameRun->getItemRegistry().get(shopItemIds[index]);
+    int cost = gameRun->getEffectiveCost(def);
+
+    if (gameRun->getCoins() < cost) return;
+    if (gameRun->isInventoryFull()) return;
+
+    gameRun->addCoins(-cost);
+    gameRun->addItem(shopItemIds[index]);
+
+    shopItemIds.erase(shopItemIds.begin() + static_cast<ptrdiff_t>(index));
+    rebuildShopButtons();
 }
 
 void ShopState::handleInput(sf::Event& event) {
-    if (const auto* keyPressed = event.getIf<sf::Event::KeyReleased>()) {
-        if (keyPressed->scancode == sf::Keyboard::Scancode::Escape) {
-            std::cout << "Exiting shop..." << std::endl;
-
-            // right now this field is public since the closing of the shop is currently handled by ShopState
-            // in the future it will probably make sense to fully handle the UI internally in GameRun by creating public functions that modify private fields.
-
-            exit();  // Close shop
-            return;
-        }
+    auto* key = event.getIf<sf::Event::KeyReleased>();
+    if (key && key->scancode == sf::Keyboard::Scancode::Escape) {
+        exit();
     }
 }
 
 void ShopState::update(float deltaTime) {
+    gameRun->update(deltaTime);
 
-    currentRun->update(deltaTime);
-
-    for (auto& ani : animations) {
-
-        ani.update(deltaTime);
+    for (auto& anim : decorAnimations) {
+        anim.update(deltaTime);
     }
 
-    for (auto& itemButton : itemsForSale) {
+    for (auto& btn : shopButtons) {
+        btn.update(deltaTime);
+    }
 
-        itemButton.update(deltaTime);
+    if (pendingBuyIndex >= 0) {
+        buyItem(static_cast<size_t>(pendingBuyIndex));
+        pendingBuyIndex = -1;
     }
 }
 
 void ShopState::render(RenderSystem& renderer) {
-
-    
-
-    currentRun->render(renderer);
-
+    gameRun->render(renderer);
     renderer.draw(shopSprite);
 
-    //render items for sale
-    for (auto& itemButton : itemsForSale) {
+    // Draw shop items and their prices
+    for (size_t i = 0; i < shopButtons.size(); ++i) {
+        renderer.draw(shopButtons[i].getSprite());
 
-        renderer.draw(itemButton.getSprite());
+        // Price tag: centered below the item sprite
+        const auto& def = gameRun->getItemRegistry().get(shopItemIds[i]);
+        int cost = gameRun->getEffectiveCost(def);
+        sf::Vector2f itemPos = shopButtons[i].getSprite().getPosition();
+        float priceY = itemPos.y + shopButtons[i].getSprite().getGlobalBounds().size.y / 2.f + 20.f;
+
+        renderer.drawNumber(static_cast<unsigned int>(cost), {itemPos.x, priceY}, 6.f);
     }
 
-    //render animation
-    for (auto& ani : animations) {
-
-        renderer.draw(ani.getSprite());
+    for (auto& anim : decorAnimations) {
+        renderer.draw(anim.getSprite());
     }
 }
-
-void ShopState::handleClick(sf::Vector2f worldPos) {
-
-    
-
-}
-//TODO
-void ShopState::buyItem(const std::string & itemButton) {
-
-
-}
-
-
-
-
-

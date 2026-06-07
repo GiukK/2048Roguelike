@@ -6,19 +6,16 @@
 
 class Game {
 public:
-    Game();  // Constructor to initialize game
-    void run();  // Main game loop
+    Game();
+    void run();
 
 private:
     void processEvents();
     void update(float deltaTime);
     void render();
 
-
     sf::RenderWindow window;
     sf::Clock clock;
-
-
     StateManager stateManager;
     RenderSystem renderer;
 };

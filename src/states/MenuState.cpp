@@ -1,79 +1,58 @@
 #include "states/MenuState.h"
 #include "states/PlayState.h"
+#include "states/StateManager.h"
 #include "rendering/RenderSystem.h"
 
-#include <iostream>
-#include <string>
-
-MenuState::MenuState(StateManager& stateManager, RenderSystem& renderer) :
-    stateManager(stateManager),
-    renderer(renderer),
-    background(renderer.getTextureManager().get("background")) //not movable
+MenuState::MenuState(StateManager& stateManager, RenderSystem& renderer)
+    : stateManager(stateManager),
+      renderer(renderer),
+      background(renderer.getTextureManager().get("background"))
 {
-    //asset positioning
-    auto windowSize = renderer.getWindowSize();
-    const float verticalShift = 100.f; //this is a visual shift: START, OPTIONS
+    auto ws = renderer.getWindowSize();
+    const float vShift = 100.f;
 
-    UI_Button startb(renderer, "startb", { float(windowSize.x) / 2, -verticalShift + float(windowSize.y) / 2 }, [&stateManager, &renderer]() {
-        stateManager.pushState(std::make_unique<PlayState>(stateManager, renderer));
-        });
-    UI_Button optionsb(renderer, "optionsb", { float(windowSize.x) / 2, verticalShift + float(windowSize.y) / 2 }, []() {
-        std::cout << "Options clicked!\n";
+    buttons.emplace_back(renderer, "startb",
+        sf::Vector2f{static_cast<float>(ws.x) / 2.f, -vShift + static_cast<float>(ws.y) / 2.f},
+        [&stateManager, &renderer]() {
+            stateManager.pushState(std::make_unique<PlayState>(stateManager, renderer));
         });
 
-    buttons.emplace_back(startb);
-    buttons.emplace_back(optionsb);
+    buttons.emplace_back(renderer, "optionsb",
+        sf::Vector2f{static_cast<float>(ws.x) / 2.f, vShift + static_cast<float>(ws.y) / 2.f},
+        []() {});
 
-    fixVisualAssets();
-
-    // Open game menu at start
-    enter(); 
+    initVisuals();
+    enter();
 }
 
-void MenuState::fixVisualAssets() {
-
+void MenuState::initVisuals() {
     renderer.resizeSprite("background", background);
-
-    std::cout << "MenuState visual assets: ready" << std::endl;
 }
 
-void MenuState::enter() {
-    std::cout << "Entering Menu State" << std::endl;
-}
+void MenuState::enter() {}
 
 void MenuState::exit() {
-    std::cout << "exit() was called from MenuState" << std::endl;
     renderer.close();
 }
 
 void MenuState::handleInput(sf::Event& event) {
-    if (const auto* keyPressed = event.getIf<sf::Event::KeyReleased>()) {
-        if (keyPressed->scancode == sf::Keyboard::Scancode::Enter) {
-            std::cout << "Starting Game..." << std::endl;
-            //enter??
-        }
-        else if (keyPressed->scancode == sf::Keyboard::Scancode::Escape) {
-            std::cout << "Exiting Game..." << std::endl;
+    auto* key = event.getIf<sf::Event::KeyReleased>();
+    if (!key) return;
 
-            exit();  // Close game
-        }
+    if (key->scancode == sf::Keyboard::Scancode::Escape) {
+        exit();
     }
 }
 
 void MenuState::update(float deltaTime) {
-
-    for (auto& button : buttons) {
-
-        button.update(deltaTime);
+    for (auto& btn : buttons) {
+        btn.update(deltaTime);
     }
 }
 
 void MenuState::render(RenderSystem& renderer) {
-
     renderer.draw(background);
-
-    for (auto& button : buttons) {
-
-        renderer.draw(button.getSprite());
+    for (auto& btn : buttons) {
+        renderer.draw(btn.getSprite());
     }
 }

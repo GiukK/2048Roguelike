@@ -8,10 +8,10 @@ void MovementQueue::pushFront(Slot* slot) {
     queue.push_front(slot);
 }
 
-void MovementQueue::insertAfter(Slot* reference, Slot* newSlot) {
+void MovementQueue::insertAfter(Slot* reference, Slot* toInsert) {
     auto it = std::find(queue.begin(), queue.end(), reference);
     if (it != queue.end()) {
-        queue.insert(it + 1, newSlot);
+        queue.insert(it + 1, toInsert);
     }
 }
 
@@ -28,4 +28,8 @@ bool MovementQueue::empty() const {
 
 void MovementQueue::clear() {
     queue.clear();
+}
+
+std::size_t MovementQueue::size() const {
+    return queue.size();
 }

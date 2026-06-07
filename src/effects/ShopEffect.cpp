@@ -2,15 +2,9 @@
 #include "core/Slot.h"
 #include "core/Board.h"
 #include "core/Turn.h"
-#include "core/GameRun.h"
-
-#include <iostream>
 
 void ShopEffect::onMerge(Slot* slot) {
-    std::cout << "Shop merged at Slot (" << slot->col << ", " << slot->row << ")" << std::endl;
-
-    slot->board->turn->requestShop();  // delega tutto al Turn
-
+    slot->board->turn->requestShop();
 }
 
 std::unique_ptr<SlotEffect> ShopEffect::clone() const {

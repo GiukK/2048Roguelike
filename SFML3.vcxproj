@@ -145,7 +145,7 @@
   <ItemGroup>
     <ClCompile Include="src\core\Board.cpp" />
     <ClCompile Include="src\core\GameRun.cpp" />
-    <ClCompile Include="src\core\ItemManager.cpp" />
+    <ClCompile Include="src\core\ItemRegistry.cpp" />
     <ClCompile Include="src\core\utils\MovementQueue.cpp" />
     <ClCompile Include="src\effects\ShopEffect.cpp" />
     <ClCompile Include="src\core\Slot.cpp" />
@@ -167,10 +167,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\core\Board.h" />
-    <ClInclude Include="include\core\ItemManager.h" />
     <ClInclude Include="include\core\utils\Coord.h" />
     <ClInclude Include="include\core\utils\Direction.h" />
     <ClInclude Include="include\core\GameRun.h" />
+    <ClInclude Include="include\core\ItemRegistry.h" />
     <ClInclude Include="include\rendering\Animation.h" />
     <ClInclude Include="include\rendering\UI_Button.h" />
     <ClInclude Include="include\states\GameState.h" />

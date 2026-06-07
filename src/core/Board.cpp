@@ -1,24 +1,18 @@
 #include "core/Board.h"
-#include "core/utils/Coord.h"
-#include "core/Slot.h"
-#include "effects/ShopEffect.h"
 #include "core/Turn.h"
 #include "core/GameRun.h"
-#include "states/PlayState.h"
+#include "effects/ShopEffect.h"
 #include "rendering/RenderSystem.h"
 #include "rendering/Animation.h"
 
-
-
-Board::Board(RenderSystem& renderer, Turn* turn, bool doInitialSetup) :
-    renderer(renderer),
-    board(renderer.getTextureManager().get("board")),
-    turn(turn)
+Board::Board(RenderSystem& renderer, Turn* turn, bool doInitialSetup)
+    : renderer(renderer),
+      boardSprite(renderer.getTextureManager().get("board")),
+      turn(turn)
 {
-    //only for the first board
     if (doInitialSetup) {
-        fixVisualAssets();
-        firstBoardSetUp();
+        initVisuals();
+        setupInitialBoard();
     }
 }
 
@@ -29,15 +23,13 @@ Board Board::cloneFrom(const Board& other, Turn* turn) {
 }
 
 void Board::copyStateFrom(const Board& other) {
-    this->clear();
+    clear();
 
-    board = other.board;
-    col_range = other.col_range;
-    row_range = other.row_range;
-
-    //restore flags at the end of the round
-    isResolvingMovementFlag = false;
-    moveIsPermittedFlag = false;
+    boardSprite = other.boardSprite;
+    colRange = other.colRange;
+    rowRange = other.rowRange;
+    moveValidFlag = false;
+    hoveredTile = nullptr;
 
     slots.clear();
     for (const auto& [coord, slotPtr] : other.slots) {
@@ -47,347 +39,244 @@ void Board::copyStateFrom(const Board& other) {
     for (const auto& [coord, slotPtr] : other.slots) {
         if (!slotPtr->isEmpty()) {
             Slot* mySlot = slots[coord].get();
-            const Tile* originalTile = slotPtr->tile.get();
-
-            /*
-
-                            CAREFUL - DOUBLE MERGE AND SIMPLE COPY OF TILE
-
-            this is the only piece of code that holds the "double merge" feature in place. (with flag)
-
-            the fact is that we do not still have a function to "copy" the tile from a board to another
-            so creating another one with the flag initialized as normal is like starting a new board, which NOW is convenient
-
-            BUT if in the future we would like to have tiles that HOLD characteristics other than value, than a simple copy
-            like this would be WRONG.
-
-            */
-
-            mySlot->setTile(std::make_unique<Tile>(renderer, mySlot, originalTile->getValue()));
-
+            mySlot->setTile(std::make_unique<Tile>(renderer, mySlot, slotPtr->tile->getValue()));
         }
     }
 }
 
-
-
-void Board::fixVisualAssets() {
-
-    //asset resizing
-    renderer.resizeSprite("board", board);
-    //asset origin setting
-
-    board.setOrigin(board.getLocalBounds().getCenter());
-
-    //asset positioning
-    auto windowSize = renderer.getWindowSize();
-
-    board.setPosition({ float(windowSize.x) / 2, float(windowSize.y) / 2 }); //  up shift (-) 
-
-    std::cout << "Board visual assets: ready" << std::endl;
+void Board::initVisuals() {
+    renderer.resizeSprite("board", boardSprite);
+    boardSprite.setOrigin(boardSprite.getLocalBounds().getCenter());
+    auto ws = renderer.getWindowSize();
+    boardSprite.setPosition({static_cast<float>(ws.x) / 2.f,
+                             static_cast<float>(ws.y) / 2.f});
 }
 
-
-
-void Board::firstBoardSetUp() {
-
-    //grid
-    for (int i = -0; i <= 3; ++i) {
-        for (int j = 0; j <= 3; ++j) {
-            slots[{i, j}] = std::make_unique<Slot>(i, j, this, renderer);
+void Board::setupInitialBoard() {
+    for (int c = 0; c <= 3; ++c) {
+        for (int r = 0; r <= 3; ++r) {
+            slots[{c, r}] = std::make_unique<Slot>(c, r, this, renderer);
         }
     }
-    //shop initial slot
+
     slots[{-1, 2}] = std::make_unique<Slot>(-1, 2, this, renderer);
-
-    //shop effect add->tile and fields (to be created a specific function)
     slots[{-1, 2}]->addEffect(std::make_unique<ShopEffect>());
-    slots[{-1, 2}]->canTileStepIn = 0;
-    slots[{-1, 2}]->canTileStepOut = 0;
+    slots[{-1, 2}]->canTileStepIn = false;
+    slots[{-1, 2}]->canTileStepOut = false;
     slots[{-1, 2}]->setTile(std::make_unique<Tile>(renderer, slots[{-1, 2}].get(), 2));
 
-    //boss
-
-    /*
-    slots[{3, 3}]->getSlotSprite().setTexture(renderer.getTextureManager().get("monstro"));
-    slots[{3, 3}]->getSlotSprite().setTextureRect(sf::IntRect({ 0,0 }, { 42, 42 }));
-    slots[{3, 3}]->getSlotSprite().setOrigin({ 42 / 2 , 42 / 2 });
-    renderer.resizeSprite("monstro" , slots[{3, 3}]->getSlotSprite());
-    */
-
-    //hole
-    
-    //slots.erase({ 2, 2 });
-    
-    //first tile
     spawnTileInRandomEmptySlot();
-    
 }
 
+// --- Input & Interaction ---
 
-void Board::render(RenderSystem& renderer) {
+void Board::handleInput(sf::Event& event) {
+    if (auto* released = event.getIf<sf::Event::MouseButtonReleased>()) {
+        if (released->button == sf::Mouse::Button::Left) {
+            sf::Vector2f worldPos = renderer.getWindow().mapPixelToCoords(
+                {released->position.x, released->position.y});
+            handleClick(worldPos);
+        }
+    }
+}
 
-    //renderer.draw(board);
+void Board::updateHoverState() {
+    sf::Vector2i mousePixel = sf::Mouse::getPosition(renderer.getWindow());
+    sf::Vector2f mousePos = renderer.getWindow().mapPixelToCoords(mousePixel);
+    bool mouseDown = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
 
-    for (const auto& [coord, slotPtr] : slots) {
+    Tile* hit = findTileAt(mousePos);
 
-        slotPtr->render(renderer);
-
+    if (hoveredTile && hoveredTile != hit) {
+        hoveredTile->setVisual(Tile::Visual::Idle);
     }
 
+    hoveredTile = hit;
 
+    if (hoveredTile) {
+        hoveredTile->setVisual(mouseDown ? Tile::Visual::Pressed : Tile::Visual::Hovered);
+    }
+}
+
+void Board::handleClick(sf::Vector2f worldPos) {
+    Tile* hit = findTileAt(worldPos);
+    if (hit) {
+        hit->setSelected(!hit->isSelected());
+    }
+}
+
+Tile* Board::findTileAt(sf::Vector2f pos) const {
+    for (const auto& [_, slot] : slots) {
+        if (!slot->isEmpty() && slot->tile->getBounds().contains(pos)) {
+            return slot->tile.get();
+        }
+    }
+    return nullptr;
+}
+
+std::vector<Tile*> Board::getSelectedTiles() const {
+    std::vector<Tile*> result;
+    for (const auto& [_, slot] : slots) {
+        if (!slot->isEmpty() && slot->tile->isSelected()) {
+            result.push_back(slot->tile.get());
+        }
+    }
+    return result;
+}
+
+void Board::destroyTile(Tile* tile) {
+    if (!tile || !tile->slot) return;
+    tile->slot->removeTile();
+}
+
+void Board::clearSelection() {
+    for (auto& [_, slot] : slots) {
+        if (!slot->isEmpty()) {
+            slot->tile->setSelected(false);
+        }
+    }
+}
+
+// --- Render & Update ---
+
+void Board::render(RenderSystem& renderer) {
+    for (const auto& [_, slot] : slots) {
+        slot->render(renderer);
+    }
 }
 
 void Board::update(float deltaTime) {
+    updateHoverState();
+
     for (auto& [_, slot] : slots) {
         slot->update(deltaTime);
     }
 }
 
-int Board::getRandomInt(int min, int max) {
-    return turn->game_run->getRandomInt(min, max);
-}
-float Board::getRandomFloat(float min, float max) {
-    return turn->game_run->getRandomFloat(min, max);
-}
+// --- Spawning ---
 
-// Function to spawn a tile in a random empty slot - this will be modular in the future
 void Board::spawnTileInRandomEmptySlot() {
-    std::vector<Slot*> emptySlots;
-
-    for (const auto& entry : slots) {
-        if (entry.second->isEmpty()) {
-            emptySlots.push_back(entry.second.get());
+    std::vector<Slot*> empty;
+    for (const auto& [_, slot] : slots) {
+        if (slot->isEmpty()) {
+            empty.push_back(slot.get());
         }
     }
+    if (empty.empty()) return;
 
-    if (!emptySlots.empty()) {
-        int randomIndex = getRandomInt(0, int(emptySlots.size()) - 1);
-        Slot* randomSlot = emptySlots[randomIndex];
-
-        //90% 2 - 10% 4 spawn rate
-        int probValue = getRandomInt(1, 10);
-
-        int tileValue{2};
-
-        if (probValue <= 9) {
-            tileValue = 2;
-        }
-        else {
-            tileValue = 4;
-        }
-
-        //spawn random tile at random tile
-        randomSlot->setTile(std::make_unique<Tile>(renderer,randomSlot,tileValue));
-
-        std::cout << "Spawned tile at (row=" << randomSlot->row << ", col=" << randomSlot->col << ") with value " << tileValue << std::endl ;
-        std::cout << "the value of spawn rate was " << probValue << std::endl;
-    }
-    else {
-        std::cout << "No empty slots available to spawn a tile.\n";
-    }
+    int idx = getRandomInt(0, static_cast<int>(empty.size()) - 1);
+    int val = (getRandomInt(1, 10) <= 9) ? 2 : 4;
+    empty[idx]->setTile(std::make_unique<Tile>(renderer, empty[idx], val));
 }
 
-void Board::generateCoins() {
-    /*
-    std::vector<Slot*> coin_slots;
-
-    for (const auto& entry : slots) {
-        coin_slots.push_back(entry.second.get());
-    }
-
-    int len = coin_slots.size();
-
-    const auto& chosen = coin_slots[getRandomInt(0, len)];
-
-    */
-
-
-}
+// --- Movement ---
 
 void Board::move(Direction dir) {
-
-    isResolvingMovementFlag = true;
-
     initializeMovementQueue(dir);
     while (!movementQueue.empty()) {
         resolveNextTileMove(dir);
     }
-
-
-    isResolvingMovementFlag = false;
-
 }
 
 void Board::initializeMovementQueue(Direction dir) {
     movementQueue.clear();
 
+    auto tryAdd = [&](int x, int y) {
+        Coord coord{x, y};
+        if (slots.count(coord) && !slots[coord]->isEmpty()) {
+            movementQueue.pushBack(slots[coord].get());
+        }
+    };
+
     switch (dir) {
     case Direction::Left:
-        for (int y = row_range.first; y <= row_range.second; ++y) {
-            for (int x = col_range.first; x <= col_range.second; ++x) {
-                Coord coord = { x, y };
-                if (slots.count(coord) && !slots[coord]->isEmpty()) {
-                    movementQueue.pushBack(slots[coord].get());
-                }
-            }
-        }
+        for (int y = rowRange.first; y <= rowRange.second; ++y)
+            for (int x = colRange.first; x <= colRange.second; ++x)
+                tryAdd(x, y);
         break;
-
     case Direction::Right:
-        for (int y = row_range.first; y <= row_range.second; ++y) {
-            for (int x = col_range.second; x >= col_range.first; --x) {
-                Coord coord = { x, y };
-                if (slots.count(coord) && !slots[coord]->isEmpty()) {
-                    movementQueue.pushBack(slots[coord].get());
-                }
-            }
-        }
+        for (int y = rowRange.first; y <= rowRange.second; ++y)
+            for (int x = colRange.second; x >= colRange.first; --x)
+                tryAdd(x, y);
         break;
-
     case Direction::Up:
-        for (int x = col_range.first; x <= col_range.second; ++x) {
-            for (int y = row_range.first; y <= row_range.second; ++y) {
-                Coord coord = { x, y };
-                if (slots.count(coord) && !slots[coord]->isEmpty()) {
-                    movementQueue.pushBack(slots[coord].get());
-                }
-            }
-        }
+        for (int x = colRange.first; x <= colRange.second; ++x)
+            for (int y = rowRange.first; y <= rowRange.second; ++y)
+                tryAdd(x, y);
         break;
-
     case Direction::Down:
-        for (int x = col_range.first; x <= col_range.second; ++x) {
-            for (int y = row_range.second; y >= row_range.first; --y) {
-                Coord coord = { x, y };
-                if (slots.count(coord) && !slots[coord]->isEmpty()) {
-                    movementQueue.pushBack(slots[coord].get());
-                }
-            }
-        }
+        for (int x = colRange.first; x <= colRange.second; ++x)
+            for (int y = rowRange.second; y >= rowRange.first; --y)
+                tryAdd(x, y);
         break;
-
     default:
         break;
     }
 }
 
-void Board::resolveNextTileMove(Direction moveDirection) {
-    if (movementQueue.empty()) return;
-
+void Board::resolveNextTileMove(Direction dir) {
     Slot* origin = movementQueue.popFront();
     if (!origin || origin->isEmpty()) return;
 
     Tile* tile = origin->tile.get();
     Coord current = origin->getCoord();
 
-    // Step 1: insegui finché possibile
     while (true) {
-        Coord next = getNextCoord(current, moveDirection);
-
+        Coord next = getNextCoord(current, dir);
         if (!slots.count(next)) break;
 
         Slot* target = slots[next].get();
-
         if (!target->isEmpty()) break;
         if (!target->canTileStepIn || !slots[current]->canTileStepOut) break;
 
-        // Sposta la tile di uno slot
         tile->changeSlot(slots[current].get(), target);
-
-        //signals that the move is good
-        moveIsPermittedFlag = true;
-
-        current = next; // Avanza la posizione
-
+        moveValidFlag = true;
+        current = next;
     }
 
-    if (tile->mergedThisSweep) { 
-        
-        return; }  // to not double merge 
+    if (tile->mergedThisSweep) return;
 
-    //------
+    Coord mergeCoord = getNextCoord(current, dir);
+    if (!slots.count(mergeCoord)) return;
 
-    // Step 2: prova merge con la tile successiva
-    Coord mergeCoord = getNextCoord(current, moveDirection);
+    Slot* neighbor = slots[mergeCoord].get();
+    if (neighbor->isEmpty()) return;
+    if (neighbor->tile->getValue() != tile->getValue()) return;
+    if (!slots[current]->canTileStepOut) return;
+    if (tile->mergedThisSweep || neighbor->tile->mergedThisSweep) return;
 
-    if (slots.count(mergeCoord)) {
-        Slot* neighbor = slots[mergeCoord].get();
+    tile->mergeIntoSlot(neighbor);
 
-        //this should all be part of a function that computes and groups conditions and combinations of effect
-        //locked, passives, effects...etc
-
-        if (!neighbor->isEmpty() and                                //the neighbor slot must be empty
-            neighbor->tile->getValue() == tile->getValue() and      //it must have the same value
-            slots[current]->canTileStepOut and                      //the current slot must not be locked
-            !tile->mergedThisSweep and                              
-            !neighbor->tile->mergedThisSweep)                       //check to not double merge  
-        {
-
-            tile->mergeIntoSlot(neighbor);
-
-            //------
-
-            auto ani = std::make_unique<Animation>(
-                renderer,           // riferimento al tuo RenderSystem
-                "merge_animation",         // id o nome della sprite-sheet registrata
-                sf::Vector2i(23, 23),// dimensione di ogni frame
-                5,                  // numero di frame totali
-                tile->slot->getSlotSprite().getPosition()             // posizione in mondo
-            );
-            ani->shouldLoop = false;
-
-            turn->game_run->getPlayState()->addAnimation(std::move(ani));
-
-
-            ///-----
-            moveIsPermittedFlag = true;
-
-            return;
-        }
+    if (animationCallback) {
+        auto anim = std::make_unique<Animation>(
+            renderer, "merge_animation", sf::Vector2i(23, 23), 5,
+            neighbor->getSlotSprite().getPosition());
+        anim->looping = false;
+        animationCallback(std::move(anim));
     }
+
+    moveValidFlag = true;
 }
-
 
 Coord Board::getNextCoord(Coord from, Direction dir) {
     switch (dir) {
-    case Direction::Left:  return { from.x - 1, from.y };
-    case Direction::Right: return { from.x + 1, from.y };
-    case Direction::Up:    return { from.x, from.y - 1 };
-    case Direction::Down:  return { from.x, from.y + 1 };
+    case Direction::Left:  return {from.x - 1, from.y};
+    case Direction::Right: return {from.x + 1, from.y};
+    case Direction::Up:    return {from.x, from.y - 1};
+    case Direction::Down:  return {from.x, from.y + 1};
     default:               return from;
     }
 }
 
-
 void Board::clear() {
-
-    for (const auto& entry : slots) {
-        if (!entry.second->isEmpty()) {
-            entry.second->removeTile();
+    for (const auto& [_, slot] : slots) {
+        if (!slot->isEmpty()) {
+            slot->removeTile();
         }
     }
 }
 
-//getters
-
-bool Board::isResolvingMovement() const {
-    return isResolvingMovementFlag;
-}
-
-bool Board::moveIsPermitted() const {
-    return moveIsPermittedFlag;
-}
-
-//----test
-
-void Board::handleClick(sf::Vector2f worldPos) {
-
-    return;
-
-}
-
-bool Board::animationFinished() const {
+bool Board::allAnimationsFinished() const {
     for (const auto& [_, slot] : slots) {
         if (!slot->isEmpty() && slot->tile->isAnimating()) {
             return false;
@@ -396,3 +285,14 @@ bool Board::animationFinished() const {
     return true;
 }
 
+bool Board::moveWasValid() const {
+    return moveValidFlag;
+}
+
+void Board::setAnimationCallback(AnimationCallback callback) {
+    animationCallback = std::move(callback);
+}
+
+int Board::getRandomInt(int min, int max) {
+    return turn->gameRun->getRandomInt(min, max);
+}
