@@ -22,6 +22,26 @@ Board Board::cloneFrom(const Board& other, Turn* turn) {
     return b;
 }
 
+Board::Board(Board&& other) noexcept
+    : turn(other.turn),
+      renderer(other.renderer),
+      boardSprite(std::move(other.boardSprite)),
+      slots(std::move(other.slots)),
+      movementQueue(std::move(other.movementQueue)),
+      colRange(other.colRange),
+      rowRange(other.rowRange),
+      moveValidFlag(other.moveValidFlag),
+      animationCallback(std::move(other.animationCallback)),
+      hoveredTile(other.hoveredTile)
+{
+    // The slots were created pointing at the moved-from Board. Re-parent them
+    // to this Board so Slot::board stays valid — SlotEffect::onMerge reaches the
+    // owning Turn through it (e.g. ShopEffect requesting the shop).
+    for (auto& [coord, slot] : slots) {
+        if (slot) slot->board = this;
+    }
+}
+
 void Board::copyStateFrom(const Board& other) {
     clear();
 

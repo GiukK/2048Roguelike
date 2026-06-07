@@ -24,6 +24,11 @@ public:
     static Board cloneFrom(const Board& other, Turn* turn);
     void copyStateFrom(const Board& other);
 
+    // cloneFrom returns by value, so the slots (which hold a back-pointer to
+    // their owning Board) must be re-parented to the destination after the
+    // move; otherwise Slot::board dangles to the moved-from temporary.
+    Board(Board&& other) noexcept;
+
     void handleInput(sf::Event& event);
     void render(RenderSystem& renderer);
     void update(float deltaTime);
