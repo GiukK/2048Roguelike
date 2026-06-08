@@ -5,6 +5,24 @@
 #include "rendering/RenderSystem.h"
 #include "rendering/Animation.h"
 
+#include <algorithm>
+#include <array>
+#include <set>
+
+namespace {
+// Returns the ShopEffect carried by a slot, or nullptr if the slot is not a
+// shop. A slot is treated as a shop purely by virtue of holding a ShopEffect,
+// which keeps the shop concept decoupled from Slot/Board internals.
+ShopEffect* shopEffectOf(const Slot& slot) {
+    for (const auto& effect : slot.effects) {
+        if (auto* shop = dynamic_cast<ShopEffect*>(effect.get())) {
+            return shop;
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
 Board::Board(RenderSystem& renderer, Turn* turn, bool doInitialSetup)
     : renderer(renderer),
       boardSprite(renderer.getTextureManager().get("board")),
@@ -28,8 +46,6 @@ Board::Board(Board&& other) noexcept
       boardSprite(std::move(other.boardSprite)),
       slots(std::move(other.slots)),
       movementQueue(std::move(other.movementQueue)),
-      colRange(other.colRange),
-      rowRange(other.rowRange),
       moveValidFlag(other.moveValidFlag),
       animationCallback(std::move(other.animationCallback)),
       hoveredTile(other.hoveredTile)
@@ -46,8 +62,6 @@ void Board::copyStateFrom(const Board& other) {
     clear();
 
     boardSprite = other.boardSprite;
-    colRange = other.colRange;
-    rowRange = other.rowRange;
     moveValidFlag = false;
     hoveredTile = nullptr;
 
@@ -60,6 +74,11 @@ void Board::copyStateFrom(const Board& other) {
         if (!slotPtr->isEmpty()) {
             Slot* mySlot = slots[coord].get();
             mySlot->setTile(std::make_unique<Tile>(renderer, mySlot, slotPtr->tile->getValue()));
+            // Tiles are rebuilt from value only, so per-tile state that must
+            // persist across turns/undo has to be copied explicitly.
+            if (slotPtr->tile->isBricked()) {
+                mySlot->tile->setBricked(true);
+            }
         }
     }
 }
@@ -73,17 +92,14 @@ void Board::initVisuals() {
 }
 
 void Board::setupInitialBoard() {
+    // Plain 2048 start: a 4x4 grid with one spawned tile. The shop is no longer
+    // placed here — it is spawned later by GameRun once the turn countdown
+    // elapses (see GameRun::advanceShopState / Board::spawnShop).
     for (int c = 0; c <= 3; ++c) {
         for (int r = 0; r <= 3; ++r) {
             slots[{c, r}] = std::make_unique<Slot>(c, r, this, renderer);
         }
     }
-
-    slots[{-1, 2}] = std::make_unique<Slot>(-1, 2, this, renderer);
-    slots[{-1, 2}]->addEffect(std::make_unique<ShopEffect>());
-    slots[{-1, 2}]->canTileStepIn = false;
-    slots[{-1, 2}]->canTileStepOut = false;
-    slots[{-1, 2}]->setTile(std::make_unique<Tile>(renderer, slots[{-1, 2}].get(), 2));
 
     spawnTileInRandomEmptySlot();
 }
@@ -146,11 +162,38 @@ std::vector<Tile*> Board::getSelectedTiles() const {
 
 void Board::destroyTile(Tile* tile) {
     if (!tile || !tile->slot) return;
+    // The shop is a protected objective: destruction effects (the bombs) must
+    // never empty a shop slot, which would leave a broken, unmergeable shop that
+    // also keeps the spawn countdown frozen forever. Guarding here covers every
+    // destruction path at once.
+    if (shopEffectOf(*tile->slot)) return;
     // hoveredTile is a raw back-pointer kept across frames by updateHoverState();
     // if we destroy the tile it points at, the next hover update would dereference
     // freed memory. Drop the reference before the tile dies.
     if (tile == hoveredTile) hoveredTile = nullptr;
     tile->slot->removeTile();
+}
+
+std::vector<Tile*> Board::getTilesInRadius(const Tile* center, int radius,
+                                           bool includeCenter) const {
+    std::vector<Tile*> result;
+    if (!center || !center->slot) return result;
+
+    Coord c = center->slot->getCoord();
+    for (int dx = -radius; dx <= radius; ++dx) {
+        for (int dy = -radius; dy <= radius; ++dy) {
+            if (!includeCenter && dx == 0 && dy == 0) continue;
+
+            auto it = slots.find({c.x + dx, c.y + dy});
+            if (it == slots.end() || it->second->isEmpty()) continue;
+            // Shops are immune to area effects (mirrors destroyTile), so they are
+            // not offered as targets — keeps Bomb II's "up to 2" picks meaningful.
+            if (shopEffectOf(*it->second)) continue;
+
+            result.push_back(it->second->tile.get());
+        }
+    }
+    return result;
 }
 
 void Board::swapTiles(Tile* a, Tile* b) {
@@ -213,6 +256,90 @@ void Board::spawnTileInRandomEmptySlot() {
     empty[idx]->setTile(std::make_unique<Tile>(renderer, empty[idx], val));
 }
 
+// --- Shop mechanics ---
+
+int Board::getMaxTileValue() const {
+    int maxValue = 0;
+    for (const auto& [_, slot] : slots) {
+        if (!slot->isEmpty()) {
+            maxValue = std::max(maxValue, slot->tile->getValue());
+        }
+    }
+    return maxValue;
+}
+
+std::vector<Coord> Board::getShopSpawnCandidates() const {
+    // For every existing slot, every orthogonal neighbour that is NOT already a
+    // slot is an admissible spawn cell. A std::set both de-duplicates positions
+    // shared by multiple slots and yields a deterministic ordering so the
+    // uniform pick below is reproducible for a given RNG state.
+    static constexpr std::array<Coord, 4> offsets = {{
+        {-1, 0}, {1, 0}, {0, -1}, {0, 1}
+    }};
+
+    std::set<Coord> candidates;
+    for (const auto& [coord, _] : slots) {
+        for (const auto& off : offsets) {
+            Coord neighbour{coord.x + off.x, coord.y + off.y};
+            if (slots.count(neighbour) == 0) {
+                candidates.insert(neighbour);
+            }
+        }
+    }
+    return {candidates.begin(), candidates.end()};
+}
+
+bool Board::spawnShop(int tileValue) {
+    auto candidates = getShopSpawnCandidates();
+    if (candidates.empty()) return false;
+
+    int idx = getRandomInt(0, static_cast<int>(candidates.size()) - 1);
+    Coord pos = candidates[idx];
+
+    auto slot = std::make_unique<Slot>(pos.x, pos.y, this, renderer);
+    slot->addEffect(std::make_unique<ShopEffect>());
+    // Locked: tiles can neither slide into nor out of a shop. The only legal
+    // interaction is merging a matching tile into the phantom tile, which fires
+    // ShopEffect::onMerge (see Tile::mergeIntoSlot -> Slot::triggerMergeEffects).
+    slot->canTileStepIn = false;
+    slot->canTileStepOut = false;
+    slot->setTile(std::make_unique<Tile>(renderer, slot.get(), tileValue));
+
+    slots[pos] = std::move(slot);
+    return true;
+}
+
+int Board::countActiveShops() const {
+    int count = 0;
+    for (const auto& [_, slot] : slots) {
+        if (auto* shop = shopEffectOf(*slot); shop && !shop->isTriggered()) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+int Board::removeConsumedShops() {
+    std::vector<Coord> toRemove;
+    for (const auto& [coord, slot] : slots) {
+        if (auto* shop = shopEffectOf(*slot); shop && shop->isTriggered()) {
+            toRemove.push_back(coord);
+        }
+    }
+
+    for (const Coord& coord : toRemove) {
+        // The slot (and its merged tile) is about to be destroyed; drop the
+        // dangling-prone hover back-pointer if it targets this tile, mirroring
+        // the guard in destroyTile().
+        Slot* slot = slots[coord].get();
+        if (!slot->isEmpty() && slot->tile.get() == hoveredTile) {
+            hoveredTile = nullptr;
+        }
+        slots.erase(coord);
+    }
+    return static_cast<int>(toRemove.size());
+}
+
 // --- Movement ---
 
 void Board::move(Direction dir) {
@@ -235,6 +362,20 @@ void Board::move(Direction dir) {
 
 void Board::initializeMovementQueue(Direction dir) {
     movementQueue.clear();
+    if (slots.empty()) return;
+
+    // Sweep bounds are derived from the live slot set rather than a fixed range,
+    // so a shop spawned on *any* border (col -1, col 4, row -1, row 4, ...) is
+    // covered automatically. This also keeps the board future-proof if abilities
+    // ever grow or reshape the playfield.
+    int minCol = slots.begin()->first.x, maxCol = minCol;
+    int minRow = slots.begin()->first.y, maxRow = minRow;
+    for (const auto& [coord, _] : slots) {
+        minCol = std::min(minCol, coord.x);
+        maxCol = std::max(maxCol, coord.x);
+        minRow = std::min(minRow, coord.y);
+        maxRow = std::max(maxRow, coord.y);
+    }
 
     auto tryAdd = [&](int x, int y) {
         Coord coord{x, y};
@@ -245,23 +386,23 @@ void Board::initializeMovementQueue(Direction dir) {
 
     switch (dir) {
     case Direction::Left:
-        for (int y = rowRange.first; y <= rowRange.second; ++y)
-            for (int x = colRange.first; x <= colRange.second; ++x)
+        for (int y = minRow; y <= maxRow; ++y)
+            for (int x = minCol; x <= maxCol; ++x)
                 tryAdd(x, y);
         break;
     case Direction::Right:
-        for (int y = rowRange.first; y <= rowRange.second; ++y)
-            for (int x = colRange.second; x >= colRange.first; --x)
+        for (int y = minRow; y <= maxRow; ++y)
+            for (int x = maxCol; x >= minCol; --x)
                 tryAdd(x, y);
         break;
     case Direction::Up:
-        for (int x = colRange.first; x <= colRange.second; ++x)
-            for (int y = rowRange.first; y <= rowRange.second; ++y)
+        for (int x = minCol; x <= maxCol; ++x)
+            for (int y = minRow; y <= maxRow; ++y)
                 tryAdd(x, y);
         break;
     case Direction::Down:
-        for (int x = colRange.first; x <= colRange.second; ++x)
-            for (int y = rowRange.second; y >= rowRange.first; --y)
+        for (int x = minCol; x <= maxCol; ++x)
+            for (int y = maxRow; y >= minRow; --y)
                 tryAdd(x, y);
         break;
     default:
@@ -275,6 +416,14 @@ void Board::resolveNextTileMove(Direction dir) {
 
     Tile* tile = origin->tile.get();
     Coord current = origin->getCoord();
+
+    // A bricked tile is immovable until a merge clears it: it neither slides nor
+    // initiates a merge. It can still be a merge *target* — when another tile
+    // sweeps into it, mergeIntoSlot destroys this tile and the brick goes with
+    // it. The same immobility applies to a tile frozen for the rest of this turn
+    // by such a merge, so it cannot move again before the turn ends.
+    // See Tile::isBricked / Tile::isFrozenThisTurn / the "brick" item.
+    if (tile->isBricked() || tile->isFrozenThisTurn()) return;
 
     while (true) {
         Coord next = getNextCoord(current, dir);

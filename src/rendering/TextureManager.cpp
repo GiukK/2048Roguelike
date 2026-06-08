@@ -25,6 +25,9 @@ void TextureManager::initialize() {
     load("shopslot", "assets/textures/shopslot.png");
     load("monstro",  "assets/textures/monstro.png");
     load("bomb",     "assets/textures/bomb.png");
+    load("bomb_2",   "assets/textures/bomb_2.png");
+    load("bomb_3",   "assets/textures/bomb_3.png");
+    load("brick",    "assets/textures/brick.png");
     load("switch",   "assets/textures/switch.png");
 
     // Tiles

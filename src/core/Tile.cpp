@@ -24,6 +24,29 @@ void Tile::initVisuals() {
 void Tile::render(RenderSystem& renderer) {
     applyVisualStyle();
     renderer.draw(sprite);
+
+    // The brick marker is shown both for an item-bricked tile and for a tile
+    // still frozen this turn after a brick broke on a merge — both are immobile.
+    if (bricked || frozenThisTurn) {
+        if (!brickOverlay) {
+            // Built once, lazily. Drawn semi-transparent so the tile's value
+            // stays readable underneath.
+            brickOverlay = std::make_unique<sf::Sprite>(
+                renderer.getTextureManager().get("brick"));
+            brickOverlay->setOrigin(brickOverlay->getLocalBounds().getCenter());
+            brickOverlay->setColor(sf::Color(255, 255, 255, 150));
+        }
+        // brick.png shares the tile's native 15x15 size, so matching the tile's
+        // current scale makes the overlay cover it exactly — including the hover
+        // zoom applied in applyVisualStyle() and any in-progress slide.
+        brickOverlay->setScale(sprite.getScale());
+        brickOverlay->setPosition(sprite.getPosition());
+        renderer.draw(*brickOverlay);
+    }
+}
+
+void Tile::setBricked(bool b) {
+    bricked = b;
 }
 
 void Tile::applyVisualStyle() {
@@ -117,11 +140,22 @@ void Tile::animateTo(sf::Vector2f target) {
 
 void Tile::mergeIntoSlot(Slot* target) {
     int sum = value + target->tile->getValue();
+    // Capture before the target tile is destroyed: was the tile we merge into a
+    // bricked one? If so the brick breaks now (this turn), but the resulting
+    // tile must stay put for the rest of the turn rather than become movable.
+    const bool targetWasBricked = target->tile->isBricked();
 
     target->removeTile();
     changeSlot(slot, target);
     target->tile->setValue(sum);
     target->tile->changeSprite();
+
+    if (targetWasBricked) {
+        // Transient: not cloned to the next turn, so the tile is normal again
+        // next turn with no extra event. The brick-break event stays in this turn.
+        target->tile->frozenThisTurn = true;
+    }
+
     target->triggerMergeEffects();
 
     mergedThisSweep = true;

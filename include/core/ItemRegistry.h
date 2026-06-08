@@ -32,6 +32,11 @@ public:
     const ItemDef& get(const std::string& id) const;
     bool has(const std::string& id) const;
 
+    // Every registered item, sorted by id for a stable ordering. Lets callers
+    // (e.g. the debug shop) enumerate the full catalogue without hardcoding its
+    // size — it scales automatically as items are added.
+    std::vector<const ItemDef*> getAll() const;
+
     // Weighted random selection. Items with higher weight appear more often.
     // pickMultiple allows duplicates — a common item can fill multiple shop slots.
     const ItemDef* pickWeightedRandom(std::mt19937& rng) const;

@@ -40,6 +40,14 @@ void Turn::nextPhase() {
 }
 
 void Turn::endTurn() {
+    // Resolve the shop lifecycle on this turn's finished board *before* cloning
+    // it into the next turn: a consumed shop is removed and, when the countdown
+    // elapses, a new shop is spawned. Doing it here means the next turn's board
+    // (and its snapshot) inherit the correct shop state through the clone, while
+    // this turn's board is immediately reset to its own pre-shop snapshot below
+    // — so the undo history stays consistent and no shop pointer dangles.
+    gameRun->advanceShopState(board);
+
     gameRun->newTurn(board);
 
     currentPhase = Phase::Begin;

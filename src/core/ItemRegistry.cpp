@@ -1,5 +1,7 @@
 #include "core/ItemRegistry.h"
 
+#include <algorithm>
+
 void ItemRegistry::registerItem(ItemDef def) {
     std::string id = def.id;
     items[id] = std::move(def);
@@ -15,6 +17,18 @@ const ItemDef& ItemRegistry::get(const std::string& id) const {
 
 bool ItemRegistry::has(const std::string& id) const {
     return items.count(id) > 0;
+}
+
+std::vector<const ItemDef*> ItemRegistry::getAll() const {
+    std::vector<const ItemDef*> result;
+    result.reserve(items.size());
+    for (const auto& [_, def] : items) {
+        result.push_back(&def);
+    }
+    // items is an unordered_map, so sort for a deterministic shop layout.
+    std::sort(result.begin(), result.end(),
+              [](const ItemDef* a, const ItemDef* b) { return a->id < b->id; });
+    return result;
 }
 
 const ItemDef* ItemRegistry::pickWeightedRandom(std::mt19937& rng) const {

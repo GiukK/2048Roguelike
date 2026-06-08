@@ -4,6 +4,10 @@
 #include "core/Turn.h"
 
 void ShopEffect::onMerge(Slot* slot) {
+    // Mark the shop used so the board can remove it next turn, and ask the turn
+    // to open the shop UI. Both happen on the live board; the triggered flag is
+    // preserved through cloning so the lifecycle survives the undo stack.
+    triggered = true;
     slot->board->turn->requestShop();
 }
 

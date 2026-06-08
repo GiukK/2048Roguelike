@@ -1,5 +1,8 @@
 #include "core/GameRun.h"
 #include "rendering/RenderSystem.h"
+#include "Debug.h"
+
+#include <algorithm>
 
 GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCallback onShopOpen)
     : renderer(renderer),
@@ -34,6 +37,64 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
         }
     });
 
+    // Bomb II: anchored on the selected tile, destroys up to two RANDOM tiles
+    // among its 8 neighbours (diagonals included). The anchor itself is left
+    // intact — the payload is purely the surrounding tiles. Refuses (does not
+    // consume) if nothing surrounds the anchor.
+    itemRegistry.registerItem({"bomb_2", "bomb_2", 75, 0.4f,
+        [](GameRun& run) -> bool {
+            auto sel = run.getSelectedTiles();
+            if (sel.size() != 1) return false;
+
+            auto neighbours = run.getTilesInRadius(sel[0], 1, /*includeCenter=*/false);
+            if (neighbours.empty()) return false;
+
+            int hits = std::min<int>(2, static_cast<int>(neighbours.size()));
+            for (int i = 0; i < hits; ++i) {
+                int idx = run.getRandomInt(0, static_cast<int>(neighbours.size()) - 1);
+                run.destroyTile(neighbours[idx]);
+                neighbours.erase(neighbours.begin() + idx);
+            }
+            return true;
+        }
+    });
+
+    // Bomb III: destroys every tile in the full 3x3 block centred on the selected
+    // tile (the anchor included).
+    itemRegistry.registerItem({"bomb_3", "bomb_3", 120, 0.2f,
+        [](GameRun& run) -> bool {
+            auto sel = run.getSelectedTiles();
+            if (sel.size() != 1) return false;
+
+            for (Tile* target : run.getTilesInRadius(sel[0], 1, /*includeCenter=*/true)) {
+                run.destroyTile(target);
+            }
+            return true;
+        }
+    });
+
+    // Brick: locks the selected tile in place (immovable, like a shop slot) until
+    // a merge clears it. Refuses if the tile is already bricked.
+    itemRegistry.registerItem({"brick", "brick", 60, 0.3f,
+        [](GameRun& run) -> bool {
+            auto sel = run.getSelectedTiles();
+            if (sel.size() != 1) return false;
+            if (sel[0]->isBricked()) return false;
+
+            sel[0]->setBricked(true);
+            return true;
+        }
+    });
+
+    // Default shop-tile criterion: a copy of the board's current largest tile,
+    // so activating the shop costs the player a rebuilt copy of their best tile.
+    // Clamped to [2, 1024] so the activating merge (2x value) never exceeds the
+    // highest tile artwork (2048). Swap via setShopTileValueStrategy().
+    shopTileValueStrategy = [](const Board& board) {
+        return std::clamp(board.getMaxTileValue(), 2, 1024);
+    };
+    shopCountdown = shopSpawnInterval;
+
     turns.push(std::make_unique<Turn>(renderer, this));
 }
 
@@ -54,6 +115,38 @@ void GameRun::openShop() {
     shopOpen = true;
     if (shopCallback) {
         shopCallback(this);
+    }
+}
+
+void GameRun::advanceShopState(Board& board) {
+    // Order matters. We mutate `board` (the turn that just ended, already past
+    // its move + tile spawn) so the result is baked into the clone the next turn
+    // is built from. See Turn::endTurn for the call site.
+    const int maxShops = static_cast<int>(maxShopsOnBoard);
+
+    // 1. A shop merged during this turn disappears from the next board.
+    int consumed = board.removeConsumedShops();
+
+    // 2. Count shops still awaiting a merge after that removal.
+    int activeShops = board.countActiveShops();
+
+    // 3. Advance / freeze / restart the countdown.
+    if (consumed > 0) {
+        // A shop just vanished -> restart the countdown from the interval.
+        shopCountdown = shopSpawnInterval;
+    } else if (activeShops >= maxShops) {
+        // Board already holds the allowed number of shops -> freeze at 0 so it
+        // does not immediately respawn (and the displayed counter sticks at 0).
+        shopCountdown = 0;
+    } else if (shopCountdown > 0) {
+        --shopCountdown;
+    }
+
+    // 4. Spawn once the countdown elapses and there is still room for a shop.
+    if (shopCountdown == 0 && activeShops < maxShops) {
+        int tileValue = shopTileValueStrategy ? shopTileValueStrategy(board)
+                                              : std::max(2, board.getMaxTileValue());
+        board.spawnShop(tileValue);
     }
 }
 
@@ -103,6 +196,13 @@ void GameRun::render(RenderSystem& renderer) {
     drawDigitCounter(renderer.getWindow(), static_cast<unsigned int>(turns.size()), 350.f);
     drawDigitCounter(renderer.getWindow(), static_cast<unsigned int>(coins), 1380.f);
 
+    // Shop spawn countdown: stacked just below the turn counter (top-left),
+    // smaller so it reads as a sub-counter and stays clear of the board and the
+    // score readouts. Shows 0 while a shop is on the board; restarts at the
+    // interval once the shop is consumed.
+    drawDigitCounter(renderer.getWindow(), static_cast<unsigned int>(shopCountdown),
+                     350.f, 100.f, 7.f);
+
     for (size_t i = 0; i < inventoryButtons.size(); ++i) {
         auto& btn = inventoryButtons[i];
         bool held = (static_cast<int>(i) == selectedIndex);
@@ -117,10 +217,11 @@ void GameRun::render(RenderSystem& renderer) {
     }
 }
 
-void GameRun::drawDigitCounter(sf::RenderWindow& window, unsigned int value, float xOffset) {
+void GameRun::drawDigitCounter(sf::RenderWindow& window, unsigned int value, float xOffset,
+                               float y, float scale) {
     std::string text = std::to_string(value);
-    float totalWidth = static_cast<float>(text.size()) * 5.f * 10.f;
-    renderer.drawNumber(value, {xOffset + totalWidth / 2.f, 18.f}, 10.f);
+    float totalWidth = static_cast<float>(text.size()) * 5.f * scale;
+    renderer.drawNumber(value, {xOffset + totalWidth / 2.f, y}, scale);
 }
 
 int GameRun::getRandomInt(int min, int max) {
@@ -141,6 +242,9 @@ int GameRun::getCoins() const {
 }
 
 int GameRun::getEffectiveCost(const ItemDef& item) const {
+    // Debug: everything is free so items can be grabbed and tested instantly.
+    if (debug::Enabled) return 0;
+
     int cost = item.cost;
     // Future: apply passive modifiers, shop discount abilities, etc.
     return std::max(cost, 0);
@@ -208,6 +312,11 @@ void GameRun::discardHeldItem() {
 std::vector<Tile*> GameRun::getSelectedTiles() const {
     if (turns.empty()) return {};
     return turns.top()->board.getSelectedTiles();
+}
+
+std::vector<Tile*> GameRun::getTilesInRadius(Tile* center, int radius, bool includeCenter) const {
+    if (turns.empty()) return {};
+    return turns.top()->board.getTilesInRadius(center, radius, includeCenter);
 }
 
 void GameRun::destroyTile(Tile* tile) {

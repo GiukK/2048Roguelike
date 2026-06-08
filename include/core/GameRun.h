@@ -5,6 +5,8 @@
 #include <stack>
 #include <vector>
 #include <functional>
+#include <algorithm>
+#include <utility>
 
 #include <SFML/Graphics.hpp>
 #include "rendering/UI_Button.h"
@@ -20,6 +22,11 @@ public:
     using ShopCallback = std::function<void(GameRun*)>;
     using AnimationsActiveQuery = std::function<bool()>;
 
+    // Decides the value of the phantom tile a freshly spawned shop holds.
+    // Default: a copy of the board's current largest tile (see constructor).
+    // Replaceable so abilities can change the shop-activation criterion later.
+    using ShopTileValueStrategy = std::function<int(const Board&)>;
+
     GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCallback onShopOpen);
 
     void enter();
@@ -28,6 +35,21 @@ public:
     void newTurn(const Board& currentBoard);
     void goBack();
     void openShop();
+
+    // Drives the whole shop-spawn lifecycle for one completed turn. Called by
+    // Turn::endTurn on the just-finished board, before it is cloned into the
+    // next turn — so any spawn/removal it performs is inherited by the next
+    // turn. Decrements the countdown, freezes it while shops are present,
+    // removes consumed shops, and spawns a new shop when the countdown elapses.
+    void advanceShopState(Board& board);
+
+    // --- Modular shop tuning (safe to call at runtime, e.g. from abilities) ---
+    void setShopSpawnInterval(int turns) { shopSpawnInterval = std::max(0, turns); }
+    void setMaxShopsOnBoard(unsigned int count) { maxShopsOnBoard = count; }
+    void setShopTileValueStrategy(ShopTileValueStrategy strategy) {
+        shopTileValueStrategy = std::move(strategy);
+    }
+    int getShopCountdown() const { return shopCountdown; }
 
     void handleInput(sf::Event& event);
     void update(float deltaTime);
@@ -60,6 +82,10 @@ public:
     void swapTiles(Tile* a, Tile* b);
     void clearBoardSelection();
 
+    // Occupied tiles around `center` on the current board (delegates to Board).
+    // Used by the area-effect items (Bomb II / Bomb III). Shops are excluded.
+    std::vector<Tile*> getTilesInRadius(Tile* center, int radius, bool includeCenter) const;
+
     int getRandomInt(int min, int max);
     std::vector<const ItemDef*> pickShopItems(int count);
 
@@ -77,7 +103,8 @@ private:
     void clearSelection();
     void rebuildInventoryButtons();
     void rebuildActionButtons();
-    void drawDigitCounter(sf::RenderWindow& window, unsigned int value, float xOffset);
+    void drawDigitCounter(sf::RenderWindow& window, unsigned int value, float xOffset,
+                          float y = 18.f, float scale = 10.f);
 
     RenderSystem& renderer;
     AnimationCallback animationCallback;
@@ -106,4 +133,15 @@ private:
 
     int coins = 100;
     unsigned int maxInventorySize = 3;
+
+    // --- Shop spawn state (all tunable; see the setters above) ---
+    // shopSpawnInterval: turns the countdown starts from (the "10").
+    // shopCountdown:     turns left before the next shop spawns; frozen at 0
+    //                    while the board already holds the allowed shops.
+    // maxShopsOnBoard:   how many shops may coexist; while this many are
+    //                    present the countdown stays at 0 (no immediate respawn).
+    int shopSpawnInterval = 10;
+    int shopCountdown = 10; // mirrors shopSpawnInterval at construction
+    unsigned int maxShopsOnBoard = 1;
+    ShopTileValueStrategy shopTileValueStrategy;
 };

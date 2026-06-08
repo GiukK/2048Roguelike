@@ -37,6 +37,31 @@ public:
     void move(Direction dir);
     void clear();
 
+    // --- Shop mechanics ---------------------------------------------------
+    // A "shop" is a Slot carrying a ShopEffect. It is spawned outside the base
+    // playfield (orthogonally adjacent to an existing slot, on an otherwise
+    // empty border cell) holding a phantom tile the player must merge into to
+    // activate the shop. These methods are the spatial primitives; the *policy*
+    // (when to spawn, what tile value to use, how many shops are allowed) lives
+    // in GameRun so it stays swappable for future abilities.
+
+    // Largest tile value currently on the board (0 if the board holds no tiles).
+    // Used by the default shop-tile-value strategy in GameRun.
+    int getMaxTileValue() const;
+
+    // Spawns a shop on a uniformly-random valid border cell, holding a phantom
+    // tile of `tileValue`. Returns false if no valid cell exists.
+    bool spawnShop(int tileValue);
+
+    // Number of shops still waiting to be merged (their ShopEffect has not
+    // triggered yet). Drives the spawn countdown / freeze logic in GameRun.
+    int countActiveShops() const;
+
+    // Erases every slot whose shop has already been triggered (merged into).
+    // Called between turns so a used shop disappears from the next board.
+    // Returns how many were removed. See ShopEffect::isTriggered.
+    int removeConsumedShops();
+
     bool allAnimationsFinished() const;
     bool moveWasValid() const;
 
@@ -49,11 +74,23 @@ public:
     void destroyTile(Tile* tile);
     void swapTiles(Tile* a, Tile* b);
 
+    // Occupied tiles inside the square of Chebyshev radius `radius` around
+    // `center` (radius 1 = the 3x3 block; diagonals included). Shop tiles are
+    // never returned — they are protected from area effects like the bombs.
+    // `includeCenter` toggles whether `center`'s own tile is part of the result.
+    std::vector<Tile*> getTilesInRadius(const Tile* center, int radius,
+                                        bool includeCenter) const;
+
     Turn* turn;
 
 private:
     void setupInitialBoard();
     void initVisuals();
+
+    // Collects every empty cell orthogonally adjacent to an existing slot.
+    // These are the admissible shop spawn positions (always on the border,
+    // since interior cells are already occupied by slots).
+    std::vector<Coord> getShopSpawnCandidates() const;
 
     void initializeMovementQueue(Direction dir);
     void resolveNextTileMove(Direction dir);
@@ -71,9 +108,6 @@ private:
 
     std::map<Coord, std::unique_ptr<Slot>> slots;
     MovementQueue movementQueue;
-
-    std::pair<int, int> colRange{-1, 3};
-    std::pair<int, int> rowRange{0, 3};
 
     bool moveValidFlag = false;
 
