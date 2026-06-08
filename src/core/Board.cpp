@@ -109,7 +109,8 @@ void Board::setupInitialBoard() {
 void Board::handleInput(sf::Event& event) {
     if (auto* released = event.getIf<sf::Event::MouseButtonReleased>()) {
         if (released->button == sf::Mouse::Button::Left) {
-            sf::Vector2f worldPos = renderer.getWindow().mapPixelToCoords(
+            // Map through the board camera so picking follows zoom/pan.
+            sf::Vector2f worldPos = renderer.mapPixelToBoard(
                 {released->position.x, released->position.y});
             handleClick(worldPos);
         }
@@ -118,7 +119,7 @@ void Board::handleInput(sf::Event& event) {
 
 void Board::updateHoverState() {
     sf::Vector2i mousePixel = sf::Mouse::getPosition(renderer.getWindow());
-    sf::Vector2f mousePos = renderer.getWindow().mapPixelToCoords(mousePixel);
+    sf::Vector2f mousePos = renderer.mapPixelToBoard(mousePixel);
     bool mouseDown = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
 
     Tile* hit = findTileAt(mousePos);
@@ -562,6 +563,27 @@ bool Board::allAnimationsFinished() const {
 
 bool Board::moveWasValid() const {
     return moveValidFlag;
+}
+
+sf::Vector2f Board::getContentCenter() {
+    if (slots.empty()) return {0.f, 0.f};
+
+    bool first = true;
+    float minX = 0.f, maxX = 0.f, minY = 0.f, maxY = 0.f;
+    for (auto& [_, slot] : slots) {
+        sf::Vector2f p = slot->getSlotSprite().getPosition();
+        if (first) {
+            minX = maxX = p.x;
+            minY = maxY = p.y;
+            first = false;
+        } else {
+            minX = std::min(minX, p.x);
+            maxX = std::max(maxX, p.x);
+            minY = std::min(minY, p.y);
+            maxY = std::max(maxY, p.y);
+        }
+    }
+    return {(minX + maxX) / 2.f, (minY + maxY) / 2.f};
 }
 
 void Board::setAnimationCallback(AnimationCallback callback) {

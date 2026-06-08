@@ -4,6 +4,7 @@
 #include "rendering/RenderSystem.h"
 
 #include <algorithm>
+#include <cmath>
 
 PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer)
     : stateManager(stateManager),
@@ -20,6 +21,10 @@ PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer)
 
     currentRun = std::make_unique<GameRun>(renderer, animCallback, shopCallback);
     currentRun->setAnimationsActiveQuery([this]() { return hasActiveAnimations(); });
+
+    // Point the board camera at the starting board (native-centered). The camera
+    // is otherwise left where the player puts it once panning lands.
+    renderer.getBoardCamera().setCenter(currentRun->getBoardContentCenter());
 
     buttons.emplace_back(renderer, "exit_button", sf::Vector2f{1800.f, 100.f},
         [this]() { this->stateManager.requestPop(); });
@@ -41,6 +46,15 @@ void PlayState::handleInput(sf::Event& event) {
         exit();
         return;
     }
+
+    // Scroll wheel zooms the board toward the cursor. Each notch multiplies the
+    // zoom by ZoomStepPerNotch ^ delta; the camera clamps to its zoom range.
+    if (auto* scroll = event.getIf<sf::Event::MouseWheelScrolled>()) {
+        float factor = std::pow(Camera::ZoomStepPerNotch, scroll->delta);
+        renderer.zoomBoardTowardPixel(scroll->position, factor);
+        return;
+    }
+
     currentRun->handleInput(event);
 }
 
@@ -62,14 +76,23 @@ void PlayState::update(float deltaTime) {
 }
 
 void PlayState::render(RenderSystem& renderer) {
-    currentRun->render(renderer);
+    // Layered render: UI backdrop, then the board (under the camera) together
+    // with its board-anchored effects, then the screen-space HUD on top.
+    renderer.useUIView();
+    currentRun->renderBackground(renderer);
 
-    for (auto& btn : buttons) {
-        renderer.draw(btn.getSprite());
-    }
-
+    renderer.useBoardView();
+    currentRun->renderBoard(renderer);
+    // Animations here are board-anchored (e.g. merge bursts), so they belong in
+    // the board layer and must zoom/pan with it.
     for (auto& anim : animations) {
         renderer.draw(anim->getSprite());
+    }
+
+    renderer.useUIView();
+    currentRun->renderForeground(renderer);
+    for (auto& btn : buttons) {
+        renderer.draw(btn.getSprite());
     }
 }
 

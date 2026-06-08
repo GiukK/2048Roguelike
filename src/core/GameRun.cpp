@@ -234,10 +234,15 @@ void GameRun::update(float deltaTime) {
     }
 }
 
-void GameRun::render(RenderSystem& renderer) {
+void GameRun::renderBackground(RenderSystem& renderer) {
     renderer.draw(backUI);
-    turns.top()->render(renderer);
+}
 
+void GameRun::renderBoard(RenderSystem& renderer) {
+    turns.top()->render(renderer);
+}
+
+void GameRun::renderForeground(RenderSystem& renderer) {
     drawDigitCounter(renderer.getWindow(), static_cast<unsigned int>(turns.size()), 350.f);
     drawDigitCounter(renderer.getWindow(), static_cast<unsigned int>(coins), 1380.f);
 
@@ -260,6 +265,17 @@ void GameRun::render(RenderSystem& renderer) {
     for (auto& btn : actionButtons) {
         renderer.draw(btn.getSprite());
     }
+}
+
+void GameRun::render(RenderSystem& renderer) {
+    renderer.useUIView();    renderBackground(renderer);
+    renderer.useBoardView(); renderBoard(renderer);
+    renderer.useUIView();    renderForeground(renderer);
+}
+
+sf::Vector2f GameRun::getBoardContentCenter() {
+    if (turns.empty()) return {0.f, 0.f};
+    return turns.top()->board.getContentCenter();
 }
 
 void GameRun::drawDigitCounter(sf::RenderWindow& window, unsigned int value, float xOffset,

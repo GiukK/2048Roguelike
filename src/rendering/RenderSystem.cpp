@@ -64,6 +64,38 @@ void RenderSystem::resizeSprite(const std::string& id, sf::Sprite& sprite) {
     sprite.setScale({sx, sy});
 }
 
+void RenderSystem::useBoardView() {
+    window.setView(boardCamera.getView(windowSize));
+}
+
+void RenderSystem::useUIView() {
+    // The default view is the 1:1 window-sized view, so HUD/buttons keep using
+    // plain screen coordinates.
+    window.setView(window.getDefaultView());
+}
+
+sf::Vector2f RenderSystem::mapPixelToBoard(sf::Vector2i pixel) const {
+    return window.mapPixelToCoords(pixel, boardCamera.getView(windowSize));
+}
+
+void RenderSystem::zoomBoardTowardPixel(sf::Vector2i pixel, float factor) {
+    // The board point currently under the cursor.
+    const sf::Vector2f worldBefore = mapPixelToBoard(pixel);
+
+    boardCamera.setZoomLevel(boardCamera.getZoomLevel() * factor);
+    const float zoom = boardCamera.getZoomLevel();  // actual value after clamping
+
+    // The view maps a pixel to world as:
+    //   world = center + (pixel - windowSize/2) / zoom
+    // Solve for the center that keeps worldBefore under the same pixel. If the
+    // zoom clamped (unchanged), this reproduces the current center exactly.
+    const sf::Vector2f half{ static_cast<float>(windowSize.x) / 2.f,
+                             static_cast<float>(windowSize.y) / 2.f };
+    const sf::Vector2f offset{ (static_cast<float>(pixel.x) - half.x) / zoom,
+                               (static_cast<float>(pixel.y) - half.y) / zoom };
+    boardCamera.setCenter(worldBefore - offset);
+}
+
 void RenderSystem::draw(sf::Drawable& drawable) {
     window.draw(drawable);
 }

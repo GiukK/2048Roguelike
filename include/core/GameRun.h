@@ -55,7 +55,19 @@ public:
 
     void handleInput(sf::Event& event);
     void update(float deltaTime);
+
+    // Render in three layers so the board can sit under the movable camera while
+    // the HUD stays screen-space. Callers pick the view between layers (see
+    // RenderSystem::useBoardView / useUIView). render() is a convenience that
+    // does all three with the right views, for callers that don't interleave
+    // their own board-space drawing (e.g. ShopState).
+    void renderBackground(RenderSystem& renderer);  // full-screen UI backdrop
+    void renderBoard(RenderSystem& renderer);       // slots + tiles (board view)
+    void renderForeground(RenderSystem& renderer);  // counters + inventory (UI view)
     void render(RenderSystem& renderer);
+
+    // World-space center of the current board's content (for aiming the camera).
+    sf::Vector2f getBoardContentCenter();
 
     void addCoins(int amount);
     int getCoins() const;

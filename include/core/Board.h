@@ -65,6 +65,10 @@ public:
     bool allAnimationsFinished() const;
     bool moveWasValid() const;
 
+    // World-space center of the bounding box of all slots. Used to point the
+    // board camera at the board's content (which can grow/shift via Mount/Wrench).
+    sf::Vector2f getContentCenter();
+
     void setAnimationCallback(AnimationCallback callback);
 
     // Tile selection — managed by Board input, queried by item effects.

@@ -148,7 +148,11 @@ void ShopState::update(float deltaTime) {
 }
 
 void ShopState::render(RenderSystem& renderer) {
+    // Draw the play screen behind (handles its own board/UI view switches), then
+    // the shop overlay and its widgets purely in the UI view.
     gameRun->render(renderer);
+
+    renderer.useUIView();
     renderer.draw(shopSprite);
 
     // Draw shop items and their prices
