@@ -96,6 +96,15 @@ void RenderSystem::zoomBoardTowardPixel(sf::Vector2i pixel, float factor) {
     boardCamera.setCenter(worldBefore - offset);
 }
 
+void RenderSystem::panBoardByPixels(sf::Vector2i pixelDelta) {
+    // Moving the cursor right by N px should slide the board right by N px, which
+    // means shifting the view center LEFT by N/zoom world units (hence minus).
+    const float zoom = boardCamera.getZoomLevel();
+    const sf::Vector2f worldDelta{ static_cast<float>(pixelDelta.x) / zoom,
+                                   static_cast<float>(pixelDelta.y) / zoom };
+    boardCamera.setCenter(boardCamera.getCenter() - worldDelta);
+}
+
 void RenderSystem::draw(sf::Drawable& drawable) {
     window.draw(drawable);
 }

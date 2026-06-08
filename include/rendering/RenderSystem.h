@@ -36,6 +36,10 @@ public:
     // Zoom is clamped by the camera; when it clamps, the view does not move.
     void zoomBoardTowardPixel(sf::Vector2i pixel, float factor);
 
+    // Pans the board camera so content follows a mouse drag: `pixelDelta` is the
+    // mouse movement since the last step (converted to world units by the zoom).
+    void panBoardByPixels(sf::Vector2i pixelDelta);
+
     void draw(sf::Drawable& drawable);
 
     // Draws an integer using the "digits" spritesheet, horizontally centered at `center`.

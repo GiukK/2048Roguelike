@@ -108,7 +108,9 @@ void Board::setupInitialBoard() {
 
 void Board::handleInput(sf::Event& event) {
     if (auto* released = event.getIf<sf::Event::MouseButtonReleased>()) {
-        if (released->button == sf::Mouse::Button::Left) {
+        // Tile selection is on the RIGHT button: the left button is reserved for
+        // camera pan, so the two never fight (no click-vs-drag disambiguation).
+        if (released->button == sf::Mouse::Button::Right) {
             // Map through the board camera so picking follows zoom/pan.
             sf::Vector2f worldPos = renderer.mapPixelToBoard(
                 {released->position.x, released->position.y});
@@ -120,7 +122,9 @@ void Board::handleInput(sf::Event& event) {
 void Board::updateHoverState() {
     sf::Vector2i mousePixel = sf::Mouse::getPosition(renderer.getWindow());
     sf::Vector2f mousePos = renderer.mapPixelToBoard(mousePixel);
-    bool mouseDown = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
+    // "Pressed" feedback follows the selection button (right), so a left-drag pan
+    // doesn't make the hovered tile flash pressed.
+    bool mouseDown = sf::Mouse::isButtonPressed(sf::Mouse::Button::Right);
 
     Tile* hit = findTileAt(mousePos);
 

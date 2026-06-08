@@ -32,4 +32,13 @@ private:
     std::unique_ptr<GameRun> currentRun;
     std::vector<UI_Button> buttons;
     std::vector<std::unique_ptr<Animation>> animations;
+
+    // Left-drag camera pan. Tile selection is on the RIGHT button, so the left
+    // button is purely the pan handle (no click-vs-select disambiguation). The
+    // threshold only stops a shaky click from producing a tiny pan.
+    static constexpr int DragThresholdPixels = 6;
+    bool leftButtonDown = false;
+    bool isDraggingBoard = false;
+    sf::Vector2i pressPixel{};
+    sf::Vector2i lastDragPixel{};
 };

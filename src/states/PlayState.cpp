@@ -55,6 +55,50 @@ void PlayState::handleInput(sf::Event& event) {
         return;
     }
 
+    // --- Left button: camera pan only ---
+    // Selection lives on the right button (handled by the board), so the left
+    // button is purely the pan handle and never selects. The drag threshold only
+    // suppresses micro-pans from a shaky click. Right-click events are not
+    // intercepted here; they fall through to currentRun -> board.
+    if (auto* pressed = event.getIf<sf::Event::MouseButtonPressed>();
+        pressed && pressed->button == sf::Mouse::Button::Left) {
+        leftButtonDown = true;
+        isDraggingBoard = false;
+        pressPixel = pressed->position;
+        lastDragPixel = pressed->position;
+        return;
+    }
+
+    if (auto* moved = event.getIf<sf::Event::MouseMoved>(); moved && leftButtonDown) {
+        // Safety: if a release was missed (e.g. mouse left the window), stop.
+        if (!sf::Mouse::isButtonPressed(sf::Mouse::Button::Left)) {
+            leftButtonDown = false;
+            isDraggingBoard = false;
+            return;
+        }
+        sf::Vector2i pos = moved->position;
+        if (!isDraggingBoard) {
+            sf::Vector2i d = pos - pressPixel;
+            if (d.x * d.x + d.y * d.y > DragThresholdPixels * DragThresholdPixels) {
+                isDraggingBoard = true;
+            }
+        }
+        if (isDraggingBoard) {
+            renderer.panBoardByPixels(pos - lastDragPixel);
+        }
+        lastDragPixel = pos;
+        return;
+    }
+
+    if (auto* released = event.getIf<sf::Event::MouseButtonReleased>();
+        released && released->button == sf::Mouse::Button::Left) {
+        // End the pan gesture. The left button never selects, so nothing is
+        // forwarded regardless of whether this was a drag or a stationary click.
+        leftButtonDown = false;
+        isDraggingBoard = false;
+        return;
+    }
+
     currentRun->handleInput(event);
 }
 
