@@ -65,8 +65,12 @@ public:
     bool allAnimationsFinished() const;
     bool moveWasValid() const;
 
-    // World-space center of the bounding box of all slots. Used to point the
-    // board camera at the board's content (which can grow/shift via Mount/Wrench).
+    // World-space bounding box of all slot positions (slot centers). Recomputed
+    // from the live slots, so it tracks Mount/Wrench growth and holes. Used to
+    // aim and to snap the board camera.
+    sf::FloatRect getContentBounds();
+
+    // World-space center of that bounding box (camera aim point).
     sf::Vector2f getContentCenter();
 
     void setAnimationCallback(AnimationCallback callback);

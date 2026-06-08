@@ -66,8 +66,10 @@ public:
     void renderForeground(RenderSystem& renderer);  // counters + inventory (UI view)
     void render(RenderSystem& renderer);
 
-    // World-space center of the current board's content (for aiming the camera).
+    // World-space center / bounding box of the current board's content (for
+    // aiming and snapping the camera).
     sf::Vector2f getBoardContentCenter();
+    sf::FloatRect getBoardContentBounds();
 
     void addCoins(int amount);
     int getCoins() const;

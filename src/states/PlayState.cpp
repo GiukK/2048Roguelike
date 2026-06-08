@@ -92,8 +92,8 @@ void PlayState::handleInput(sf::Event& event) {
 
     if (auto* released = event.getIf<sf::Event::MouseButtonReleased>();
         released && released->button == sf::Mouse::Button::Left) {
-        // End the pan gesture. The left button never selects, so nothing is
-        // forwarded regardless of whether this was a drag or a stationary click.
+        // End the pan gesture. Snapping is driven continuously in update(), so
+        // there's nothing to trigger here — and a missed release can't lose it.
         leftButtonDown = false;
         isDraggingBoard = false;
         return;
@@ -103,6 +103,19 @@ void PlayState::handleInput(sf::Event& event) {
 }
 
 void PlayState::update(float deltaTime) {
+    // Board camera: advance any running snap, then — whenever the player isn't
+    // actively panning and nothing is in flight — keep the camera centre inside
+    // the board bounds. Driving the snap from the update loop (instead of the
+    // drag-release event) makes it robust: a missed release can no longer leave
+    // the board off-centre. We poll the real button state rather than the
+    // event-tracked drag flags. snapCenterInto is a no-op while already centred,
+    // and it also re-centres for free after Mount/Wrench reshapes the board.
+    Camera& camera = renderer.getBoardCamera();
+    camera.update(deltaTime);
+    if (!sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && !camera.isAnimating()) {
+        camera.snapCenterInto(currentRun->getBoardContentBounds());
+    }
+
     currentRun->update(deltaTime);
 
     for (auto& btn : buttons) {

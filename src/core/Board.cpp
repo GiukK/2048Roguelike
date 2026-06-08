@@ -569,8 +569,8 @@ bool Board::moveWasValid() const {
     return moveValidFlag;
 }
 
-sf::Vector2f Board::getContentCenter() {
-    if (slots.empty()) return {0.f, 0.f};
+sf::FloatRect Board::getContentBounds() {
+    if (slots.empty()) return sf::FloatRect({0.f, 0.f}, {0.f, 0.f});
 
     bool first = true;
     float minX = 0.f, maxX = 0.f, minY = 0.f, maxY = 0.f;
@@ -587,7 +587,12 @@ sf::Vector2f Board::getContentCenter() {
             maxY = std::max(maxY, p.y);
         }
     }
-    return {(minX + maxX) / 2.f, (minY + maxY) / 2.f};
+    return sf::FloatRect({minX, minY}, {maxX - minX, maxY - minY});
+}
+
+sf::Vector2f Board::getContentCenter() {
+    sf::FloatRect b = getContentBounds();
+    return {b.position.x + b.size.x / 2.f, b.position.y + b.size.y / 2.f};
 }
 
 void Board::setAnimationCallback(AnimationCallback callback) {

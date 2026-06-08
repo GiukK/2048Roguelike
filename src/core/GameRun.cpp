@@ -278,6 +278,11 @@ sf::Vector2f GameRun::getBoardContentCenter() {
     return turns.top()->board.getContentCenter();
 }
 
+sf::FloatRect GameRun::getBoardContentBounds() {
+    if (turns.empty()) return sf::FloatRect({0.f, 0.f}, {0.f, 0.f});
+    return turns.top()->board.getContentBounds();
+}
+
 void GameRun::drawDigitCounter(sf::RenderWindow& window, unsigned int value, float xOffset,
                                float y, float scale) {
     std::string text = std::to_string(value);

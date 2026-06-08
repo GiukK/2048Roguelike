@@ -23,11 +23,23 @@ public:
     // high-precision/multi-notch scrolls.
     static constexpr float ZoomStepPerNotch = 1.1f;
 
-    void         setCenter(sf::Vector2f c) { center = c; }
+    // Sets the center directly and CANCELS any running snap animation — this is
+    // the path used by manual pan/zoom, so grabbing or zooming overrides a snap.
+    void         setCenter(sf::Vector2f c) { center = c; animating = false; }
     sf::Vector2f getCenter() const         { return center; }
 
     void  setZoomLevel(float level);          // clamped to [Min, Max]
     float getZoomLevel() const { return zoomLevel; }
+
+    // --- Elastic snap-back -------------------------------------------------
+    // Springs the center toward a target with an elastic ease (same family as
+    // the tile slide). update(dt) must be ticked each frame to advance it.
+    void animateTo(sf::Vector2f target);
+    // Clamps the center into `bounds` and animates there if it was outside. Used
+    // to snap the board back under the screen centre after a pan drifts off it.
+    void snapCenterInto(sf::FloatRect bounds);
+    void update(float dt);
+    bool isAnimating() const { return animating; }
 
     // View mapping board-space -> window. A smaller zoom level (or larger window)
     // shows more of the board: view size = windowSize / zoomLevel.
@@ -36,4 +48,11 @@ public:
 private:
     sf::Vector2f center{0.f, 0.f};
     float        zoomLevel = MaxZoomLevel;  // start fully zoomed-in (native)
+
+    // Snap-back animation state.
+    static constexpr float SnapDuration = 0.4f;  // seconds; tweak the snap feel
+    sf::Vector2f startCenter{0.f, 0.f};
+    sf::Vector2f targetCenter{0.f, 0.f};
+    float        animTime = 0.f;
+    bool         animating = false;
 };
