@@ -89,16 +89,27 @@ public:
     // Returns the number of tiles shuffled (Die item).
     int shuffleTiles();
 
+    // Adds a new base (empty, unrestricted) slot at a uniformly-random cell that
+    // currently has no slot but is orthogonally adjacent to one (a border cell or
+    // an interior hole). Returns false if no such cell exists (Mount item).
+    bool addRandomSlot();
+
+    // Removes the slot under `tile` entirely — tile and slot both — leaving a
+    // hole that blocks movement through it. Refuses shop slots. Returns false if
+    // the tile is null or sits on a shop (Wrench item).
+    bool removeSlotUnder(Tile* tile);
+
     Turn* turn;
 
 private:
     void setupInitialBoard();
     void initVisuals();
 
-    // Collects every empty cell orthogonally adjacent to an existing slot.
-    // These are the admissible shop spawn positions (always on the border,
-    // since interior cells are already occupied by slots).
-    std::vector<Coord> getShopSpawnCandidates() const;
+    // Collects every cell that holds NO slot but is orthogonally adjacent to an
+    // existing slot — i.e. border cells and interior holes. Each cell appears at
+    // most once even when several slots border it (deduplicated via std::set).
+    // Shared by shop spawning and the Mount item as the set of expansion targets.
+    std::vector<Coord> getEmptyAdjacentCells() const;
 
     void initializeMovementQueue(Direction dir);
     void resolveNextTileMove(Direction dir);

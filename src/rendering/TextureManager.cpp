@@ -31,6 +31,8 @@ void TextureManager::initialize() {
     load("black_hole", "assets/textures/black_hole.png");
     load("die",        "assets/textures/die.png");
     load("hourglass",  "assets/textures/hourglass.png");
+    load("mount",      "assets/textures/mount.png");
+    load("wrench",     "assets/textures/wrench.png");
     load("switch",     "assets/textures/switch.png");
 
     // Tiles

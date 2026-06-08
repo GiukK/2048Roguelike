@@ -42,6 +42,8 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     scalingRules["black_hole"] = {192, 108};
     scalingRules["die"]        = {192, 108};
     scalingRules["hourglass"]  = {192, 108};
+    scalingRules["mount"]      = {192, 108};
+    scalingRules["wrench"]     = {192, 108};
     scalingRules["switch"]     = {192, 108};
 
     // Tiles (all share the same scale)

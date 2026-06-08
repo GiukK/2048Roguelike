@@ -112,6 +112,24 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
         }
     });
 
+    // Mount: adds a base empty slot at a uniformly-random cell adjacent to the
+    // board (a border cell or an interior hole), expanding the playfield.
+    itemRegistry.registerItem({"mount", "mount", 70, 0.3f,
+        [](GameRun& run) -> bool {
+            return run.addRandomSlot();
+        }
+    });
+
+    // Wrench: removes the selected tile AND the slot beneath it, punching a hole
+    // in the board. Cannot target the shop.
+    itemRegistry.registerItem({"wrench", "wrench", 50, 0.35f,
+        [](GameRun& run) -> bool {
+            auto sel = run.getSelectedTiles();
+            if (sel.size() != 1) return false;
+            return run.removeSlotUnder(sel[0]);
+        }
+    });
+
     // Default shop-tile criterion: a copy of the board's current largest tile,
     // so activating the shop costs the player a rebuilt copy of their best tile.
     // Clamped to [2, 1024] so the activating merge (2x value) never exceeds the
@@ -357,6 +375,16 @@ void GameRun::spawnTile() {
 int GameRun::shuffleTiles() {
     if (turns.empty()) return 0;
     return turns.top()->board.shuffleTiles();
+}
+
+bool GameRun::addRandomSlot() {
+    if (turns.empty()) return false;
+    return turns.top()->board.addRandomSlot();
+}
+
+bool GameRun::removeSlotUnder(Tile* t) {
+    if (turns.empty()) return false;
+    return turns.top()->board.removeSlotUnder(t);
 }
 
 void GameRun::destroyTile(Tile* tile) {

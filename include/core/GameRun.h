@@ -89,9 +89,11 @@ public:
     std::vector<Tile*> getTilesInRadius(Tile* center, int radius, bool includeCenter) const;
 
     // Board-wide item effects, delegated to the current turn's board.
-    void destroyAllTiles();   // Black Hole
-    void spawnTile();         // seed a tile (e.g. after Black Hole empties the board)
-    int  shuffleTiles();      // Die — returns the number of tiles shuffled
+    void destroyAllTiles();        // Black Hole
+    void spawnTile();              // seed a tile (e.g. after Black Hole empties the board)
+    int  shuffleTiles();           // Die — returns the number of tiles shuffled
+    bool addRandomSlot();          // Mount — adds a base slot; false if none possible
+    bool removeSlotUnder(Tile* t); // Wrench — removes tile + slot; false on shop/null
 
     int getRandomInt(int min, int max);
     std::vector<const ItemDef*> pickShopItems(int count);

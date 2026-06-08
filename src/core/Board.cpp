@@ -215,6 +215,33 @@ int Board::shuffleTiles() {
     return static_cast<int>(cells.size());
 }
 
+bool Board::addRandomSlot() {
+    auto candidates = getEmptyAdjacentCells();
+    if (candidates.empty()) return false;
+
+    int idx = getRandomInt(0, static_cast<int>(candidates.size()) - 1);
+    Coord pos = candidates[idx];
+
+    // A plain base slot: empty, unrestricted (canTileStepIn/Out default true),
+    // no effects. It joins the playfield like any other cell.
+    slots[pos] = std::make_unique<Slot>(pos.x, pos.y, this, renderer);
+    return true;
+}
+
+bool Board::removeSlotUnder(Tile* tile) {
+    if (!tile || !tile->slot) return false;
+
+    Slot* slot = tile->slot;
+    // The shop is a protected objective — never wrench it away.
+    if (shopEffectOf(*slot)) return false;
+
+    // Erasing the slot destroys its tile too; drop the hover back-pointer first
+    // so the next hover update cannot dereference freed memory (cf. destroyTile).
+    if (tile == hoveredTile) hoveredTile = nullptr;
+    slots.erase(slot->getCoord());
+    return true;
+}
+
 std::vector<Tile*> Board::getTilesInRadius(const Tile* center, int radius,
                                            bool includeCenter) const {
     std::vector<Tile*> result;
@@ -309,11 +336,12 @@ int Board::getMaxTileValue() const {
     return maxValue;
 }
 
-std::vector<Coord> Board::getShopSpawnCandidates() const {
+std::vector<Coord> Board::getEmptyAdjacentCells() const {
     // For every existing slot, every orthogonal neighbour that is NOT already a
-    // slot is an admissible spawn cell. A std::set both de-duplicates positions
-    // shared by multiple slots and yields a deterministic ordering so the
-    // uniform pick below is reproducible for a given RNG state.
+    // slot is an admissible expansion cell. A std::set both de-duplicates cells
+    // shared by multiple slots (e.g. a hole bordered by four slots counts once)
+    // and yields a deterministic ordering so the uniform pick below is
+    // reproducible for a given RNG state.
     static constexpr std::array<Coord, 4> offsets = {{
         {-1, 0}, {1, 0}, {0, -1}, {0, 1}
     }};
@@ -331,7 +359,7 @@ std::vector<Coord> Board::getShopSpawnCandidates() const {
 }
 
 bool Board::spawnShop(int tileValue) {
-    auto candidates = getShopSpawnCandidates();
+    auto candidates = getEmptyAdjacentCells();
     if (candidates.empty()) return false;
 
     int idx = getRandomInt(0, static_cast<int>(candidates.size()) - 1);
