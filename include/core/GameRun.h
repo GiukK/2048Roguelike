@@ -33,7 +33,9 @@ public:
     void exit();
 
     void newTurn(const Board& currentBoard);
-    void goBack();
+    // Rewinds to the previous turn. Returns false if there is no earlier turn.
+    // In normal play only the Hourglass item calls this; the debug B key also does.
+    bool goBack();
     void openShop();
 
     // Drives the whole shop-spawn lifecycle for one completed turn. Called by
@@ -85,6 +87,11 @@ public:
     // Occupied tiles around `center` on the current board (delegates to Board).
     // Used by the area-effect items (Bomb II / Bomb III). Shops are excluded.
     std::vector<Tile*> getTilesInRadius(Tile* center, int radius, bool includeCenter) const;
+
+    // Board-wide item effects, delegated to the current turn's board.
+    void destroyAllTiles();   // Black Hole
+    void spawnTile();         // seed a tile (e.g. after Black Hole empties the board)
+    int  shuffleTiles();      // Die — returns the number of tiles shuffled
 
     int getRandomInt(int min, int max);
     std::vector<const ItemDef*> pickShopItems(int count);

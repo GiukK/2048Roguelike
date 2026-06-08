@@ -34,12 +34,15 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     scalingRules["shopslot"]  = {192, 108};
     scalingRules["monstro"]   = {192 * 4, 108 * 4};
     scalingRules["bomb"]      = {192, 108};
-    scalingRules["bomb_2"]    = {192, 108};
-    scalingRules["bomb_3"]    = {192, 108};
+    scalingRules["bomb_2"]     = {192, 108};
+    scalingRules["bomb_3"]     = {192, 108};
     // "brick" rule sizes the inventory/shop icon. The on-tile overlay does NOT
     // use this rule — it matches the tile's own scale directly (see Tile::render).
-    scalingRules["brick"]     = {192, 108};
-    scalingRules["switch"]    = {192, 108};
+    scalingRules["brick"]      = {192, 108};
+    scalingRules["black_hole"] = {192, 108};
+    scalingRules["die"]        = {192, 108};
+    scalingRules["hourglass"]  = {192, 108};
+    scalingRules["switch"]     = {192, 108};
 
     // Tiles (all share the same scale)
     ScaleRule tileScale = {192 * 2, 108 * 2};

@@ -81,6 +81,14 @@ public:
     std::vector<Tile*> getTilesInRadius(const Tile* center, int radius,
                                         bool includeCenter) const;
 
+    // Destroys every non-shop tile on the board (Black Hole item).
+    void destroyAllTiles();
+
+    // Uniformly permutes the tiles among their currently occupied cells: the set
+    // of filled cells is unchanged, only which tile sits where. Shops excluded.
+    // Returns the number of tiles shuffled (Die item).
+    int shuffleTiles();
+
     Turn* turn;
 
 private:

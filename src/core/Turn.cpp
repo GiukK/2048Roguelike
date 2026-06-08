@@ -1,6 +1,7 @@
 #include "core/Turn.h"
 #include "core/GameRun.h"
 #include "rendering/RenderSystem.h"
+#include "Debug.h"
 
 Turn::Turn(RenderSystem& renderer, GameRun* gameRun)
     : renderer(renderer),
@@ -134,7 +135,9 @@ void Turn::handleBeginInput(sf::Event& event) {
         board.spawnTileInRandomEmptySlot();
         break;
     case sf::Keyboard::Scancode::B:
-        gameRun->goBack();
+        // Debug-only shortcut. In normal play the Hourglass item is the only
+        // way to rewind a turn.
+        if (debug::Enabled) gameRun->goBack();
         break;
     default:
         break;

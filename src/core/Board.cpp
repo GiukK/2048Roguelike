@@ -174,6 +174,47 @@ void Board::destroyTile(Tile* tile) {
     tile->slot->removeTile();
 }
 
+void Board::destroyAllTiles() {
+    // destroyTile skips shop tiles and clears the hover back-pointer, so the
+    // shop survives and nothing dangles. Erasing only the tile (not the slot)
+    // leaves the map structure intact, so iterating it here is safe.
+    for (auto& [_, slot] : slots) {
+        if (!slot->isEmpty()) {
+            destroyTile(slot->tile.get());
+        }
+    }
+}
+
+int Board::shuffleTiles() {
+    // Release every non-shop tile, then reassign the tiles to the SAME set of
+    // cells in a uniformly random order. Moving the Tile objects (not just their
+    // values) preserves each tile's full state through the shuffle.
+    std::vector<Slot*> cells;
+    std::vector<std::unique_ptr<Tile>> tiles;
+    for (auto& [_, slot] : slots) {
+        if (!slot->isEmpty() && !shopEffectOf(*slot)) {
+            cells.push_back(slot.get());
+            tiles.push_back(slot->releaseTile());
+        }
+    }
+
+    // Fisher-Yates: every permutation equally likely (statistically uniform).
+    for (int i = static_cast<int>(tiles.size()) - 1; i > 0; --i) {
+        int j = getRandomInt(0, i);
+        std::swap(tiles[i], tiles[j]);
+    }
+
+    for (size_t i = 0; i < cells.size(); ++i) {
+        Slot* cell = cells[i];
+        Tile* moved = tiles[i].get();
+        moved->slot = cell;                       // re-parent to its new cell
+        cell->setTile(std::move(tiles[i]));
+        moved->animateTo(cell->getSlotSprite().getPosition());  // slide to new home
+    }
+
+    return static_cast<int>(cells.size());
+}
+
 std::vector<Tile*> Board::getTilesInRadius(const Tile* center, int radius,
                                            bool includeCenter) const {
     std::vector<Tile*> result;

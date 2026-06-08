@@ -86,6 +86,32 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
         }
     });
 
+    // Black Hole: wipes every (non-shop) tile, then seeds one fresh tile so the
+    // board stays playable — an empty board has no legal move and would soft-lock.
+    itemRegistry.registerItem({"black_hole", "black_hole", 150, 0.15f,
+        [](GameRun& run) -> bool {
+            run.destroyAllTiles();
+            run.spawnTile();
+            return true;
+        }
+    });
+
+    // Die: uniformly reshuffles the tiles among their occupied cells (the filled
+    // cells stay the same; only which tile sits where changes). Needs >= 2 tiles.
+    itemRegistry.registerItem({"die", "die", 40, 0.4f,
+        [](GameRun& run) -> bool {
+            return run.shuffleTiles() >= 2;
+        }
+    });
+
+    // Hourglass: rewinds one turn. In normal play this is the ONLY way to go back
+    // (the B key is debug-only); refuses if there is no earlier turn to return to.
+    itemRegistry.registerItem({"hourglass", "hourglass", 80, 0.25f,
+        [](GameRun& run) -> bool {
+            return run.goBack();
+        }
+    });
+
     // Default shop-tile criterion: a copy of the board's current largest tile,
     // so activating the shop costs the player a rebuilt copy of their best tile.
     // Clamped to [2, 1024] so the activating merge (2x value) never exceeds the
@@ -105,9 +131,10 @@ void GameRun::newTurn(const Board& currentBoard) {
     turns.push(std::make_unique<Turn>(renderer, this, currentBoard));
 }
 
-void GameRun::goBack() {
-    if (turns.size() <= 1) return;
+bool GameRun::goBack() {
+    if (turns.size() <= 1) return false;
     turns.pop();
+    return true;
 }
 
 void GameRun::openShop() {
@@ -317,6 +344,19 @@ std::vector<Tile*> GameRun::getSelectedTiles() const {
 std::vector<Tile*> GameRun::getTilesInRadius(Tile* center, int radius, bool includeCenter) const {
     if (turns.empty()) return {};
     return turns.top()->board.getTilesInRadius(center, radius, includeCenter);
+}
+
+void GameRun::destroyAllTiles() {
+    if (!turns.empty()) turns.top()->board.destroyAllTiles();
+}
+
+void GameRun::spawnTile() {
+    if (!turns.empty()) turns.top()->board.spawnTileInRandomEmptySlot();
+}
+
+int GameRun::shuffleTiles() {
+    if (turns.empty()) return 0;
+    return turns.top()->board.shuffleTiles();
 }
 
 void GameRun::destroyTile(Tile* tile) {
