@@ -4,6 +4,22 @@
 
 #include <algorithm>
 
+namespace {
+// HUD layout, screen-space (drawn in the UI view). Hardcoded for now; these will
+// move into the data-driven UI layer when it lands. The inventory row geometry is
+// shared so the use/discard action buttons line up with the selected item.
+constexpr float TurnCounterX       = 350.f;   // top-left turn count
+constexpr float CoinsCounterX      = 1380.f;  // top-right coin count
+constexpr float ShopCountdownX     = 350.f;   // below the turn count
+constexpr float ShopCountdownY     = 100.f;
+constexpr float ShopCountdownScale = 7.f;
+constexpr float InventoryX         = 1500.f;  // right-side inventory column
+constexpr float InventoryTopY      = 350.f;   // first item's Y
+constexpr float InventorySpacingY  = 200.f;   // vertical gap between items
+constexpr float ActionButtonX      = 1350.f;  // use/discard column (left of items)
+constexpr float ActionButtonGapY   = 55.f;    // offset of use/discard from item Y
+} // namespace
+
 GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCallback onShopOpen)
     : renderer(renderer),
       animationCallback(std::move(onAnimation)),
@@ -243,15 +259,15 @@ void GameRun::renderBoard(RenderSystem& renderer) {
 }
 
 void GameRun::renderForeground(RenderSystem& renderer) {
-    drawDigitCounter(renderer.getWindow(), static_cast<unsigned int>(turns.size()), 350.f);
-    drawDigitCounter(renderer.getWindow(), static_cast<unsigned int>(coins), 1380.f);
+    drawDigitCounter(static_cast<unsigned int>(turns.size()), TurnCounterX);
+    drawDigitCounter(static_cast<unsigned int>(coins), CoinsCounterX);
 
     // Shop spawn countdown: stacked just below the turn counter (top-left),
     // smaller so it reads as a sub-counter and stays clear of the board and the
     // score readouts. Shows 0 while a shop is on the board; restarts at the
     // interval once the shop is consumed.
-    drawDigitCounter(renderer.getWindow(), static_cast<unsigned int>(shopCountdown),
-                     350.f, 100.f, 7.f);
+    drawDigitCounter(static_cast<unsigned int>(shopCountdown),
+                     ShopCountdownX, ShopCountdownY, ShopCountdownScale);
 
     for (size_t i = 0; i < inventoryButtons.size(); ++i) {
         auto& btn = inventoryButtons[i];
@@ -293,8 +309,7 @@ bool GameRun::isPointOverUI(sf::Vector2f screenPoint) const {
     return false;
 }
 
-void GameRun::drawDigitCounter(sf::RenderWindow& window, unsigned int value, float xOffset,
-                               float y, float scale) {
+void GameRun::drawDigitCounter(unsigned int value, float xOffset, float y, float scale) {
     std::string text = std::to_string(value);
     float totalWidth = static_cast<float>(text.size()) * 5.f * scale;
     renderer.drawNumber(value, {xOffset + totalWidth / 2.f, y}, scale);
@@ -447,7 +462,7 @@ void GameRun::rebuildInventoryButtons() {
         const auto& def = itemRegistry.get(inventoryItems[i]);
         size_t idx = i;
         inventoryButtons.emplace_back(renderer, def.textureId,
-            sf::Vector2f{1500.f, 350.f + 200.f * static_cast<float>(i)},
+            sf::Vector2f{InventoryX, InventoryTopY + InventorySpacingY * static_cast<float>(i)},
             [this, idx]() { pendingSelectIndex = static_cast<int>(idx); });
     }
 }
@@ -457,14 +472,13 @@ void GameRun::rebuildActionButtons() {
     if (selectedIndex < 0 || selectedIndex >= static_cast<int>(inventoryItems.size()))
         return;
 
-    float itemY = 350.f + 200.f * static_cast<float>(selectedIndex);
-    float buttonX = 1350.f;
+    float itemY = InventoryTopY + InventorySpacingY * static_cast<float>(selectedIndex);
 
     actionButtons.emplace_back(renderer, "use_button",
-        sf::Vector2f{buttonX, itemY - 55.f},
+        sf::Vector2f{ActionButtonX, itemY - ActionButtonGapY},
         [this]() { pendingAction = PendingAction::Use; });
 
     actionButtons.emplace_back(renderer, "discard_button",
-        sf::Vector2f{buttonX, itemY + 55.f},
+        sf::Vector2f{ActionButtonX, itemY + ActionButtonGapY},
         [this]() { pendingAction = PendingAction::Discard; });
 }

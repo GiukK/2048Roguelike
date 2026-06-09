@@ -6,6 +6,13 @@
 #include <algorithm>
 #include <cmath>
 
+namespace {
+// Screen-space HUD position for the exit button (UI view). Temporary home until
+// the data-driven UI layer lands.
+constexpr float ExitButtonX = 1800.f;
+constexpr float ExitButtonY = 100.f;
+} // namespace
+
 PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer)
     : stateManager(stateManager),
       renderer(renderer)
@@ -26,7 +33,7 @@ PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer)
     // is otherwise left where the player puts it once panning lands.
     renderer.getBoardCamera().setCenter(currentRun->getBoardContentCenter());
 
-    buttons.emplace_back(renderer, "exit_button", sf::Vector2f{1800.f, 100.f},
+    buttons.emplace_back(renderer, "exit_button", sf::Vector2f{ExitButtonX, ExitButtonY},
         [this]() { this->stateManager.requestPop(); });
 
     enter();

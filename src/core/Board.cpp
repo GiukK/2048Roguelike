@@ -25,11 +25,9 @@ ShopEffect* shopEffectOf(const Slot& slot) {
 
 Board::Board(RenderSystem& renderer, Turn* turn, bool doInitialSetup)
     : renderer(renderer),
-      boardSprite(renderer.getTextureManager().get("board")),
       turn(turn)
 {
     if (doInitialSetup) {
-        initVisuals();
         setupInitialBoard();
     }
 }
@@ -43,7 +41,6 @@ Board Board::cloneFrom(const Board& other, Turn* turn) {
 Board::Board(Board&& other) noexcept
     : turn(other.turn),
       renderer(other.renderer),
-      boardSprite(std::move(other.boardSprite)),
       slots(std::move(other.slots)),
       movementQueue(std::move(other.movementQueue)),
       moveValidFlag(other.moveValidFlag),
@@ -61,7 +58,6 @@ Board::Board(Board&& other) noexcept
 void Board::copyStateFrom(const Board& other) {
     clear();
 
-    boardSprite = other.boardSprite;
     moveValidFlag = false;
     hoveredTile = nullptr;
 
@@ -81,14 +77,6 @@ void Board::copyStateFrom(const Board& other) {
             }
         }
     }
-}
-
-void Board::initVisuals() {
-    renderer.resizeSprite("board", boardSprite);
-    boardSprite.setOrigin(boardSprite.getLocalBounds().getCenter());
-    auto ws = renderer.getWindowSize();
-    boardSprite.setPosition({static_cast<float>(ws.x) / 2.f,
-                             static_cast<float>(ws.y) / 2.f});
 }
 
 void Board::setupInitialBoard() {

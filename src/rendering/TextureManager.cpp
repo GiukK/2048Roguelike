@@ -20,7 +20,6 @@ void TextureManager::initialize() {
     load("digits",          "assets/textures/digits.png");
 
     // Board
-    load("board",    "assets/textures/board.png");
     load("slot",     "assets/textures/slot.png");
     load("shopslot", "assets/textures/shopslot.png");
     load("monstro",  "assets/textures/monstro.png");

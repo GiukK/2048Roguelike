@@ -23,11 +23,6 @@ sf::Sprite& UI_Button::getSprite() {
 }
 
 void UI_Button::update(float dt) {
-    if (disabled) {
-        sprite.setColor(sf::Color::Blue);
-        return;
-    }
-
     sf::Vector2i mousePixel = sf::Mouse::getPosition(renderer->getWindow());
     sf::Vector2f mousePos = static_cast<sf::Vector2f>(mousePixel);
     bool hovering = sprite.getGlobalBounds().contains(mousePos);

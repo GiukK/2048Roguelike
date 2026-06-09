@@ -111,7 +111,6 @@ public:
 
 private:
     void setupInitialBoard();
-    void initVisuals();
 
     // Collects every cell that holds NO slot but is orthogonally adjacent to an
     // existing slot — i.e. border cells and interior holes. Each cell appears at
@@ -131,7 +130,6 @@ private:
     int getRandomInt(int min, int max);
 
     RenderSystem& renderer;
-    sf::Sprite boardSprite;
 
     std::map<Coord, std::unique_ptr<Slot>> slots;
     MovementQueue movementQueue;

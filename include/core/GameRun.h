@@ -131,7 +131,7 @@ private:
     void clearSelection();
     void rebuildInventoryButtons();
     void rebuildActionButtons();
-    void drawDigitCounter(sf::RenderWindow& window, unsigned int value, float xOffset,
+    void drawDigitCounter(unsigned int value, float xOffset,
                           float y = 18.f, float scale = 10.f);
 
     RenderSystem& renderer;

@@ -29,7 +29,6 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     scalingRules["exit_button"]      = {192 * 2, 108 * 2};
 
     // Board & Slots
-    scalingRules["board"]     = {192, 108};
     scalingRules["slot"]      = {192 * 2, 108 * 2};
     scalingRules["shopslot"]  = {192, 108};
     scalingRules["monstro"]   = {192 * 4, 108 * 4};

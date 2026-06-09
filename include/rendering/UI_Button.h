@@ -26,8 +26,6 @@ public:
     // pixel). Lets the play state give UI priority over board pan/selection.
     bool contains(sf::Vector2f point) const;
 
-    bool disabled = false;
-
 private:
     RenderSystem* renderer;
     sf::Sprite sprite;
