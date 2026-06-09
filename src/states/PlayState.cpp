@@ -2,6 +2,7 @@
 #include "states/StateManager.h"
 #include "states/ShopState.h"
 #include "rendering/RenderSystem.h"
+#include "ui/UI.h"
 #include "Debug.h"
 
 #include <algorithm>
@@ -197,34 +198,60 @@ void PlayState::render(RenderSystem& renderer) {
         renderer.draw(btn.getSprite());
     }
 
-    // --- Step 1 verification (debug only) ---------------------------------
-    // A procedural pixel-rounded box auto-sized to wrapped, measured text — a
-    // standalone preview of the font + shape primitives the UI framework needs.
-    // Remove (or fold into the tooltip) at Step 3.
+    // --- Step 2 verification (debug only) ---------------------------------
+    // Build a small data-driven UINode tree (a tooltip-shaped card: title +
+    // wrapped description + a badge row), run the two-pass layout, and draw it via
+    // the generic framework. Also exercises hitTest: the card tints when hovered.
+    // Rebuilt each frame here only because it's a static demo; real UI rebuilds on
+    // state change. Folds into the real tooltip at Step 3.
     if (debug::Enabled) {
-        const std::string sample =
-            "Tooltip preview: the quick brown fox jumps over the lazy dog 0123456789";
-        const unsigned int charSize = 22;
-        const float maxTextWidth = 360.f;
-        const float pad = 16.f;
+        using namespace ui;
 
-        std::vector<std::string> lines = renderer.wrapText(sample, maxTextWidth, charSize);
-        const float lineH = renderer.measureText("Ag", charSize).y;
-        float textW = 0.f;
-        for (const auto& line : lines) {
-            textW = std::max(textW, renderer.measureText(line, charSize).x);
-        }
-        const float textH = lineH * static_cast<float>(lines.size());
+        UINode title{UIType::Text};
+        title.text = "Bomb III";
+        title.style.charSize = 30;
+        title.style.textColor = sf::Color(255, 220, 120);
 
-        const sf::Vector2f origin{60.f, 740.f};
-        renderer.drawPixelRoundedRect(
-            {origin, {textW + 2.f * pad, textH + 2.f * pad}}, 16.f,
-            sf::Color(28, 28, 40, 235), sf::Color(210, 210, 225), 3.f);
-        for (size_t i = 0; i < lines.size(); ++i) {
-            renderer.drawText(lines[i],
-                              {origin.x + pad, origin.y + pad + static_cast<float>(i) * lineH},
-                              charSize, sf::Color::White);
+        UINode desc{UIType::Text};
+        desc.text = "Destroys every tile in the 3x3 block around the selected tile.";
+        desc.style.charSize = 20;
+        desc.maxW = 320.f;
+
+        UINode badge{UIType::Box};
+        badge.padding = 8.f;
+        badge.style.fill = sf::Color(60, 50, 90);
+        badge.style.cornerRadius = 8.f;
+        {
+            UINode badgeText{UIType::Text};
+            badgeText.text = "120 coins";
+            badgeText.style.charSize = 18;
+            badge.children.push_back(std::move(badgeText));
         }
+
+        UINode card{UIType::Box};
+        card.direction = UIDir::Column;
+        card.padding = 16.f;
+        card.gap = 12.f;
+        card.style.cornerRadius = 16.f;
+        card.style.border = sf::Color(210, 210, 225);
+        card.style.borderThickness = 3.f;
+
+        sf::Vector2i mp = sf::Mouse::getPosition(renderer.getWindow());
+        sf::Vector2f mouse(mp);
+
+        card.children.push_back(std::move(title));
+        card.children.push_back(std::move(desc));
+        card.children.push_back(std::move(badge));
+
+        measureNode(card, renderer);
+        layoutNode(card, 60.f, 700.f);
+
+        // Tint the card background when the cursor is over it (verifies hitTest).
+        card.style.fill = (hitTest(card, mouse) != nullptr)
+            ? sf::Color(45, 45, 65, 240)
+            : sf::Color(28, 28, 40, 235);
+
+        drawNode(card, renderer);
     }
 }
 
