@@ -8,6 +8,7 @@ void ShopEffect::onMerge(Slot* slot) {
     // to open the shop UI. Both happen on the live board; the triggered flag is
     // preserved through cloning so the lifecycle survives the undo stack.
     triggered = true;
+    slot->board->turn->log().push(TurnEvent::shopTriggered(slot->getCoord()));
     slot->board->turn->requestShop();
 }
 

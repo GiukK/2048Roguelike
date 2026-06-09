@@ -277,6 +277,10 @@ void GameRun::useItem(size_t index) {
         if (!consumed) return;
     }
 
+    // Logged after the effect resolved (so it follows any TileDestroyed/etc. the
+    // item emitted) but still within the same acting turn.
+    if (!turns.empty()) turns.top()->log().push(TurnEvent::itemUsed(def.id));
+
     inventoryItems.erase(inventoryItems.begin() + static_cast<ptrdiff_t>(index));
     clearSelection();
     // A consumed item finishes its interaction with the board, so any tiles it had
@@ -314,6 +318,13 @@ void GameRun::useHeldItem() {
 
 void GameRun::discardHeldItem() {
     if (hasHeldItem()) discardItem(static_cast<size_t>(selectedIndex));
+}
+
+const TurnLog& GameRun::currentTurnLog() const {
+    // turns is never empty in normal play (the constructor pushes the first turn);
+    // the static fallback only guards a pathological empty stack.
+    static const TurnLog emptyLog;
+    return turns.empty() ? emptyLog : turns.top()->log();
 }
 
 std::vector<Tile*> GameRun::getSelectedTiles() const {

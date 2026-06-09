@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Board.h"
+#include "core/TurnLog.h"
 #include "core/utils/Direction.h"
 
 class GameRun;
@@ -18,6 +19,16 @@ public:
     void render(RenderSystem& renderer);
 
     void requestShop();
+
+    // This turn's event log. Emission sites reach it through the board's back
+    // pointer (e.g. tile->slot->board->turn->log()); consumers read it via
+    // GameRun::currentTurnLog(). See TurnLog / TurnEvent.
+    TurnLog& log() { return eventLog; }
+    const TurnLog& log() const { return eventLog; }
+
+    // Declared FIRST so it is already constructed when `board`'s constructor runs
+    // setupInitialBoard() -> spawnTileInRandomEmptySlot(), which emits into it.
+    TurnLog eventLog;
 
     GameRun* gameRun;
     Board board;

@@ -164,6 +164,11 @@ void Board::destroyTile(Tile* tile) {
     // if we destroy the tile it points at, the next hover update would dereference
     // freed memory. Drop the reference before the tile dies.
     if (tile == hoveredTile) hoveredTile = nullptr;
+
+    // Capture before the tile is freed; log it as an effect-driven destruction in
+    // the acting turn (bombs, black hole — each destroyed tile emits one event).
+    if (turn) turn->log().push(TurnEvent::tileDestroyed(tile->getValue(), tile->slot->getCoord()));
+
     tile->slot->removeTile();
 }
 
@@ -315,6 +320,10 @@ void Board::spawnTileInRandomEmptySlot() {
     int idx = getRandomInt(0, static_cast<int>(empty.size()) - 1);
     int val = (getRandomInt(1, 10) <= 9) ? 2 : 4;
     empty[idx]->setTile(std::make_unique<Tile>(renderer, empty[idx], val));
+
+    // Log the spawn in the acting turn (the genesis spawn during board setup is
+    // logged too, then cleared with the first endTurn — harmless and accurate).
+    if (turn) turn->log().push(TurnEvent::tileSpawned(val, empty[idx]->getCoord()));
 }
 
 // --- Shop mechanics ---

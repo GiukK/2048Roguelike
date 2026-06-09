@@ -79,6 +79,10 @@ public:
     const std::vector<std::string>& getInventoryItems() const { return inventoryItems; }
     int getSelectedIndex() const { return selectedIndex; }
     size_t getTurnCount() const { return turns.size(); }
+
+    // Event log of the current (top) turn — the read side of the per-turn event
+    // substrate. Score (Step 2) and reactive abilities (Step 3) consume this.
+    const TurnLog& currentTurnLog() const;
     // Toggle which inventory item is held/selected (clicking the same one clears).
     void toggleSelectedItem(int index);
 
