@@ -118,6 +118,11 @@ public:
 
     ItemRegistry& getItemRegistry() { return itemRegistry; }
 
+    // True if `screenPoint` (raw pixel) is over any of this run's UI widgets
+    // (inventory / action buttons). Lets PlayState give the UI priority over the
+    // board for pan and selection where they overlap.
+    bool isPointOverUI(sf::Vector2f screenPoint) const;
+
     bool shopOpen = false;
 
 private:

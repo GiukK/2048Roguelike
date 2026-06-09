@@ -32,6 +32,10 @@ void UI_Button::update(float dt) {
     sf::Vector2f mousePos = static_cast<sf::Vector2f>(mousePixel);
     bool hovering = sprite.getGlobalBounds().contains(mousePos);
     bool mouseDown = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
+    // Rising edge: pressed THIS frame. Only a press that begins on the button
+    // counts, so a drag entering it with the button already held never arms it.
+    bool mouseWentDown = mouseDown && !wasMouseDown;
+    wasMouseDown = mouseDown;
 
     if (!hovering) {
         if (enlarged) {
@@ -54,7 +58,7 @@ void UI_Button::update(float dt) {
         break;
 
     case State::Hovered:
-        if (mouseDown) {
+        if (mouseWentDown) {
             currentState = State::Pressed;
             sprite.setColor(sf::Color::Blue);
         }
@@ -67,4 +71,8 @@ void UI_Button::update(float dt) {
         }
         break;
     }
+}
+
+bool UI_Button::contains(sf::Vector2f point) const {
+    return sprite.getGlobalBounds().contains(point);
 }

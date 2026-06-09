@@ -283,6 +283,16 @@ sf::FloatRect GameRun::getBoardContentBounds() {
     return turns.top()->board.getContentBounds();
 }
 
+bool GameRun::isPointOverUI(sf::Vector2f screenPoint) const {
+    for (const auto& btn : inventoryButtons) {
+        if (btn.contains(screenPoint)) return true;
+    }
+    for (const auto& btn : actionButtons) {
+        if (btn.contains(screenPoint)) return true;
+    }
+    return false;
+}
+
 void GameRun::drawDigitCounter(sf::RenderWindow& window, unsigned int value, float xOffset,
                                float y, float scale) {
     std::string text = std::to_string(value);

@@ -62,6 +62,12 @@ void PlayState::handleInput(sf::Event& event) {
     // intercepted here; they fall through to currentRun -> board.
     if (auto* pressed = event.getIf<sf::Event::MouseButtonPressed>();
         pressed && pressed->button == sf::Mouse::Button::Left) {
+        // A press on a UI widget belongs to that widget — don't start a pan, so
+        // the inventory/exit area is never a pan handle. The button (which polls
+        // the mouse) handles the click itself.
+        if (isPointOverUI(pressed->position)) {
+            return;
+        }
         leftButtonDown = true;
         isDraggingBoard = false;
         pressPixel = pressed->position;
@@ -99,7 +105,23 @@ void PlayState::handleInput(sf::Event& event) {
         return;
     }
 
+    // A right-click over the UI must not select the board tile drawn underneath
+    // (the board can render below the inventory when zoomed out). Swallow it.
+    if (auto* released = event.getIf<sf::Event::MouseButtonReleased>();
+        released && released->button == sf::Mouse::Button::Right &&
+        isPointOverUI(released->position)) {
+        return;
+    }
+
     currentRun->handleInput(event);
+}
+
+bool PlayState::isPointOverUI(sf::Vector2i pixel) const {
+    sf::Vector2f point(pixel);
+    for (const auto& btn : buttons) {
+        if (btn.contains(point)) return true;
+    }
+    return currentRun->isPointOverUI(point);
 }
 
 void PlayState::update(float deltaTime) {

@@ -28,6 +28,11 @@ public:
     StateManager& stateManager;
 
 private:
+    // True if `pixel` is over any play-screen UI widget (exit button + the run's
+    // inventory/action buttons). The UI takes priority over the board there: a
+    // press on it won't start a pan, and a right-click on it won't select a tile.
+    bool isPointOverUI(sf::Vector2i pixel) const;
+
     RenderSystem& renderer;
     std::unique_ptr<GameRun> currentRun;
     std::vector<UI_Button> buttons;
