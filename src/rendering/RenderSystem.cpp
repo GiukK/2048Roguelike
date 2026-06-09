@@ -12,9 +12,10 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     windowSize = size;
     textureManager.initialize();
 
-    // Real font for the data-driven UI. Smoothing off keeps the pixel look crisp.
-    if (!font.openFromFile("assets/fonts/default.ttf")) {
-        std::cerr << "Failed to load font: assets/fonts/default.ttf" << std::endl;
+    // Real font for the data-driven UI: Pixelify Sans (SIL OFL 1.1, license kept in
+    // assets/fonts/). Smoothing off keeps the pixel look crisp.
+    if (!font.openFromFile("assets/fonts/PixelifySans-Regular.ttf")) {
+        std::cerr << "Failed to load font: assets/fonts/PixelifySans-Regular.ttf" << std::endl;
     }
     font.setSmooth(false);
 
