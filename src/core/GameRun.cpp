@@ -4,30 +4,11 @@
 
 #include <algorithm>
 
-namespace {
-// HUD layout, screen-space (drawn in the UI view). Hardcoded for now; these will
-// move into the data-driven UI layer when it lands. The inventory row geometry is
-// shared so the use/discard action buttons line up with the selected item.
-constexpr float TurnCounterX       = 350.f;   // top-left turn count
-constexpr float CoinsCounterX      = 1380.f;  // top-right coin count
-constexpr float ShopCountdownX     = 350.f;   // below the turn count
-constexpr float ShopCountdownY     = 100.f;
-constexpr float ShopCountdownScale = 7.f;
-constexpr float InventoryX         = 1500.f;  // right-side inventory column
-constexpr float InventoryTopY      = 350.f;   // first item's Y
-constexpr float InventorySpacingY  = 200.f;   // vertical gap between items
-constexpr float ActionButtonX      = 1350.f;  // use/discard column (left of items)
-constexpr float ActionButtonGapY   = 55.f;    // offset of use/discard from item Y
-} // namespace
-
 GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCallback onShopOpen)
     : renderer(renderer),
       animationCallback(std::move(onAnimation)),
-      shopCallback(std::move(onShopOpen)),
-      backUI(renderer.getTextureManager().get("backUI"))
+      shopCallback(std::move(onShopOpen))
 {
-    renderer.resizeSprite("backUI", backUI);
-
     std::random_device rd;
     rng.seed(rd());
 
@@ -218,75 +199,13 @@ void GameRun::handleInput(sf::Event& event) {
 }
 
 void GameRun::update(float deltaTime) {
+    // Model/turn update only. The HUD/inventory widgets are owned and updated by
+    // PlayUI (driven from PlayState), so the model stays free of view concerns.
     turns.top()->update(deltaTime);
-
-    for (auto& btn : inventoryButtons) {
-        btn.update(deltaTime);
-    }
-
-    for (auto& btn : actionButtons) {
-        btn.update(deltaTime);
-    }
-
-    // Process deferred selection toggle
-    if (pendingSelectIndex >= 0) {
-        if (selectedIndex == pendingSelectIndex)
-            selectedIndex = -1;
-        else
-            selectedIndex = pendingSelectIndex;
-        pendingSelectIndex = -1;
-        rebuildActionButtons();
-    }
-
-    // Process deferred use/discard
-    if (pendingAction != PendingAction::None) {
-        if (selectedIndex >= 0 && selectedIndex < static_cast<int>(inventoryItems.size())) {
-            if (pendingAction == PendingAction::Use)
-                useItem(static_cast<size_t>(selectedIndex));
-            else
-                discardItem(static_cast<size_t>(selectedIndex));
-        }
-        pendingAction = PendingAction::None;
-    }
-}
-
-void GameRun::renderBackground(RenderSystem& renderer) {
-    renderer.draw(backUI);
 }
 
 void GameRun::renderBoard(RenderSystem& renderer) {
     turns.top()->render(renderer);
-}
-
-void GameRun::renderForeground(RenderSystem& renderer) {
-    drawDigitCounter(static_cast<unsigned int>(turns.size()), TurnCounterX);
-    drawDigitCounter(static_cast<unsigned int>(coins), CoinsCounterX);
-
-    // Shop spawn countdown: stacked just below the turn counter (top-left),
-    // smaller so it reads as a sub-counter and stays clear of the board and the
-    // score readouts. Shows 0 while a shop is on the board; restarts at the
-    // interval once the shop is consumed.
-    drawDigitCounter(static_cast<unsigned int>(shopCountdown),
-                     ShopCountdownX, ShopCountdownY, ShopCountdownScale);
-
-    for (size_t i = 0; i < inventoryButtons.size(); ++i) {
-        auto& btn = inventoryButtons[i];
-        bool held = (static_cast<int>(i) == selectedIndex);
-
-        if (held) btn.getSprite().setColor(sf::Color::Red);
-        renderer.draw(btn.getSprite());
-        if (held) btn.getSprite().setColor(sf::Color::White);
-    }
-
-    for (auto& btn : actionButtons) {
-        renderer.draw(btn.getSprite());
-    }
-}
-
-void GameRun::render(RenderSystem& renderer) {
-    renderer.useUIView();    renderBackground(renderer);
-    renderer.useBoardView(); renderBoard(renderer);
-    renderer.useUIView();    renderForeground(renderer);
 }
 
 sf::Vector2f GameRun::getBoardContentCenter() {
@@ -297,22 +216,6 @@ sf::Vector2f GameRun::getBoardContentCenter() {
 sf::FloatRect GameRun::getBoardContentBounds() {
     if (turns.empty()) return sf::FloatRect({0.f, 0.f}, {0.f, 0.f});
     return turns.top()->board.getContentBounds();
-}
-
-bool GameRun::isPointOverUI(sf::Vector2f screenPoint) const {
-    for (const auto& btn : inventoryButtons) {
-        if (btn.contains(screenPoint)) return true;
-    }
-    for (const auto& btn : actionButtons) {
-        if (btn.contains(screenPoint)) return true;
-    }
-    return false;
-}
-
-void GameRun::drawDigitCounter(unsigned int value, float xOffset, float y, float scale) {
-    std::string text = std::to_string(value);
-    float totalWidth = static_cast<float>(text.size()) * 5.f * scale;
-    renderer.drawNumber(value, {xOffset + totalWidth / 2.f, y}, scale);
 }
 
 int GameRun::getRandomInt(int min, int max) {
@@ -351,7 +254,7 @@ void GameRun::addItem(const std::string& itemId) {
 
     inventoryItems.push_back(itemId);
     clearSelection();
-    rebuildInventoryButtons();
+    // PlayUI rebuilds its buttons from this changed state (change detection).
 }
 
 void GameRun::useItem(size_t index) {
@@ -368,7 +271,6 @@ void GameRun::useItem(size_t index) {
     // A consumed item finishes its interaction with the board, so any tiles it had
     // targeted should no longer stay selected (e.g. SWITCH leaving both tiles red).
     clearBoardSelection();
-    rebuildInventoryButtons();
 }
 
 void GameRun::discardItem(size_t index) {
@@ -376,7 +278,10 @@ void GameRun::discardItem(size_t index) {
 
     inventoryItems.erase(inventoryItems.begin() + static_cast<ptrdiff_t>(index));
     clearSelection();
-    rebuildInventoryButtons();
+}
+
+void GameRun::toggleSelectedItem(int index) {
+    selectedIndex = (selectedIndex == index) ? -1 : index;
 }
 
 bool GameRun::hasHeldItem() const {
@@ -453,32 +358,4 @@ void GameRun::clearBoardSelection() {
 
 void GameRun::clearSelection() {
     selectedIndex = -1;
-    actionButtons.clear();
-}
-
-void GameRun::rebuildInventoryButtons() {
-    inventoryButtons.clear();
-    for (size_t i = 0; i < inventoryItems.size(); ++i) {
-        const auto& def = itemRegistry.get(inventoryItems[i]);
-        size_t idx = i;
-        inventoryButtons.emplace_back(renderer, def.textureId,
-            sf::Vector2f{InventoryX, InventoryTopY + InventorySpacingY * static_cast<float>(i)},
-            [this, idx]() { pendingSelectIndex = static_cast<int>(idx); });
-    }
-}
-
-void GameRun::rebuildActionButtons() {
-    actionButtons.clear();
-    if (selectedIndex < 0 || selectedIndex >= static_cast<int>(inventoryItems.size()))
-        return;
-
-    float itemY = InventoryTopY + InventorySpacingY * static_cast<float>(selectedIndex);
-
-    actionButtons.emplace_back(renderer, "use_button",
-        sf::Vector2f{ActionButtonX, itemY - ActionButtonGapY},
-        [this]() { pendingAction = PendingAction::Use; });
-
-    actionButtons.emplace_back(renderer, "discard_button",
-        sf::Vector2f{ActionButtonX, itemY + ActionButtonGapY},
-        [this]() { pendingAction = PendingAction::Discard; });
 }

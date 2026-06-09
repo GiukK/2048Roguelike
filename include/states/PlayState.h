@@ -1,6 +1,7 @@
 #pragma once
 
 #include "states/GameState.h"
+#include "states/PlayUI.h"
 #include "core/GameRun.h"
 #include "rendering/UI_Button.h"
 #include "rendering/Animation.h"
@@ -28,13 +29,20 @@ public:
     StateManager& stateManager;
 
 private:
-    // True if `pixel` is over any play-screen UI widget (exit button + the run's
+    // True if `pixel` is over any play-screen UI widget (exit button + PlayUI's
     // inventory/action buttons). The UI takes priority over the board there: a
     // press on it won't start a pan, and a right-click on it won't select a tile.
     bool isPointOverUI(sf::Vector2i pixel) const;
 
+    // Update / render the world (board) + HUD. Used by PlayState itself and,
+    // through callbacks, by ShopState so the play screen stays live behind the
+    // shop overlay (ShopState is the top state, so PlayState isn't ticked then).
+    void updateWorldAndHud(float dt);
+    void renderWorldAndHud(RenderSystem& r);
+
     RenderSystem& renderer;
     std::unique_ptr<GameRun> currentRun;
+    std::unique_ptr<PlayUI> playUI;
     std::vector<UI_Button> buttons;
     std::vector<std::unique_ptr<Animation>> animations;
 

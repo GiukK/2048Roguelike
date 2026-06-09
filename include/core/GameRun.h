@@ -9,7 +9,6 @@
 #include <utility>
 
 #include <SFML/Graphics.hpp>
-#include "rendering/UI_Button.h"
 #include "rendering/Animation.h"
 #include "core/Turn.h"
 #include "core/ItemRegistry.h"
@@ -56,15 +55,9 @@ public:
     void handleInput(sf::Event& event);
     void update(float deltaTime);
 
-    // Render in three layers so the board can sit under the movable camera while
-    // the HUD stays screen-space. Callers pick the view between layers (see
-    // RenderSystem::useBoardView / useUIView). render() is a convenience that
-    // does all three with the right views, for callers that don't interleave
-    // their own board-space drawing (e.g. ShopState).
-    void renderBackground(RenderSystem& renderer);  // full-screen UI backdrop
-    void renderBoard(RenderSystem& renderer);       // slots + tiles (board view)
-    void renderForeground(RenderSystem& renderer);  // counters + inventory (UI view)
-    void render(RenderSystem& renderer);
+    // Renders the board (slots + tiles) in the board view. The HUD/inventory UI
+    // lives in PlayUI now — GameRun is the game-state model, not the view.
+    void renderBoard(RenderSystem& renderer);
 
     // World-space center / bounding box of the current board's content (for
     // aiming and snapping the camera).
@@ -81,6 +74,13 @@ public:
 
     bool isInventoryFull() const;
     void addItem(const std::string& itemId);
+
+    // --- Inventory queries / commands for the UI layer (PlayUI) ---
+    const std::vector<std::string>& getInventoryItems() const { return inventoryItems; }
+    int getSelectedIndex() const { return selectedIndex; }
+    size_t getTurnCount() const { return turns.size(); }
+    // Toggle which inventory item is held/selected (clicking the same one clears).
+    void toggleSelectedItem(int index);
 
     // Held item — the single item the player is actively holding from inventory.
     // Game effects can query this to interact with it without going through UI
@@ -118,21 +118,12 @@ public:
 
     ItemRegistry& getItemRegistry() { return itemRegistry; }
 
-    // True if `screenPoint` (raw pixel) is over any of this run's UI widgets
-    // (inventory / action buttons). Lets PlayState give the UI priority over the
-    // board for pan and selection where they overlap.
-    bool isPointOverUI(sf::Vector2f screenPoint) const;
-
     bool shopOpen = false;
 
 private:
     void useItem(size_t index);
     void discardItem(size_t index);
     void clearSelection();
-    void rebuildInventoryButtons();
-    void rebuildActionButtons();
-    void drawDigitCounter(unsigned int value, float xOffset,
-                          float y = 18.f, float scale = 10.f);
 
     RenderSystem& renderer;
     AnimationCallback animationCallback;
@@ -140,22 +131,14 @@ private:
     AnimationsActiveQuery animationsActive;
 
     std::mt19937 rng;
-    sf::Sprite backUI;
 
     std::stack<std::unique_ptr<Turn>> turns;
 
     std::vector<std::string> inventoryItems;
-    std::vector<UI_Button> inventoryButtons;
 
-    // Selection: only one item at a time. -1 = nothing selected.
-    // When selected, use/discard action buttons appear next to the item.
+    // Selection: only one item at a time. -1 = nothing selected. This is the
+    // "held item" the player is interacting with; PlayUI shows its action buttons.
     int selectedIndex = -1;
-    std::vector<UI_Button> actionButtons;
-
-    // Deferred actions — processed after button update loops to avoid iterator invalidation.
-    int pendingSelectIndex = -1;
-    enum class PendingAction { None, Use, Discard };
-    PendingAction pendingAction = PendingAction::None;
 
     ItemRegistry itemRegistry;
 

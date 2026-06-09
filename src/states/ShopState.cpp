@@ -7,10 +7,13 @@
 
 #include <algorithm>
 
-ShopState::ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* gameRun)
+ShopState::ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* gameRun,
+                     UpdateBehind updateBehind, RenderBehind renderBehind)
     : stateManager(stateManager),
       renderer(renderer),
       gameRun(gameRun),
+      updateBehind(std::move(updateBehind)),
+      renderBehind(std::move(renderBehind)),
       shopSprite(renderer.getTextureManager().get("shop"))
 {
     initVisuals();
@@ -131,7 +134,9 @@ void ShopState::handleInput(sf::Event& event) {
 }
 
 void ShopState::update(float deltaTime) {
-    gameRun->update(deltaTime);
+    // Keep the world + HUD ticking behind the overlay (turn + inventory, so e.g.
+    // a coin_bag can still be used mid-shop to afford an item).
+    if (updateBehind) updateBehind(deltaTime);
 
     for (auto& anim : decorAnimations) {
         anim.update(deltaTime);
@@ -148,9 +153,9 @@ void ShopState::update(float deltaTime) {
 }
 
 void ShopState::render(RenderSystem& renderer) {
-    // Draw the play screen behind (handles its own board/UI view switches), then
-    // the shop overlay and its widgets purely in the UI view.
-    gameRun->render(renderer);
+    // Draw the play screen behind (PlayState handles the board/UI view switches),
+    // then the shop overlay and its widgets purely in the UI view.
+    if (renderBehind) renderBehind(renderer);
 
     renderer.useUIView();
     renderer.draw(shopSprite);

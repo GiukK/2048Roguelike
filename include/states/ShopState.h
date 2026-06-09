@@ -7,6 +7,7 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <string>
+#include <functional>
 
 class StateManager;
 class RenderSystem;
@@ -14,7 +15,14 @@ class GameRun;
 
 class ShopState : public GameState {
 public:
-    ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* gameRun);
+    // The shop is a modal overlay. Since only the top state ticks/renders,
+    // ShopState keeps the play screen behind it live via these callbacks
+    // (provided by PlayState, which owns the world + HUD).
+    using UpdateBehind = std::function<void(float)>;
+    using RenderBehind = std::function<void(RenderSystem&)>;
+
+    ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* gameRun,
+              UpdateBehind updateBehind, RenderBehind renderBehind);
 
     void enter() override;
     void exit() override;
@@ -31,6 +39,8 @@ private:
     StateManager& stateManager;
     RenderSystem& renderer;
     GameRun* gameRun;
+    UpdateBehind updateBehind;
+    RenderBehind renderBehind;
 
     sf::Sprite shopSprite;
     std::vector<Animation> decorAnimations;

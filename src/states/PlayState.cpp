@@ -22,12 +22,20 @@ PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer)
     };
 
     auto shopCallback = [this](GameRun* run) {
-        this->stateManager.pushState(
-            std::make_unique<ShopState>(this->stateManager, this->renderer, run));
+        // Hand ShopState callbacks to keep the play screen live behind the shop
+        // overlay (it can't reach PlayState's PlayUI directly).
+        this->stateManager.pushState(std::make_unique<ShopState>(
+            this->stateManager, this->renderer, run,
+            [this](float dt) { updateWorldAndHud(dt); },
+            [this](RenderSystem& r) { renderWorldAndHud(r); }));
     };
 
     currentRun = std::make_unique<GameRun>(renderer, animCallback, shopCallback);
     currentRun->setAnimationsActiveQuery([this]() { return hasActiveAnimations(); });
+
+    // The HUD/inventory UI lives in PlayUI (the play state's view layer); GameRun
+    // is the model. Created after currentRun, which PlayUI reads.
+    playUI = std::make_unique<PlayUI>(renderer, *currentRun);
 
     // Point the board camera at the starting board (native-centered). The camera
     // is otherwise left where the player puts it once panning lands.
@@ -128,7 +136,7 @@ bool PlayState::isPointOverUI(sf::Vector2i pixel) const {
     for (const auto& btn : buttons) {
         if (btn.contains(point)) return true;
     }
-    return currentRun->isPointOverUI(point);
+    return playUI->isPointOverUI(point);
 }
 
 void PlayState::update(float deltaTime) {
@@ -145,7 +153,7 @@ void PlayState::update(float deltaTime) {
         camera.snapCenterInto(currentRun->getBoardContentBounds());
     }
 
-    currentRun->update(deltaTime);
+    updateWorldAndHud(deltaTime);
 
     for (auto& btn : buttons) {
         btn.update(deltaTime);
@@ -161,11 +169,16 @@ void PlayState::update(float deltaTime) {
         animations.end());
 }
 
+void PlayState::updateWorldAndHud(float dt) {
+    currentRun->update(dt);   // model / turn
+    playUI->update(dt);       // HUD widgets + deferred select/use/discard
+}
+
 void PlayState::render(RenderSystem& renderer) {
     // Layered render: UI backdrop, then the board (under the camera) together
     // with its board-anchored effects, then the screen-space HUD on top.
     renderer.useUIView();
-    currentRun->renderBackground(renderer);
+    playUI->renderBackground(renderer);
 
     renderer.useBoardView();
     currentRun->renderBoard(renderer);
@@ -176,10 +189,22 @@ void PlayState::render(RenderSystem& renderer) {
     }
 
     renderer.useUIView();
-    currentRun->renderForeground(renderer);
+    playUI->renderForeground(renderer);
     for (auto& btn : buttons) {
         renderer.draw(btn.getSprite());
     }
+}
+
+void PlayState::renderWorldAndHud(RenderSystem& renderer) {
+    // The play screen WITHOUT the board-anchored animations or the exit button —
+    // matches what ShopState used to get from GameRun::render(). Board anims and
+    // the exit button are PlayState-only and not shown behind the shop.
+    renderer.useUIView();
+    playUI->renderBackground(renderer);
+    renderer.useBoardView();
+    currentRun->renderBoard(renderer);
+    renderer.useUIView();
+    playUI->renderForeground(renderer);
 }
 
 void PlayState::addAnimation(std::unique_ptr<Animation> anim) {
