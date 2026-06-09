@@ -2,13 +2,9 @@
 #include "states/StateManager.h"
 #include "states/ShopState.h"
 #include "rendering/RenderSystem.h"
-#include "ui/UI.h"
-#include "Debug.h"
 
 #include <algorithm>
 #include <cmath>
-#include <string>
-#include <vector>
 
 namespace {
 // Screen-space HUD position for the exit button (UI view). Temporary home until
@@ -196,62 +192,6 @@ void PlayState::render(RenderSystem& renderer) {
     playUI->renderForeground(renderer);
     for (auto& btn : buttons) {
         renderer.draw(btn.getSprite());
-    }
-
-    // --- Step 2 verification (debug only) ---------------------------------
-    // Build a small data-driven UINode tree (a tooltip-shaped card: title +
-    // wrapped description + a badge row), run the two-pass layout, and draw it via
-    // the generic framework. Also exercises hitTest: the card tints when hovered.
-    // Rebuilt each frame here only because it's a static demo; real UI rebuilds on
-    // state change. Folds into the real tooltip at Step 3.
-    if (debug::Enabled) {
-        using namespace ui;
-
-        UINode title{UIType::Text};
-        title.text = "Bomb III";
-        title.style.charSize = 30;
-        title.style.textColor = sf::Color(255, 220, 120);
-
-        UINode desc{UIType::Text};
-        desc.text = "Destroys every tile in the 3x3 block around the selected tile.";
-        desc.style.charSize = 20;
-        desc.maxW = 320.f;
-
-        UINode badge{UIType::Box};
-        badge.padding = 8.f;
-        badge.style.fill = sf::Color(60, 50, 90);
-        badge.style.cornerRadius = 8.f;
-        {
-            UINode badgeText{UIType::Text};
-            badgeText.text = "120 coins";
-            badgeText.style.charSize = 18;
-            badge.children.push_back(std::move(badgeText));
-        }
-
-        UINode card{UIType::Box};
-        card.direction = UIDir::Column;
-        card.padding = 16.f;
-        card.gap = 12.f;
-        card.style.cornerRadius = 16.f;
-        card.style.border = sf::Color(210, 210, 225);
-        card.style.borderThickness = 3.f;
-
-        sf::Vector2i mp = sf::Mouse::getPosition(renderer.getWindow());
-        sf::Vector2f mouse(mp);
-
-        card.children.push_back(std::move(title));
-        card.children.push_back(std::move(desc));
-        card.children.push_back(std::move(badge));
-
-        measureNode(card, renderer);
-        layoutNode(card, 60.f, 700.f);
-
-        // Tint the card background when the cursor is over it (verifies hitTest).
-        card.style.fill = (hitTest(card, mouse) != nullptr)
-            ? sf::Color(45, 45, 65, 240)
-            : sf::Color(28, 28, 40, 235);
-
-        drawNode(card, renderer);
     }
 }
 

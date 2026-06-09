@@ -13,6 +13,10 @@ struct ItemDef {
     std::string id;
     std::string textureId;
 
+    // Display strings for the UI (tooltips). Functional placeholders for now.
+    std::string name;
+    std::string description;
+
     // Base cost before modifiers. The actual price shown/charged in shop
     // goes through GameRun::getEffectiveCost(), which applies passives and discounts.
     int cost = 0;

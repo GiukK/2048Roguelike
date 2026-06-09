@@ -1,8 +1,11 @@
 #include "states/PlayUI.h"
+#include "states/ItemTooltip.h"
 #include "core/GameRun.h"
 #include "core/ItemRegistry.h"
 #include "rendering/RenderSystem.h"
+#include "ui/UI.h"
 
+#include <algorithm>
 #include <string>
 
 namespace {
@@ -120,6 +123,35 @@ void PlayUI::renderForeground(RenderSystem& r) {
 
     for (auto& btn : actionButtons) {
         r.draw(btn.getSprite());
+    }
+
+    renderInventoryTooltip(r);
+}
+
+void PlayUI::renderInventoryTooltip(RenderSystem& r) {
+    const auto& items = run.getInventoryItems();
+    const sf::Vector2i mp = sf::Mouse::getPosition(r.getWindow());
+    const sf::Vector2f mouse(mp);
+
+    for (std::size_t i = 0; i < inventoryButtons.size() && i < items.size(); ++i) {
+        if (!inventoryButtons[i].contains(mouse)) continue;
+
+        // Built each frame on hover (small tree, cheap). cost = -1 → no price
+        // badge, since you already own inventory items.
+        ui::UINode tip = buildItemTooltip(run.getItemRegistry().get(items[i]), -1);
+        ui::measureNode(tip, r);
+
+        // Inventory hugs the right edge, so place the tooltip to the LEFT of the
+        // hovered item, vertically centred, clamped to the screen.
+        const sf::FloatRect b = inventoryButtons[i].getSprite().getGlobalBounds();
+        const auto ws = r.getWindowSize();
+        float tx = std::max(10.f, b.position.x - tip.computedW - 24.f);
+        float ty = std::clamp(b.position.y + b.size.y / 2.f - tip.computedH / 2.f,
+                              10.f, static_cast<float>(ws.y) - tip.computedH - 10.f);
+
+        ui::layoutNode(tip, tx, ty);
+        ui::drawNode(tip, r);
+        break;  // one tooltip at a time
     }
 }
 

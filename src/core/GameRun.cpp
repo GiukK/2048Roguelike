@@ -12,11 +12,13 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
     std::random_device rd;
     rng.seed(rd());
 
-    itemRegistry.registerItem({"coin_bag", "coin_bag", 10, 1.0f,
+    itemRegistry.registerItem({"coin_bag", "coin_bag",
+        "Coin Bag", "Gives 50 coins.", 10, 1.0f,
         [](GameRun& run) -> bool { run.addCoins(50); return true; }
     });
 
-    itemRegistry.registerItem({"bomb", "bomb", 50, 0.5f,
+    itemRegistry.registerItem({"bomb", "bomb",
+        "Bomb", "Destroys the selected tile.", 50, 0.5f,
         [](GameRun& run) -> bool {
             auto tiles = run.getSelectedTiles();
             if (tiles.size() != 1) return false;
@@ -25,7 +27,8 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
         }
     });
 
-    itemRegistry.registerItem({"switch", "switch", 50, 0.25f,
+    itemRegistry.registerItem({"switch", "switch",
+        "Switch", "Swaps the two selected tiles.", 50, 0.25f,
         [](GameRun& run) -> bool {
             auto tiles = run.getSelectedTiles();
             if (tiles.size() != 2) return false;
@@ -38,7 +41,8 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
     // among its 8 neighbours (diagonals included). The anchor itself is left
     // intact — the payload is purely the surrounding tiles. Refuses (does not
     // consume) if nothing surrounds the anchor.
-    itemRegistry.registerItem({"bomb_2", "bomb_2", 75, 0.4f,
+    itemRegistry.registerItem({"bomb_2", "bomb_2",
+        "Bomb II", "Destroys up to two random tiles next to the selected one.", 75, 0.4f,
         [](GameRun& run) -> bool {
             auto sel = run.getSelectedTiles();
             if (sel.size() != 1) return false;
@@ -58,7 +62,8 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
 
     // Bomb III: destroys every tile in the full 3x3 block centred on the selected
     // tile (the anchor included).
-    itemRegistry.registerItem({"bomb_3", "bomb_3", 120, 0.2f,
+    itemRegistry.registerItem({"bomb_3", "bomb_3",
+        "Bomb III", "Destroys every tile in the 3x3 block around the selected tile.", 120, 0.2f,
         [](GameRun& run) -> bool {
             auto sel = run.getSelectedTiles();
             if (sel.size() != 1) return false;
@@ -72,7 +77,8 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
 
     // Brick: locks the selected tile in place (immovable, like a shop slot) until
     // a merge clears it. Refuses if the tile is already bricked.
-    itemRegistry.registerItem({"brick", "brick", 60, 0.3f,
+    itemRegistry.registerItem({"brick", "brick",
+        "Brick", "Locks the selected tile in place until a merge frees it.", 60, 0.3f,
         [](GameRun& run) -> bool {
             auto sel = run.getSelectedTiles();
             if (sel.size() != 1) return false;
@@ -85,7 +91,8 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
 
     // Black Hole: wipes every (non-shop) tile, then seeds one fresh tile so the
     // board stays playable — an empty board has no legal move and would soft-lock.
-    itemRegistry.registerItem({"black_hole", "black_hole", 150, 0.15f,
+    itemRegistry.registerItem({"black_hole", "black_hole",
+        "Black Hole", "Destroys every tile on the board, then spawns a new one.", 150, 0.15f,
         [](GameRun& run) -> bool {
             run.destroyAllTiles();
             run.spawnTile();
@@ -95,7 +102,8 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
 
     // Die: uniformly reshuffles the tiles among their occupied cells (the filled
     // cells stay the same; only which tile sits where changes). Needs >= 2 tiles.
-    itemRegistry.registerItem({"die", "die", 40, 0.4f,
+    itemRegistry.registerItem({"die", "die",
+        "Die", "Randomly reshuffles all tiles among their cells.", 40, 0.4f,
         [](GameRun& run) -> bool {
             return run.shuffleTiles() >= 2;
         }
@@ -103,7 +111,8 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
 
     // Hourglass: rewinds one turn. In normal play this is the ONLY way to go back
     // (the B key is debug-only); refuses if there is no earlier turn to return to.
-    itemRegistry.registerItem({"hourglass", "hourglass", 80, 0.25f,
+    itemRegistry.registerItem({"hourglass", "hourglass",
+        "Hourglass", "Rewinds the game by one turn.", 80, 0.25f,
         [](GameRun& run) -> bool {
             return run.goBack();
         }
@@ -111,7 +120,8 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
 
     // Mount: adds a base empty slot at a uniformly-random cell adjacent to the
     // board (a border cell or an interior hole), expanding the playfield.
-    itemRegistry.registerItem({"mount", "mount", 70, 0.3f,
+    itemRegistry.registerItem({"mount", "mount",
+        "Mount", "Adds a new empty slot at the edge of the board.", 70, 0.3f,
         [](GameRun& run) -> bool {
             return run.addRandomSlot();
         }
@@ -119,7 +129,8 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
 
     // Wrench: removes the selected tile AND the slot beneath it, punching a hole
     // in the board. Cannot target the shop.
-    itemRegistry.registerItem({"wrench", "wrench", 50, 0.35f,
+    itemRegistry.registerItem({"wrench", "wrench",
+        "Wrench", "Removes the selected tile and its slot, leaving a hole.", 50, 0.35f,
         [](GameRun& run) -> bool {
             auto sel = run.getSelectedTiles();
             if (sel.size() != 1) return false;

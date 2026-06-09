@@ -20,7 +20,7 @@ public:
 
     void update(float dt);                  // widget update + deferred select/use/discard
     void renderBackground(RenderSystem& r); // full-screen UI backdrop (UI view)
-    void renderForeground(RenderSystem& r); // HUD counters + buttons (UI view)
+    void renderForeground(RenderSystem& r); // HUD counters + buttons + tooltip (UI view)
 
     // Screen-space hit-test over the inventory/action buttons (raw pixel point).
     // Lets PlayState give the UI priority over the board for pan/selection.
@@ -32,6 +32,8 @@ private:
     void syncButtonsToModel();
     void rebuildInventoryButtons();
     void rebuildActionButtons();
+    // Draws the tooltip for the inventory item currently under the cursor (if any).
+    void renderInventoryTooltip(RenderSystem& r);
     void drawDigitCounter(RenderSystem& r, unsigned int value, float xOffset,
                           float y = 18.f, float scale = 10.f);
 

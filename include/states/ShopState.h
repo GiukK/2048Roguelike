@@ -34,6 +34,8 @@ private:
     void generateShop();
     void buyItem(size_t index);
     void rebuildShopButtons();
+    // Tooltip (name + description + price) for the shop item under the cursor.
+    void renderHoveredTooltip(RenderSystem& renderer);
 
     StateManager& stateManager;
     RenderSystem& renderer;

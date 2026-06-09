@@ -1,8 +1,10 @@
 #include "states/ShopState.h"
 #include "states/StateManager.h"
+#include "states/ItemTooltip.h"
 #include "core/GameRun.h"
 #include "core/ItemRegistry.h"
 #include "rendering/RenderSystem.h"
+#include "ui/UI.h"
 #include "Debug.h"
 
 #include <algorithm>
@@ -172,5 +174,33 @@ void ShopState::render(RenderSystem& renderer) {
 
     for (auto& anim : decorAnimations) {
         renderer.draw(anim.getSprite());
+    }
+
+    renderHoveredTooltip(renderer);
+}
+
+void ShopState::renderHoveredTooltip(RenderSystem& renderer) {
+    const sf::Vector2i mp = sf::Mouse::getPosition(renderer.getWindow());
+    const sf::Vector2f mouse(mp);
+
+    for (std::size_t i = 0; i < shopButtons.size() && i < shopItemIds.size(); ++i) {
+        if (!shopButtons[i].contains(mouse)) continue;
+
+        const ItemDef& def = gameRun->getItemRegistry().get(shopItemIds[i]);
+        ui::UINode tip = buildItemTooltip(def, gameRun->getEffectiveCost(def));
+        ui::measureNode(tip, renderer);
+
+        // Shop items sit in a row, so place the tooltip above the item (below if
+        // there's no room), centred horizontally and clamped to the screen.
+        const sf::FloatRect b = shopButtons[i].getSprite().getGlobalBounds();
+        const auto ws = renderer.getWindowSize();
+        float tx = std::clamp(b.position.x + b.size.x / 2.f - tip.computedW / 2.f,
+                              10.f, static_cast<float>(ws.x) - tip.computedW - 10.f);
+        float ty = b.position.y - tip.computedH - 16.f;
+        if (ty < 10.f) ty = b.position.y + b.size.y + 16.f;
+
+        ui::layoutNode(tip, tx, ty);
+        ui::drawNode(tip, renderer);
+        break;
     }
 }
