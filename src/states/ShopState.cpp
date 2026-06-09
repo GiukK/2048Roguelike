@@ -8,11 +8,10 @@
 #include <algorithm>
 
 ShopState::ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* gameRun,
-                     UpdateBehind updateBehind, RenderBehind renderBehind)
+                     RenderBehind renderBehind)
     : stateManager(stateManager),
       renderer(renderer),
       gameRun(gameRun),
-      updateBehind(std::move(updateBehind)),
       renderBehind(std::move(renderBehind)),
       shopSprite(renderer.getTextureManager().get("shop"))
 {
@@ -134,10 +133,8 @@ void ShopState::handleInput(sf::Event& event) {
 }
 
 void ShopState::update(float deltaTime) {
-    // Keep the world + HUD ticking behind the overlay (turn + inventory, so e.g.
-    // a coin_bag can still be used mid-shop to afford an item).
-    if (updateBehind) updateBehind(deltaTime);
-
+    // The world below is frozen while the shop is open (modal) — it's only drawn,
+    // never updated, so the inventory/board can't be interacted with mid-shop.
     for (auto& anim : decorAnimations) {
         anim.update(deltaTime);
     }

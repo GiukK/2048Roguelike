@@ -34,9 +34,11 @@ private:
     // press on it won't start a pan, and a right-click on it won't select a tile.
     bool isPointOverUI(sf::Vector2i pixel) const;
 
-    // Update / render the world (board) + HUD. Used by PlayState itself and,
-    // through callbacks, by ShopState so the play screen stays live behind the
-    // shop overlay (ShopState is the top state, so PlayState isn't ticked then).
+    // updateWorldAndHud: PlayState's per-frame world (board/turn) + HUD tick.
+    // renderWorldAndHud: the play screen as a FROZEN backdrop behind the shop
+    //   overlay (ShopState draws it via a callback). The shop is modal, so the
+    //   world below is NOT updated while it's open — only drawn — which is also
+    //   why the inventory can't be touched mid-shop.
     void updateWorldAndHud(float dt);
     void renderWorldAndHud(RenderSystem& r);
 

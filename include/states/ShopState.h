@@ -15,14 +15,13 @@ class GameRun;
 
 class ShopState : public GameState {
 public:
-    // The shop is a modal overlay. Since only the top state ticks/renders,
-    // ShopState keeps the play screen behind it live via these callbacks
-    // (provided by PlayState, which owns the world + HUD).
-    using UpdateBehind = std::function<void(float)>;
+    // The shop is a modal overlay. Only the top state renders, so PlayState gives
+    // ShopState a callback to draw the play screen behind it as a FROZEN backdrop.
+    // The world below is intentionally NOT updated while the shop is open.
     using RenderBehind = std::function<void(RenderSystem&)>;
 
     ShopState(StateManager& stateManager, RenderSystem& renderer, GameRun* gameRun,
-              UpdateBehind updateBehind, RenderBehind renderBehind);
+              RenderBehind renderBehind);
 
     void enter() override;
     void exit() override;
@@ -39,7 +38,6 @@ private:
     StateManager& stateManager;
     RenderSystem& renderer;
     GameRun* gameRun;
-    UpdateBehind updateBehind;
     RenderBehind renderBehind;
 
     sf::Sprite shopSprite;

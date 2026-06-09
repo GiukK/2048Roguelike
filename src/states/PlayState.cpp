@@ -22,11 +22,11 @@ PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer)
     };
 
     auto shopCallback = [this](GameRun* run) {
-        // Hand ShopState callbacks to keep the play screen live behind the shop
-        // overlay (it can't reach PlayState's PlayUI directly).
+        // The shop is modal: it draws the play screen behind it as a frozen
+        // backdrop (renderBehind), but the world below is NOT updated while the
+        // shop is open — so the inventory can't be touched mid-shop.
         this->stateManager.pushState(std::make_unique<ShopState>(
             this->stateManager, this->renderer, run,
-            [this](float dt) { updateWorldAndHud(dt); },
             [this](RenderSystem& r) { renderWorldAndHud(r); }));
     };
 
