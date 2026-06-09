@@ -58,6 +58,9 @@ public:
     std::vector<std::string> wrapText(const std::string& text, float maxWidth,
                                       unsigned int charSize) const;
 
+    // Draws the texture `textureId` scaled to fill `rect` (for UI Image nodes).
+    void drawImage(const std::string& textureId, sf::FloatRect rect);
+
     // --- Procedural shapes -------------------------------------------------
     // Pixel-stepped rounded rectangle (no texture). Drawn as horizontal slabs
     // whose width curves in near the corners. An optional border is drawn by

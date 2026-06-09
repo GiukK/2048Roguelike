@@ -16,6 +16,9 @@ void drawNode(const UINode& node, RenderSystem& renderer) {
         for (const auto& child : node.children) {
             drawNode(child, renderer);
         }
+    } else if (node.type == UIType::Image) {
+        renderer.drawImage(node.image,
+                           {{node.computedX, node.computedY}, {node.computedW, node.computedH}});
     } else { // Text — one drawText per wrapped line.
         const float lineH = renderer.measureText("Ag", node.style.charSize).y;
         for (std::size_t i = 0; i < node.wrappedLines.size(); ++i) {

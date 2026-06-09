@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Graphics/Color.hpp>
+#include <SFML/System/Vector2.hpp>
 #include <string>
 #include <vector>
 #include <functional>
@@ -12,7 +13,7 @@
 // game state (the retained-by-rebuild model), like PlayUI already does.
 namespace ui {
 
-enum class UIType  { Box, Text };
+enum class UIType  { Box, Text, Image };
 enum class UIDir   { Row, Column };  // a Box stacks its children along this axis
 enum class UIAlign { Start, Center, End };  // cross-axis alignment of children
 
@@ -31,6 +32,10 @@ struct UINode {
 
     std::vector<UINode> children;  // Box only
     std::string         text;      // Text only
+
+    // Image only: texture id (TextureManager) drawn scaled to imageSize.
+    std::string  image;
+    sf::Vector2f imageSize{0.f, 0.f};
 
     UIStyle style;
 

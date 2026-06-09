@@ -6,6 +6,11 @@
 namespace ui {
 
 sf::Vector2f measureNode(UINode& node, RenderSystem& renderer) {
+    if (node.type == UIType::Image) {
+        node.computedW = std::max(node.imageSize.x, node.minW);
+        node.computedH = std::max(node.imageSize.y, node.minH);
+        return { node.computedW, node.computedH };
+    }
     if (node.type == UIType::Text) {
         // Wrap to maxW if set, otherwise a single line.
         if (node.maxW > 0.f) {
@@ -51,7 +56,7 @@ sf::Vector2f measureNode(UINode& node, RenderSystem& renderer) {
 void layoutNode(UINode& node, float x, float y) {
     node.computedX = x;
     node.computedY = y;
-    if (node.type == UIType::Text) return;  // leaf
+    if (node.type != UIType::Box) return;  // Text/Image are leaves
 
     const bool row = (node.direction == UIDir::Row);
     // Pen starts inside the padding; advances along the main axis per child.

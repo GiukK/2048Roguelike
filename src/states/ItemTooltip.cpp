@@ -16,11 +16,23 @@ ui::UINode buildItemTooltip(const ItemDef& item, int cost) {
     card.style.border = sf::Color(210, 210, 225);
     card.style.borderThickness = 3.f;
 
+    // Header: item icon + title, side by side and vertically centred.
+    UINode icon{UIType::Image};
+    icon.image = item.textureId;
+    icon.imageSize = {52.f, 52.f};
+
     UINode title{UIType::Text};
     title.text = item.name.empty() ? item.id : item.name;
     title.style.charSize = 28;
     title.style.textColor = sf::Color(255, 220, 120);
-    card.children.push_back(std::move(title));
+
+    UINode header{UIType::Box};
+    header.direction = UIDir::Row;
+    header.gap = 10.f;
+    header.align = UIAlign::Center;
+    header.children.push_back(std::move(icon));
+    header.children.push_back(std::move(title));
+    card.children.push_back(std::move(header));
 
     if (!item.description.empty()) {
         UINode desc{UIType::Text};

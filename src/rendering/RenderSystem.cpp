@@ -179,6 +179,18 @@ std::vector<std::string> RenderSystem::wrapText(const std::string& text, float m
     return lines;
 }
 
+void RenderSystem::drawImage(const std::string& textureId, sf::FloatRect rect) {
+    const sf::Texture& tex = textureManager.get(textureId);
+    const sf::Vector2u ts = tex.getSize();
+    if (ts.x == 0 || ts.y == 0) return;
+
+    sf::Sprite sprite(tex);
+    sprite.setPosition(rect.position);
+    sprite.setScale({ rect.size.x / static_cast<float>(ts.x),
+                      rect.size.y / static_cast<float>(ts.y) });
+    window.draw(sprite);
+}
+
 // --- Procedural shapes ---
 
 void RenderSystem::fillRoundedRect(sf::FloatRect rect, float radius, sf::Color color) {
