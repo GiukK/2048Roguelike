@@ -1,5 +1,9 @@
 #include "rendering/RenderSystem.h"
 
+#include <algorithm>
+#include <cmath>
+#include <sstream>
+
 RenderSystem::RenderSystem(sf::RenderWindow& window)
     : window(window)
 {}
@@ -7,6 +11,12 @@ RenderSystem::RenderSystem(sf::RenderWindow& window)
 void RenderSystem::initialize(const sf::Vector2u& size) {
     windowSize = size;
     textureManager.initialize();
+
+    // Real font for the data-driven UI. Smoothing off keeps the pixel look crisp.
+    if (!font.openFromFile("assets/fonts/default.ttf")) {
+        std::cerr << "Failed to load font: assets/fonts/default.ttf" << std::endl;
+    }
+    font.setSmooth(false);
 
     // Scale rules: {virtualWidth, virtualHeight}
     // sprite.scale = windowSize / virtual => larger virtual = smaller sprite
@@ -127,6 +137,90 @@ void RenderSystem::drawNumber(unsigned int value, sf::Vector2f center, float sca
         s.setScale({scale, scale});
         s.setPosition({startX + i * DIGIT_W * scale, center.y});
         window.draw(s);
+    }
+}
+
+// --- Real text ---
+
+void RenderSystem::drawText(const std::string& text, sf::Vector2f topLeft,
+                            unsigned int charSize, sf::Color color) {
+    sf::Text t(font, text, charSize);
+    t.setFillColor(color);
+    // Round to whole pixels so the glyphs stay crisp (no sub-pixel blur).
+    t.setPosition({std::round(topLeft.x), std::round(topLeft.y)});
+    window.draw(t);
+}
+
+sf::Vector2f RenderSystem::measureText(const std::string& text, unsigned int charSize) const {
+    sf::Text t(font, text, charSize);
+    // findCharacterPos(length) is the pen position after the last glyph — i.e. the
+    // advance width, which is what layout wants (more stable than visual bounds).
+    float width = t.findCharacterPos(text.size()).x;
+    float height = font.getLineSpacing(charSize);
+    return {width, height};
+}
+
+std::vector<std::string> RenderSystem::wrapText(const std::string& text, float maxWidth,
+                                                unsigned int charSize) const {
+    std::vector<std::string> lines;
+    std::istringstream iss(text);
+    std::string word;
+    std::string current;
+    while (iss >> word) {
+        std::string candidate = current.empty() ? word : current + " " + word;
+        if (current.empty() || measureText(candidate, charSize).x <= maxWidth) {
+            current = std::move(candidate);
+        } else {
+            lines.push_back(current);
+            current = word;
+        }
+    }
+    if (!current.empty()) lines.push_back(current);
+    return lines;
+}
+
+// --- Procedural shapes ---
+
+void RenderSystem::fillRoundedRect(sf::FloatRect rect, float radius, sf::Color color) {
+    const float x = rect.position.x;
+    const float y = rect.position.y;
+    const float w = rect.size.x;
+    const float h = rect.size.y;
+    if (w <= 0.f || h <= 0.f) return;
+
+    radius = std::clamp(radius, 0.f, std::min(w, h) / 2.f);
+    const float step = std::max(1.f, RoundedRectPixelStep);
+
+    // Horizontal slabs, full width except where the rounded corners curve in.
+    for (float sy = 0.f; sy < h; sy += step) {
+        const float slabH = std::min(step, h - sy);
+        const float cy = sy + slabH / 2.f;   // slab centre, for the inset curve
+
+        float inset = 0.f;
+        if (cy < radius) {
+            const float dy = radius - cy;
+            inset = radius - std::sqrt(std::max(0.f, radius * radius - dy * dy));
+        } else if (cy > h - radius) {
+            const float dy = cy - (h - radius);
+            inset = radius - std::sqrt(std::max(0.f, radius * radius - dy * dy));
+        }
+
+        sf::RectangleShape slab({w - 2.f * inset, slabH});
+        slab.setPosition({x + inset, y + sy});
+        slab.setFillColor(color);
+        window.draw(slab);
+    }
+}
+
+void RenderSystem::drawPixelRoundedRect(sf::FloatRect rect, float radius, sf::Color fill,
+                                        sf::Color border, float borderThickness) {
+    if (borderThickness > 0.f && border.a > 0) {
+        fillRoundedRect(rect, radius, border);
+        sf::FloatRect inner({rect.position.x + borderThickness, rect.position.y + borderThickness},
+                            {rect.size.x - 2.f * borderThickness, rect.size.y - 2.f * borderThickness});
+        fillRoundedRect(inner, std::max(0.f, radius - borderThickness), fill);
+    } else {
+        fillRoundedRect(rect, radius, fill);
     }
 }
 

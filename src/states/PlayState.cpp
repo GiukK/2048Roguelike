@@ -2,9 +2,12 @@
 #include "states/StateManager.h"
 #include "states/ShopState.h"
 #include "rendering/RenderSystem.h"
+#include "Debug.h"
 
 #include <algorithm>
 #include <cmath>
+#include <string>
+#include <vector>
 
 namespace {
 // Screen-space HUD position for the exit button (UI view). Temporary home until
@@ -192,6 +195,36 @@ void PlayState::render(RenderSystem& renderer) {
     playUI->renderForeground(renderer);
     for (auto& btn : buttons) {
         renderer.draw(btn.getSprite());
+    }
+
+    // --- Step 1 verification (debug only) ---------------------------------
+    // A procedural pixel-rounded box auto-sized to wrapped, measured text — a
+    // standalone preview of the font + shape primitives the UI framework needs.
+    // Remove (or fold into the tooltip) at Step 3.
+    if (debug::Enabled) {
+        const std::string sample =
+            "Tooltip preview: the quick brown fox jumps over the lazy dog 0123456789";
+        const unsigned int charSize = 22;
+        const float maxTextWidth = 360.f;
+        const float pad = 16.f;
+
+        std::vector<std::string> lines = renderer.wrapText(sample, maxTextWidth, charSize);
+        const float lineH = renderer.measureText("Ag", charSize).y;
+        float textW = 0.f;
+        for (const auto& line : lines) {
+            textW = std::max(textW, renderer.measureText(line, charSize).x);
+        }
+        const float textH = lineH * static_cast<float>(lines.size());
+
+        const sf::Vector2f origin{60.f, 740.f};
+        renderer.drawPixelRoundedRect(
+            {origin, {textW + 2.f * pad, textH + 2.f * pad}}, 16.f,
+            sf::Color(28, 28, 40, 235), sf::Color(210, 210, 225), 3.f);
+        for (size_t i = 0; i < lines.size(); ++i) {
+            renderer.drawText(lines[i],
+                              {origin.x + pad, origin.y + pad + static_cast<float>(i) * lineH},
+                              charSize, sf::Color::White);
+        }
     }
 }
 

@@ -2,6 +2,7 @@
 
 #include <SFML/Graphics.hpp>
 #include <string>
+#include <vector>
 #include <unordered_map>
 #include "rendering/TextureManager.h"
 #include "rendering/Camera.h"
@@ -46,6 +47,25 @@ public:
     // Each digit is 5x7 px in the sheet, scaled by `scale`.
     void drawNumber(unsigned int value, sf::Vector2f center, float scale = 10.f);
 
+    // --- Real text (sf::Font) ----------------------------------------------
+    // Foundations for the data-driven UI: arbitrary text rendering + measurement
+    // so layout can size boxes to their content. Font loaded in initialize().
+    void drawText(const std::string& text, sf::Vector2f topLeft,
+                  unsigned int charSize, sf::Color color);
+    // Advance width + line height of a single line (no newlines).
+    sf::Vector2f measureText(const std::string& text, unsigned int charSize) const;
+    // Greedy word-wrap into lines that each fit within `maxWidth`.
+    std::vector<std::string> wrapText(const std::string& text, float maxWidth,
+                                      unsigned int charSize) const;
+
+    // --- Procedural shapes -------------------------------------------------
+    // Pixel-stepped rounded rectangle (no texture). Drawn as horizontal slabs
+    // whose width curves in near the corners. An optional border is drawn by
+    // filling an outer rounded rect in `border`, then an inset one in `fill`.
+    void drawPixelRoundedRect(sf::FloatRect rect, float radius, sf::Color fill,
+                              sf::Color border = sf::Color::Transparent,
+                              float borderThickness = 0.f);
+
     void close();
 
 private:
@@ -54,10 +74,19 @@ private:
         float height;
     };
 
+    // Fills a pixel-stepped rounded rect in one color (the body of the public
+    // drawPixelRoundedRect, called once or twice for the border).
+    void fillRoundedRect(sf::FloatRect rect, float radius, sf::Color color);
+
+    // Size (in screen px) of one staircase step on rounded corners — tune for
+    // chunkier/finer pixel corners.
+    static constexpr float RoundedRectPixelStep = 4.f;
+
     sf::RenderWindow& window;
     sf::Vector2u windowSize;
     TextureManager textureManager;
     std::unordered_map<std::string, ScaleRule> scalingRules;
+    sf::Font font;
 
     Camera boardCamera;
 };
