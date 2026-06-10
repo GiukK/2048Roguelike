@@ -1,11 +1,11 @@
 #pragma once
 
-#include "effects/SlotEffect.h"
+#include "effects/Effect.h"
 
-class ShopEffect : public SlotEffect {
+class ShopEffect : public Effect {
 public:
     void onMerge(Slot* slot) override;
-    std::unique_ptr<SlotEffect> clone() const override;
+    std::unique_ptr<Effect> clone() const override;
 
     // True once a tile has merged into this shop's slot (the shop has been
     // "used"). The board keeps a triggered shop around for the rest of the

@@ -66,7 +66,7 @@ std::unique_ptr<Tile> Slot::releaseTile() {
     return std::move(tile);
 }
 
-void Slot::addEffect(std::unique_ptr<SlotEffect> effect) {
+void Slot::addEffect(std::unique_ptr<Effect> effect) {
     effects.push_back(std::move(effect));
 
     // swap sprite to the effect-specific texture

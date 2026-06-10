@@ -4,7 +4,7 @@
 #include <vector>
 #include "core/Tile.h"
 #include "core/utils/Coord.h"
-#include "effects/SlotEffect.h"
+#include "effects/Effect.h"
 
 #include <SFML/Graphics.hpp>
 
@@ -24,7 +24,7 @@ public:
     void removeTile();
     std::unique_ptr<Tile> releaseTile();
 
-    void addEffect(std::unique_ptr<SlotEffect> effect);
+    void addEffect(std::unique_ptr<Effect> effect);
     void triggerMergeEffects();
 
     void update(float deltaTime);
@@ -36,7 +36,7 @@ public:
     bool canTileStepOut = true;
     Board* board;
     std::unique_ptr<Tile> tile;
-    std::vector<std::unique_ptr<SlotEffect>> effects;
+    std::vector<std::unique_ptr<Effect>> effects;
 
 private:
     void initVisuals();

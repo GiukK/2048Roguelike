@@ -48,7 +48,7 @@ Board::Board(Board&& other) noexcept
       hoveredTile(other.hoveredTile)
 {
     // The slots were created pointing at the moved-from Board. Re-parent them
-    // to this Board so Slot::board stays valid — SlotEffect::onMerge reaches the
+    // to this Board so Slot::board stays valid — Effect::onMerge reaches the
     // owning Turn through it (e.g. ShopEffect requesting the shop).
     for (auto& [coord, slot] : slots) {
         if (slot) slot->board = this;

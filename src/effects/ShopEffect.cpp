@@ -12,6 +12,6 @@ void ShopEffect::onMerge(Slot* slot) {
     slot->board->turn->requestShop();
 }
 
-std::unique_ptr<SlotEffect> ShopEffect::clone() const {
+std::unique_ptr<Effect> ShopEffect::clone() const {
     return std::make_unique<ShopEffect>(*this);
 }
