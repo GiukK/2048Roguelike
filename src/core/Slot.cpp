@@ -67,14 +67,17 @@ std::unique_ptr<Tile> Slot::releaseTile() {
 }
 
 void Slot::addEffect(std::unique_ptr<Effect> effect) {
+    // A mounted effect may re-skin its slot (shop, dark shop, ...): swap the
+    // texture, keep the geometry. Effects without a skin leave the look alone,
+    // so mounting a future chip here won't turn the slot into a shop.
+    if (const char* skin = effect->slotTextureId()) {
+        sf::Sprite skinned(renderer.getTextureManager().get(skin));
+        skinned.setOrigin(sprite.getOrigin());
+        skinned.setScale(sprite.getScale());
+        skinned.setPosition(sprite.getPosition());
+        sprite = skinned;
+    }
     effects.push_back(std::move(effect));
-
-    // swap sprite to the effect-specific texture
-    sf::Sprite effectSprite(renderer.getTextureManager().get("shopslot"));
-    effectSprite.setOrigin(sprite.getOrigin());
-    effectSprite.setScale(sprite.getScale());
-    effectSprite.setPosition(sprite.getPosition());
-    sprite = effectSprite;
 }
 
 void Slot::resolveMerge(MergeContext& merge) {

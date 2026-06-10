@@ -34,6 +34,12 @@ public:
     Board board;
     Board boardSnapshot;
 
+    // Shop countdown captured when this turn began. goBack() restores it, so a
+    // rewound turn replays with its original countdown instead of decrementing
+    // the shop clock twice — "the world rewinds, the player persists"
+    // (docs/effect-engine-design.md §13).
+    int shopCountdownAtStart;
+
     Phase currentPhase = Phase::Begin;
     Direction currentMove = Direction::None;
 

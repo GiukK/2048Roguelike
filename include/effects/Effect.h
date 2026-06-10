@@ -38,4 +38,11 @@ public:
     // A side-effecting effect (e.g. ShopEffect) may also use it to fire at merge
     // time without altering the outcome. Dispatched by Slot::resolveMerge.
     virtual void onMergeResolving(MergeContext& /*merge*/) {}
+
+    // Optional slot skin: texture id the owning slot adopts while this effect is
+    // mounted (nullptr = leave the slot's look unchanged). Each slot TYPE (shop,
+    // dark shop, event...) carries its own look here instead of Slot::addEffect
+    // hardcoding one. Chips will likely want an overlay, not a replacement —
+    // design that with the mounting layer.
+    virtual const char* slotTextureId() const { return nullptr; }
 };

@@ -160,6 +160,11 @@ void GameRun::newTurn(const Board& currentBoard) {
 bool GameRun::goBack() {
     if (turns.size() <= 1) return false;
     turns.pop();
+    // "The world rewinds, the player persists" (docs/effect-engine-design.md §13):
+    // the resumed turn replays with the shop countdown it originally started with
+    // (board/log rewind was already in place). Coins and inventory deliberately
+    // survive the rewind — purchases stay bought, spent coins stay spent.
+    shopCountdown = turns.top()->shopCountdownAtStart;
     return true;
 }
 

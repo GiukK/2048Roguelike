@@ -38,7 +38,8 @@ Turn::Turn(RenderSystem& renderer, GameRun* gameRun)
     : renderer(renderer),
       gameRun(gameRun),
       board(renderer, this),
-      boardSnapshot(Board::cloneFrom(board, this))
+      boardSnapshot(Board::cloneFrom(board, this)),
+      shopCountdownAtStart(gameRun->getShopCountdown())
 {
     board.setAnimationCallback(gameRun->getAnimationCallback());
 }
@@ -47,7 +48,8 @@ Turn::Turn(RenderSystem& renderer, GameRun* gameRun, const Board& initialBoard)
     : renderer(renderer),
       gameRun(gameRun),
       board(Board::cloneFrom(initialBoard, this)),
-      boardSnapshot(Board::cloneFrom(initialBoard, this))
+      boardSnapshot(Board::cloneFrom(initialBoard, this)),
+      shopCountdownAtStart(gameRun->getShopCountdown())
 {
     board.setAnimationCallback(gameRun->getAnimationCallback());
 }
@@ -67,8 +69,8 @@ void Turn::nextPhase() {
     case Phase::Begin:           currentPhase = Phase::Movement;        break;
     case Phase::Movement:
         // Reached only after a VALID move whose animations have finished (see
-        // update()); the per-frame re-calls of board.move never get here. So this
-        // is the single point that fires the Moved event exactly once per move.
+        // update(); the move itself resolves once, on the phase's first frame).
+        // This is the single point that fires the Moved event, once per move.
         eventLog.push(TurnEvent::moved(static_cast<int>(currentMove)));
         currentPhase = Phase::BoardResolution;
         break;
@@ -127,7 +129,13 @@ void Turn::update(float deltaTime) {
 
     case Phase::Movement:
         if (inputReceived) {
+            // Resolve the move ONCE; the rest of this phase only plays animations.
+            // Re-running move() every frame happened to be a no-op (mergedThisSweep
+            // persists), but a modifier that reshapes the board mid-merge (e.g. a
+            // destroy-on-merge chip) would make a re-run slide tiles into the freed
+            // space within the same move — so the one-shot contract is load-bearing.
             board.move(currentMove);
+            inputReceived = false;
         }
         board.update(deltaTime);
 

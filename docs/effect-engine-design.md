@@ -1,9 +1,11 @@
 # Effect Engine — Design
 
-Status: **proposal / direction** (not implemented). Open decisions are marked
-`DECISION:`. The goal is one clean, scalable effect-handling system for an
-effect-based roguelike (Balatro-like), built *before* piling on content. See the
-memory note `effect-system-architecture` for the vision this serves.
+Status: **in progress** — slices 1–2 of §11 are implemented (scope-agnostic
+`Effect` base, merge interaction pipeline); the rest is direction. Open decisions
+are marked `DECISION:`; resolved ones live in §12–§13. The goal is one clean,
+scalable effect-handling system for an effect-based roguelike (Balatro-like),
+built *before* piling on content. See the memory note `effect-system-architecture`
+for the vision this serves.
 
 ---
 
@@ -277,3 +279,34 @@ harness (none exist; this engine adds clone-sensitive state).
   moved by the player via an additional graphical slot-selection + mounting layer
   (UI, designed when chips land). The engine must support runtime mount / unmount /
   move of a slot/board-scoped `Effect`.
+
+---
+
+## 13. Undo semantics (RESOLVED 2026-06-10)
+
+**Rule: the WORLD rewinds, the PLAYER persists.**
+
+- **Rewound with the turn (world):** the board — slots, tiles, per-tile state —
+  slot effects including the shop's `triggered` flag, the **shop spawn countdown**,
+  and the turn event log.
+- **Persist through a rewind (player):** coins, inventory, the held-item selection.
+
+Rationale: the Hourglass rewinds the *consequences on the board*, not the player's
+pockets — purchases stay bought, spent coins stay spent. This matches the original
+intent of the turn stack and avoids snapshotting the whole run per turn.
+
+Implementation: each `Turn` records `shopCountdownAtStart` (captured at
+construction); `GameRun::goBack()` restores it after popping, so a rewound turn
+replays with its original countdown instead of advancing the shop clock twice.
+Board + event-log rewind were already in place (`Turn::endTurn`).
+
+Accepted consequences:
+- A shop consumed in the undone turn is back and re-activatable. Coins are
+  conserved (re-buying costs again), so there is **no resource printer today**.
+- **BALANCE WATCH:** once effects can award coins (coin pipeline, §4–§5), an
+  earn → undo → replay loop becomes possible, because coin gains persist. That is
+  a balance knob (Hourglass price/rarity, or a rewind cap), NOT an architecture
+  change — do not bend the rule for it.
+- Future effect state follows the same split: board/slot/tile-scoped effect state
+  is cloned with the board (world ⇒ rewinds); run-scoped state (cards) persists
+  (player ⇒ survives undo).

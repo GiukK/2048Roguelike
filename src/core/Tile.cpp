@@ -172,9 +172,9 @@ void Tile::mergeIntoSlot(Slot* target) {
     }
 
     // Log the merge at its action site with the FINAL (post-modifier) value, in the
-    // acting turn. Emitted exactly once per merge: resolveNextTileMove guards re-entry
-    // with mergedThisSweep, so the per-frame re-calls of Board::move never reach here
-    // again. `flag` records the brick-break so consumers can react without re-deriving.
+    // acting turn. Emitted exactly once per merge: Board::move resolves once per
+    // input (one sweep), and mergedThisSweep blocks a second merge within it.
+    // `flag` records the brick-break so consumers can react without re-deriving.
     if (target->board && target->board->turn) {
         target->board->turn->log().push(
             TurnEvent::tileMerged(merge.resultValue, sourceValue, target->getCoord(), targetWasBricked));
