@@ -182,11 +182,15 @@ void Turn::handleBeginInput(sf::Event& event) {
     case sf::Keyboard::Scancode::W: currentMove = Direction::Up;    inputReceived = true; break;
     case sf::Keyboard::Scancode::S: currentMove = Direction::Down;  inputReceived = true; break;
     case sf::Keyboard::Scancode::X:
-        board.spawnTileInRandomEmptySlot();
+        // Debug-only: free spawn to set up board states quickly.
+        if (debug::Enabled) board.spawnTileInRandomEmptySlot();
         break;
     case sf::Keyboard::Scancode::Delete:
-        board.clear();
-        board.spawnTileInRandomEmptySlot();
+        // Debug-only: wipe the board back to a single fresh tile.
+        if (debug::Enabled) {
+            board.clear();
+            board.spawnTileInRandomEmptySlot();
+        }
         break;
     case sf::Keyboard::Scancode::B:
         // Debug-only shortcut. In normal play the Hourglass item is the only

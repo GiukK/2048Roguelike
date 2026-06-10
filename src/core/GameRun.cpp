@@ -270,6 +270,11 @@ void GameRun::addItem(const std::string& itemId) {
 
 void GameRun::useItem(size_t index) {
     if (index >= inventoryItems.size()) return;
+    // Items act only while the turn awaits input (Begin): PlayUI's buttons poll in
+    // every phase, but using one mid-resolution would mutate a board whose move is
+    // re-resolved every frame (see Turn::update). Enforced here, in the model, so
+    // every caller (UI today, effects tomorrow) inherits the rule.
+    if (turns.empty() || turns.top()->currentPhase != Turn::Phase::Begin) return;
 
     const auto& def = itemRegistry.get(inventoryItems[index]);
     if (def.onUse) {
@@ -304,7 +309,10 @@ bool GameRun::hasHeldItem() const {
 }
 
 const std::string& GameRun::getHeldItemId() const {
-    return inventoryItems[static_cast<size_t>(selectedIndex)];
+    // Guarded like getHeldItemDef: a stale/absent selection must not index the
+    // inventory (mirrors the static-fallback pattern of currentTurnLog).
+    static const std::string noItem;
+    return hasHeldItem() ? inventoryItems[static_cast<size_t>(selectedIndex)] : noItem;
 }
 
 const ItemDef* GameRun::getHeldItemDef() const {
