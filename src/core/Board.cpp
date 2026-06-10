@@ -319,11 +319,30 @@ void Board::spawnTileInRandomEmptySlot() {
 
     int idx = getRandomInt(0, static_cast<int>(empty.size()) - 1);
     int val = (getRandomInt(1, 10) <= 9) ? 2 : 4;
-    empty[idx]->setTile(std::make_unique<Tile>(renderer, empty[idx], val));
+    spawnTileAt(empty[idx]->getCoord(), val);
+}
+
+Tile* Board::spawnTileAt(Coord c, int value) {
+    auto it = slots.find(c);
+    if (it == slots.end() || !it->second->isEmpty()) return nullptr;
+
+    Slot* slot = it->second.get();
+    slot->setTile(std::make_unique<Tile>(renderer, slot, value));
 
     // Log the spawn in the acting turn (the genesis spawn during board setup is
     // logged too, then cleared with the first endTurn — harmless and accurate).
-    if (turn) turn->log().push(TurnEvent::tileSpawned(val, empty[idx]->getCoord()));
+    if (turn) turn->log().push(TurnEvent::tileSpawned(value, c));
+    return slot->tile.get();
+}
+
+std::vector<Tile*> Board::getAllTiles() const {
+    std::vector<Tile*> result;
+    for (const auto& [_, slot] : slots) {
+        if (!slot->isEmpty()) {
+            result.push_back(slot->tile.get());
+        }
+    }
+    return result;
 }
 
 // --- Shop mechanics ---

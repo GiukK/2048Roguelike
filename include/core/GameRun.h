@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <random>
 #include <stack>
 #include <vector>
@@ -26,7 +27,11 @@ public:
     // Replaceable so abilities can change the shop-activation criterion later.
     using ShopTileValueStrategy = std::function<int(const Board&)>;
 
-    GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCallback onShopOpen);
+    // `seed` fixes the run's RNG for reproducible runs (tests, replaying a bug
+    // report); nullopt = a fresh random seed. Whichever is used is kept readable
+    // via getRunSeed() and printed in debug builds.
+    GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCallback onShopOpen,
+            std::optional<unsigned int> seed = std::nullopt);
 
     void enter();
     void exit();
@@ -114,6 +119,7 @@ public:
     bool removeSlotUnder(Tile* t); // Wrench — removes tile + slot; false on shop/null
 
     int getRandomInt(int min, int max);
+    unsigned int getRunSeed() const { return runSeed; }
     std::vector<const ItemDef*> pickShopItems(int count);
 
     const AnimationCallback& getAnimationCallback() const { return animationCallback; }
@@ -135,6 +141,7 @@ private:
     AnimationsActiveQuery animationsActive;
 
     std::mt19937 rng;
+    unsigned int runSeed = 0;  // the seed rng was actually seeded with
 
     std::stack<std::unique_ptr<Turn>> turns;
 

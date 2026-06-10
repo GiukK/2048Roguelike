@@ -3,14 +3,19 @@
 #include "Debug.h"
 
 #include <algorithm>
+#include <iostream>
 
-GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCallback onShopOpen)
+GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCallback onShopOpen,
+                 std::optional<unsigned int> seed)
     : renderer(renderer),
       animationCallback(std::move(onAnimation)),
       shopCallback(std::move(onShopOpen))
 {
-    std::random_device rd;
-    rng.seed(rd());
+    // One seed per run, kept readable: a logged seed can be passed back in to
+    // replay the exact run (the invariant tests rely on this determinism).
+    runSeed = seed ? *seed : std::random_device{}();
+    rng.seed(runSeed);
+    if (debug::Enabled) std::cout << "[run] rng seed = " << runSeed << '\n';
 
     itemRegistry.registerItem({"coin_bag", "coin_bag",
         "Coin Bag", "Gives 50 coins.", 10, 1.0f,

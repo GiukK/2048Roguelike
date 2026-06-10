@@ -262,9 +262,20 @@ core, policy in registries — no new control-flow per content item.
 6. **Cards/reactor pass** over the log; first card; retire the debug dump.
 7. **Registries** for chips/cards/slot-types; config-driven data later.
 
-Cross-cutting derisking: **seeded run RNG** (today seeded once from
-`random_device` — non-reproducible) and a first **clone/undo invariant test**
-harness (none exist; this engine adds clone-sensitive state).
+Cross-cutting derisking — **DONE (2026-06-10)**:
+- **Seeded run RNG**: `GameRun` takes an optional seed (nullopt = random); the
+  seed actually used is readable via `getRunSeed()` and printed in debug builds,
+  so any run can be replayed.
+- **Invariant test harness**: `tests/invariants.cpp` → `SFML3_Tests` CMake target
+  (plain asserts, no framework; drives the real core against a hidden window; run
+  via `ctest --test-dir build -C Debug`). Pins: RNG determinism; merge emits
+  exactly one event and the sweep is a re-run fixpoint (the one-shot move
+  contract's substrate); clone copies `bricked` / drops `frozenThisTurn`; snapshot
+  rewind restores the turn-start board; `goBack` restores the resumed turn's shop
+  countdown; shop protection from destroy/wrench + `triggered` flag surviving the
+  clone; item use consumed+logged. Extend this suite with each engine slice.
+  Test seams added for it (useful beyond tests): `Board::spawnTileAt(coord, value)`
+  (deterministic spawn; the random spawn delegates to it) and `Board::getAllTiles()`.
 
 ---
 

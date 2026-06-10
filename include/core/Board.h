@@ -34,6 +34,17 @@ public:
     void update(float deltaTime);
 
     void spawnTileInRandomEmptySlot();
+
+    // Deterministic spawn primitive: places a tile of `value` on the slot at `c`
+    // if that slot exists and is empty; returns the tile, else nullptr. The
+    // random spawn delegates here; tests and future effects ("spawn a 2 in the
+    // corner") use it directly. Emits the TileSpawned event like any spawn.
+    Tile* spawnTileAt(Coord c, int value);
+
+    // Every tile currently on the board (shops included), in coord order.
+    // Read-only iteration primitive for effects, debug tooling and the tests.
+    std::vector<Tile*> getAllTiles() const;
+
     void move(Direction dir);
     void clear();
 
