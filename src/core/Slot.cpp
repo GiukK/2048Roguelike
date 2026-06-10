@@ -77,8 +77,11 @@ void Slot::addEffect(std::unique_ptr<Effect> effect) {
     sprite = effectSprite;
 }
 
-void Slot::triggerMergeEffects() {
+void Slot::resolveMerge(MergeContext& merge) {
+    // In effect-insertion order (deterministic). A slot carries at most a couple
+    // of effects today; the documented tile->slot->board->run cross-scope order
+    // is applied by the caller as those scopes arrive.
     for (auto& effect : effects) {
-        effect->onMerge(this);
+        effect->onMergeResolving(merge);
     }
 }

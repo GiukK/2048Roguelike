@@ -2,6 +2,7 @@
 #include "core/Slot.h"
 #include "core/Board.h"
 #include "core/Turn.h"
+#include "effects/MergeContext.h"
 #include "rendering/RenderSystem.h"
 
 #include <cmath>
@@ -141,19 +142,27 @@ void Tile::animateTo(sf::Vector2f target) {
 }
 
 void Tile::mergeIntoSlot(Slot* target) {
-    int sum = value + target->tile->getValue();
-    // Capture the source value NOW: after changeSlot() this tile becomes
-    // target->tile, and setValue(sum) below overwrites `value` with the result,
-    // so reading `value` at the emission site would report the merged value.
+    // Capture the immutable inputs of this merge NOW: after changeSlot() this tile
+    // becomes target->tile and setValue() below overwrites `value` with the result,
+    // so reading `value` later would report the merged value, and the target tile
+    // we read here is destroyed by removeTile().
     const int sourceValue = value;
-    // Capture before the target tile is destroyed: was the tile we merge into a
-    // bricked one? If so the brick breaks now (this turn), but the resulting
-    // tile must stay put for the rest of the turn rather than become movable.
+    // Was the tile we merge into bricked? If so the brick breaks now (this turn),
+    // but the resulting tile must stay put for the rest of the turn rather than
+    // become movable.
     const bool targetWasBricked = target->tile->isBricked();
+
+    // The merge's MUTABLE outcome. Threaded through the target slot's effects so a
+    // chip / special slot may change it before it is applied and logged. Default
+    // resultValue = the two tiles summed; no effect changes it today, so behavior
+    // is unchanged. Run the pipeline BEFORE applying so modifiers act on the value
+    // that actually lands on the tile and in the event.
+    MergeContext merge{target, sourceValue, value + target->tile->getValue()};
+    target->resolveMerge(merge);
 
     target->removeTile();
     changeSlot(slot, target);
-    target->tile->setValue(sum);
+    target->tile->setValue(merge.resultValue);
     target->tile->changeSprite();
 
     if (targetWasBricked) {
@@ -162,15 +171,13 @@ void Tile::mergeIntoSlot(Slot* target) {
         target->tile->frozenThisTurn = true;
     }
 
-    target->triggerMergeEffects();
-
-    // Log the merge at its action site, in the acting turn. Emitted exactly once
-    // per merge: resolveNextTileMove guards re-entry with mergedThisSweep, so the
-    // per-frame re-calls of Board::move never reach here again. `flag` records the
-    // brick-break so consumers can react to it without re-deriving turn state.
+    // Log the merge at its action site with the FINAL (post-modifier) value, in the
+    // acting turn. Emitted exactly once per merge: resolveNextTileMove guards re-entry
+    // with mergedThisSweep, so the per-frame re-calls of Board::move never reach here
+    // again. `flag` records the brick-break so consumers can react without re-deriving.
     if (target->board && target->board->turn) {
         target->board->turn->log().push(
-            TurnEvent::tileMerged(sum, sourceValue, target->getCoord(), targetWasBricked));
+            TurnEvent::tileMerged(merge.resultValue, sourceValue, target->getCoord(), targetWasBricked));
     }
 
     mergedThisSweep = true;

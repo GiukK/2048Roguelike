@@ -2,7 +2,7 @@
 
 #include <memory>
 
-class Slot;
+struct MergeContext;
 
 // Base class for every gameplay effect — the single mechanism behind slot
 // effects, chips (effects mounted on a slot/board), tile tags and run-level
@@ -31,9 +31,11 @@ public:
     // the clone code. (Used once the tile-tag slice lands.)
     virtual bool isPersistent() const { return true; }
 
-    // Fired when a tile merges into the slot carrying this effect. Default
-    // no-op. NOTE: this is the current behavior-preserving hook; it becomes the
-    // modifier-aware merge pipeline (onMergeResolving(MergeContext&)) in the
-    // next slice. Kept signature-compatible for now.
-    virtual void onMerge(Slot* /*slot*/) {}
+    // MODIFIER hook: runs DURING a merge that resolves on this effect's slot, on
+    // the merge's MUTABLE outcome, and may change it (today: the merged value;
+    // future knobs — coin reward, destroy-on-merge — join MergeContext with their
+    // slices). Default no-op, so an effect that doesn't touch merges costs nothing.
+    // A side-effecting effect (e.g. ShopEffect) may also use it to fire at merge
+    // time without altering the outcome. Dispatched by Slot::resolveMerge.
+    virtual void onMergeResolving(MergeContext& /*merge*/) {}
 };

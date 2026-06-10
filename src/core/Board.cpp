@@ -48,8 +48,8 @@ Board::Board(Board&& other) noexcept
       hoveredTile(other.hoveredTile)
 {
     // The slots were created pointing at the moved-from Board. Re-parent them
-    // to this Board so Slot::board stays valid — Effect::onMerge reaches the
-    // owning Turn through it (e.g. ShopEffect requesting the shop).
+    // to this Board so Slot::board stays valid — Effect::onMergeResolving reaches
+    // the owning Turn through it (e.g. ShopEffect requesting the shop).
     for (auto& [coord, slot] : slots) {
         if (slot) slot->board = this;
     }
@@ -371,7 +371,7 @@ bool Board::spawnShop(int tileValue) {
     slot->addEffect(std::make_unique<ShopEffect>());
     // Locked: tiles can neither slide into nor out of a shop. The only legal
     // interaction is merging a matching tile into the phantom tile, which fires
-    // ShopEffect::onMerge (see Tile::mergeIntoSlot -> Slot::triggerMergeEffects).
+    // ShopEffect::onMergeResolving (see Tile::mergeIntoSlot -> Slot::resolveMerge).
     slot->canTileStepIn = false;
     slot->canTileStepOut = false;
     slot->setTile(std::make_unique<Tile>(renderer, slot.get(), tileValue));

@@ -10,6 +10,7 @@
 
 class RenderSystem;
 class Board;
+struct MergeContext;
 
 class Slot {
 public:
@@ -25,7 +26,12 @@ public:
     std::unique_ptr<Tile> releaseTile();
 
     void addEffect(std::unique_ptr<Effect> effect);
-    void triggerMergeEffects();
+
+    // Runs this slot's effects over a resolving merge, in order, so each may modify
+    // the outcome (MergeContext) before it's applied and logged. This is the slot-
+    // scope leg of the merge dispatch; tile/board/run scopes join as they land (see
+    // docs/effect-engine-design.md §6 for the cross-scope order).
+    void resolveMerge(MergeContext& merge);
 
     void update(float deltaTime);
     void render(RenderSystem& renderer);

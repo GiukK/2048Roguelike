@@ -4,7 +4,7 @@
 
 class ShopEffect : public Effect {
 public:
-    void onMerge(Slot* slot) override;
+    void onMergeResolving(MergeContext& merge) override;
     std::unique_ptr<Effect> clone() const override;
 
     // True once a tile has merged into this shop's slot (the shop has been
