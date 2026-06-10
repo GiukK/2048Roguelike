@@ -122,10 +122,36 @@ int main() {
         }
         CHECK(brickBrokeFlag);  // the merge event records the brick break
 
+        // ...the frozen result may not move for the rest of this turn...
+        turn.board.move(Direction::Right);
+        CHECK(tileAt(turn.board, {0, 0}) == result);
+
         // ...and frozen does NOT survive into the next turn's clone.
         Board next = Board::cloneFrom(turn.board, &turn);
         Tile* nextTile = tileAt(next, {0, 0});
         CHECK(nextTile && !nextTile->isFrozenThisTurn() && !nextTile->isBricked());
+    }
+
+    // --- Immobilized tiles neither slide nor initiate merges -----------------
+    {
+        auto run = makeRun(7);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* brick = turn.board.spawnTileAt({2, 0}, 2);
+        CHECK(turn.board.spawnTileAt({3, 0}, 2) != nullptr);
+        CHECK(brick != nullptr);
+        brick->setBricked(true);
+        CHECK(brick->isImmobilized());
+        turn.log().clear();
+
+        turn.board.move(Direction::Right);
+        CHECK(turn.log().mergeCount() == 0);         // a brick may not initiate a merge
+        CHECK(tileAt(turn.board, {2, 0}) == brick);  // and didn't slide
+
+        brick->setBricked(false);                    // un-bricking removes the tag...
+        CHECK(!brick->isBricked() && !brick->isImmobilized());
+        turn.board.move(Direction::Right);
+        CHECK(turn.log().mergeCount() == 1);         // ...and the merge happens now
     }
 
     // --- Snapshot rewind: copyStateFrom restores the turn-start board --------
@@ -192,13 +218,17 @@ int main() {
                                 {{0, -1}, Direction::Down},
                                 {{0, 1}, Direction::Up}};
         Direction dir = Direction::None;
+        Tile* mover = nullptr;
         for (const Probe& p : probes) {
-            if (turn.board.spawnTileAt({sc.x + p.off.x, sc.y + p.off.y}, 4)) {
+            mover = turn.board.spawnTileAt({sc.x + p.off.x, sc.y + p.off.y}, 4);
+            if (mover) {
                 dir = p.dir;
                 break;
             }
         }
         CHECK(dir != Direction::None);
+        CHECK(shopTile->slot->isProtected());         // capability query, no casts
+        CHECK(mover && !mover->slot->isProtected());  // base slots are unprotected
         turn.log().clear();
         turn.board.move(dir);
 

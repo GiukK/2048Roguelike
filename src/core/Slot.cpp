@@ -15,8 +15,12 @@ Slot::Slot(const Slot& other, Board* newBoard)
       canTileStepIn(other.canTileStepIn),
       canTileStepOut(other.canTileStepOut)
 {
+    // The persistence rule lives on the effect (Effect::isPersistent), honored
+    // by every clone path: transient effects simply don't reach the next turn.
     for (const auto& effect : other.effects) {
-        effects.push_back(effect->clone());
+        if (effect->isPersistent()) {
+            effects.push_back(effect->clone());
+        }
     }
 }
 
@@ -78,6 +82,13 @@ void Slot::addEffect(std::unique_ptr<Effect> effect) {
         sprite = skinned;
     }
     effects.push_back(std::move(effect));
+}
+
+bool Slot::isProtected() const {
+    for (const auto& effect : effects) {
+        if (effect->protectsOwner()) return true;
+    }
+    return false;
 }
 
 void Slot::resolveMerge(MergeContext& merge) {

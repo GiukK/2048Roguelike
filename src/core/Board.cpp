@@ -9,20 +9,6 @@
 #include <array>
 #include <set>
 
-namespace {
-// Returns the ShopEffect carried by a slot, or nullptr if the slot is not a
-// shop. A slot is treated as a shop purely by virtue of holding a ShopEffect,
-// which keeps the shop concept decoupled from Slot/Board internals.
-ShopEffect* shopEffectOf(const Slot& slot) {
-    for (const auto& effect : slot.effects) {
-        if (auto* shop = dynamic_cast<ShopEffect*>(effect.get())) {
-            return shop;
-        }
-    }
-    return nullptr;
-}
-} // namespace
-
 Board::Board(RenderSystem& renderer, Turn* turn, bool doInitialSetup)
     : renderer(renderer),
       turn(turn)
@@ -70,10 +56,13 @@ void Board::copyStateFrom(const Board& other) {
         if (!slotPtr->isEmpty()) {
             Slot* mySlot = slots[coord].get();
             mySlot->setTile(std::make_unique<Tile>(renderer, mySlot, slotPtr->tile->getValue()));
-            // Tiles are rebuilt from value only, so per-tile state that must
-            // persist across turns/undo has to be copied explicitly.
-            if (slotPtr->tile->isBricked()) {
-                mySlot->tile->setBricked(true);
+            // Tiles are rebuilt from value; their tags decide for themselves
+            // whether they survive the clone (Effect::isPersistent) — brick does,
+            // frozen doesn't. No per-flag special cases here, ever again.
+            for (const auto& effect : slotPtr->tile->effects) {
+                if (effect->isPersistent()) {
+                    mySlot->tile->addEffect(effect->clone());
+                }
             }
         }
     }
@@ -155,11 +144,10 @@ std::vector<Tile*> Board::getSelectedTiles() const {
 
 void Board::destroyTile(Tile* tile) {
     if (!tile || !tile->slot) return;
-    // The shop is a protected objective: destruction effects (the bombs) must
-    // never empty a shop slot, which would leave a broken, unmergeable shop that
-    // also keeps the spawn countdown frozen forever. Guarding here covers every
-    // destruction path at once.
-    if (shopEffectOf(*tile->slot)) return;
+    // A protected slot (the shop today) must never be emptied by destruction
+    // effects — a broken, unmergeable shop would also keep the spawn countdown
+    // frozen forever. Guarding here covers every destruction path at once.
+    if (tile->slot->isProtected()) return;
     // hoveredTile is a raw back-pointer kept across frames by updateHoverState();
     // if we destroy the tile it points at, the next hover update would dereference
     // freed memory. Drop the reference before the tile dies.
@@ -190,7 +178,7 @@ int Board::shuffleTiles() {
     std::vector<Slot*> cells;
     std::vector<std::unique_ptr<Tile>> tiles;
     for (auto& [_, slot] : slots) {
-        if (!slot->isEmpty() && !shopEffectOf(*slot)) {
+        if (!slot->isEmpty() && !slot->isProtected()) {
             cells.push_back(slot.get());
             tiles.push_back(slot->releaseTile());
         }
@@ -230,8 +218,8 @@ bool Board::removeSlotUnder(Tile* tile) {
     if (!tile || !tile->slot) return false;
 
     Slot* slot = tile->slot;
-    // The shop is a protected objective — never wrench it away.
-    if (shopEffectOf(*slot)) return false;
+    // Protected slots (the shop) can never be wrenched away.
+    if (slot->isProtected()) return false;
 
     // Erasing the slot destroys its tile too; drop the hover back-pointer first
     // so the next hover update cannot dereference freed memory (cf. destroyTile).
@@ -252,9 +240,9 @@ std::vector<Tile*> Board::getTilesInRadius(const Tile* center, int radius,
 
             auto it = slots.find({c.x + dx, c.y + dy});
             if (it == slots.end() || it->second->isEmpty()) continue;
-            // Shops are immune to area effects (mirrors destroyTile), so they are
-            // not offered as targets — keeps Bomb II's "up to 2" picks meaningful.
-            if (shopEffectOf(*it->second)) continue;
+            // Protected slots are immune to area effects (mirrors destroyTile), so
+            // they aren't offered as targets — keeps Bomb II's picks meaningful.
+            if (it->second->isProtected()) continue;
 
             result.push_back(it->second->tile.get());
         }
@@ -400,9 +388,12 @@ bool Board::spawnShop(int tileValue) {
 }
 
 int Board::countActiveShops() const {
+    // Lifecycle code legitimately needs the concrete effect (its triggered
+    // state), so it goes through the typed findEffect — unlike the protection /
+    // immobility checks, which are capability queries.
     int count = 0;
     for (const auto& [_, slot] : slots) {
-        if (auto* shop = shopEffectOf(*slot); shop && !shop->isTriggered()) {
+        if (auto* shop = slot->findEffect<ShopEffect>(); shop && !shop->isTriggered()) {
             ++count;
         }
     }
@@ -412,7 +403,7 @@ int Board::countActiveShops() const {
 int Board::removeConsumedShops() {
     std::vector<Coord> toRemove;
     for (const auto& [coord, slot] : slots) {
-        if (auto* shop = shopEffectOf(*slot); shop && shop->isTriggered()) {
+        if (auto* shop = slot->findEffect<ShopEffect>(); shop && shop->isTriggered()) {
             toRemove.push_back(coord);
         }
     }
@@ -507,13 +498,11 @@ void Board::resolveNextTileMove(Direction dir) {
     Tile* tile = origin->tile.get();
     Coord current = origin->getCoord();
 
-    // A bricked tile is immovable until a merge clears it: it neither slides nor
-    // initiates a merge. It can still be a merge *target* — when another tile
-    // sweeps into it, mergeIntoSlot destroys this tile and the brick goes with
-    // it. The same immobility applies to a tile frozen for the rest of this turn
-    // by such a merge, so it cannot move again before the turn ends.
-    // See Tile::isBricked / Tile::isFrozenThisTurn / the "brick" item.
-    if (tile->isBricked() || tile->isFrozenThisTurn()) return;
+    // An immobilized tile (brick, frozen — any effect with immobilizesOwner)
+    // neither slides nor initiates a merge. It can still be a merge *target* —
+    // when another tile sweeps into it, mergeIntoSlot destroys this tile and its
+    // tags go with it. See effects/TileTags.h and the "brick" item.
+    if (tile->isImmobilized()) return;
 
     while (true) {
         Coord next = getNextCoord(current, dir);

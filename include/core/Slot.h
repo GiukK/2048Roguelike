@@ -27,6 +27,22 @@ public:
 
     void addEffect(std::unique_ptr<Effect> effect);
 
+    // First effect of concrete type E, or nullptr. The ONE typed lookup point —
+    // lifecycle code that genuinely needs a specific effect (e.g. the shop's
+    // triggered state) goes through here; capability questions use isProtected().
+    template <typename E>
+    E* findEffect() const {
+        for (const auto& effect : effects) {
+            if (auto* typed = dynamic_cast<E*>(effect.get())) return typed;
+        }
+        return nullptr;
+    }
+
+    // True if any effect protects this slot: off-limits to destroy / wrench /
+    // shuffle / area-effect targeting (the shop today). Board logic asks this
+    // instead of knowing which effects are protective.
+    bool isProtected() const;
+
     // Runs this slot's effects over a resolving merge, in order, so each may modify
     // the outcome (MergeContext) before it's applied and logged. This is the slot-
     // scope leg of the merge dispatch; tile/board/run scopes join as they land (see

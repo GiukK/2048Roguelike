@@ -10,6 +10,10 @@ public:
     // A slot carrying a shop looks like one.
     const char* slotTextureId() const override { return "shopslot"; }
 
+    // The shop is a protected objective: destruction/removal effects must never
+    // break it (an unmergeable shop would freeze the spawn countdown forever).
+    bool protectsOwner() const override { return true; }
+
     // True once a tile has merged into this shop's slot (the shop has been
     // "used"). The board keeps a triggered shop around for the rest of the
     // current turn, then removes it before the next turn — see

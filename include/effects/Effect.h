@@ -39,10 +39,31 @@ public:
     // time without altering the outcome. Dispatched by Slot::resolveMerge.
     virtual void onMergeResolving(MergeContext& /*merge*/) {}
 
+    // --- Capability queries (defaults: none) --------------------------------
+    // An effect declares what its PRESENCE does to its owner; owners aggregate
+    // them (Tile::isImmobilized, Slot::isProtected) so board logic asks "can
+    // this move? is this protected?" without ever type-switching on concrete
+    // effect classes. Add a capability here when a second effect needs it.
+
+    // Owner cannot slide nor initiate a merge (it can still be merged INTO).
+    // Brick / frozen tiles carry this.
+    virtual bool immobilizesOwner() const { return false; }
+
+    // Owner is off-limits to board manipulation: destroy, wrench, shuffle, and
+    // area-effect targeting. The shop carries this (a broken shop would freeze
+    // the spawn countdown forever).
+    virtual bool protectsOwner() const { return false; }
+
+    // --- Presentation hints (defaults: none) --------------------------------
     // Optional slot skin: texture id the owning slot adopts while this effect is
     // mounted (nullptr = leave the slot's look unchanged). Each slot TYPE (shop,
     // dark shop, event...) carries its own look here instead of Slot::addEffect
     // hardcoding one. Chips will likely want an overlay, not a replacement —
     // design that with the mounting layer.
     virtual const char* slotTextureId() const { return nullptr; }
+
+    // Optional tile marker: texture id drawn semi-transparent OVER the owning
+    // tile while this effect is present (nullptr = none). Brick/frozen show the
+    // brick marker; future tags (golden, locked...) bring their own.
+    virtual const char* overlayTextureId() const { return nullptr; }
 };

@@ -94,6 +94,21 @@ outcome — it's a side-effecting reactor that happens to fire at merge time).
 (`IMergeModifier`, `IReactor`, …) the dispatcher keeps as typed lists.
 Recommendation: **one base now**; split only if the hook list explodes.
 
+**Capability queries (IMPLEMENTED, slice 3).** Besides the hooks, the base carries
+declarative capabilities — an effect states what its *presence* does to its owner,
+and owners aggregate them so board logic never type-switches on concrete effects:
+
+- `immobilizesOwner()` — owner can't slide nor initiate merges (brick, frozen).
+  Aggregated by `Tile::isImmobilized()`, checked in `Board::resolveNextTileMove`.
+- `protectsOwner()` — owner is off-limits to destroy/wrench/shuffle/area targeting
+  (the shop). Aggregated by `Slot::isProtected()`.
+- Presentation hints: `slotTextureId()` (slot skin) and `overlayTextureId()`
+  (marker drawn over the owning tile — brick/frozen show the brick marker).
+
+Typed lookups stay legal for *lifecycle* code that genuinely needs one concrete
+effect's state (the shop's `triggered`): `Slot::findEffect<E>()` /
+`Tile::findEffect<E>()` are the single dynamic_cast points.
+
 ---
 
 ## 4. Interaction contexts (the mutable outcomes)
@@ -209,18 +224,17 @@ scaled it, log recorded the truth.
 
 ---
 
-## 8. Clone & persistence (retires the flag debt)
+## 8. Clone & persistence (retires the flag debt) — DONE (slice 3)
 
-- All effects implement `clone()`. `Slot`'s copy-ctor already clones slot effects;
-  extend the **tile** clone path likewise. Today `Board::copyStateFrom` rebuilds
-  tiles *from value only* and hand-copies `bricked` — instead it must **clone the
-  tile's persistent effects** and drop transient ones, driven by
-  `Effect::isPersistent()`.
-- `Tile::bricked` → a persistent tile effect (immovable + merge-target-breaks).
-  `Tile::frozenThisTurn` → a transient tile effect (`isPersistent()==false`), so it
-  is simply absent from the next clone — no per-field special-case, no manual
-  copyStateFrom edit per new tile type. **This is the lowest-risk first slice and
-  the model's proof on a real case.**
+- All effects implement `clone()`. Both clone paths honor `Effect::isPersistent()`:
+  `Slot`'s copy-ctor clones persistent slot effects, and `Board::copyStateFrom`
+  rebuilds each tile from value then clones its persistent tile effects. The
+  persistence rule lives ONCE, on the effect.
+- `Tile::bricked` / `Tile::frozenThisTurn` are GONE as fields: they are
+  `BrickEffect` (persistent, immobilizing) and `FrozenEffect` (transient,
+  immobilizing) in `effects/TileTags.h`. The old Tile API (`setBricked`,
+  `isBricked`, `isFrozenThisTurn`) survives as a thin facade over the tag store,
+  so call sites and tests read as domain vocabulary.
 - The per-turn **event log stays off the board** (owned by `Turn`, never cloned) —
   unchanged; it remains the reactor feed.
 
@@ -254,8 +268,11 @@ core, policy in registries — no new control-flow per content item.
 2. **Merge interaction pipeline** in `Tile::mergeIntoSlot`/`Board`: gather scoped
    effects, run `onMergeResolving`, apply, emit the (now post-modifier) event.
    `ShopEffect` plugs in unchanged in behavior.
-3. **Tile-tag system**: brick/frozen → persistent/transient tile effects; switch the
-   tile clone path to `isPersistent()`. Removes the `copyStateFrom` special-case.
+3. **Tile-tag system** — DONE (slice 3, with the capability queries of §3 and the
+   shop's protection converted to them): brick/frozen → persistent/transient tile
+   effects; both clone paths driven by `isPersistent()`; `copyStateFrom`
+   special-case removed; `Board` asks `isImmobilized()`/`isProtected()` instead of
+   type-checking effects.
 4. **Coin pipeline + `EffectContext::addCoins`**; first **chip** ("×coins over slot").
 5. **Chip mounting**: a chip is an `Effect` the player mounts/unmounts on a slot/board;
    first "destroy-on-merge" chip.

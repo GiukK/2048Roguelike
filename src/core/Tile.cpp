@@ -3,8 +3,10 @@
 #include "core/Board.h"
 #include "core/Turn.h"
 #include "effects/MergeContext.h"
+#include "effects/TileTags.h"
 #include "rendering/RenderSystem.h"
 
+#include <algorithm>
 #include <cmath>
 
 Tile::Tile(RenderSystem& renderer, Slot* slot, int value)
@@ -28,28 +30,60 @@ void Tile::render(RenderSystem& renderer) {
     applyVisualStyle();
     renderer.draw(sprite);
 
-    // The brick marker is shown both for an item-bricked tile and for a tile
-    // still frozen this turn after a brick broke on a merge — both are immobile.
-    if (bricked || frozenThisTurn) {
-        if (!brickOverlay) {
-            // Built once, lazily. Drawn semi-transparent so the tile's value
-            // stays readable underneath.
-            brickOverlay = std::make_unique<sf::Sprite>(
-                renderer.getTextureManager().get("brick"));
-            brickOverlay->setOrigin(brickOverlay->getLocalBounds().getCenter());
-            brickOverlay->setColor(sf::Color(255, 255, 255, 150));
+    // Effects may declare a marker drawn over the tile (the brick today). The
+    // first declared one wins; the sprite is rebuilt only when the id changes.
+    const char* wanted = nullptr;
+    for (const auto& effect : effects) {
+        if ((wanted = effect->overlayTextureId())) break;
+    }
+    if (wanted) {
+        if (!overlay || overlayTexture != wanted) {
+            // Drawn semi-transparent so the tile's value stays readable under it.
+            overlay = std::make_unique<sf::Sprite>(
+                renderer.getTextureManager().get(wanted));
+            overlay->setOrigin(overlay->getLocalBounds().getCenter());
+            overlay->setColor(sf::Color(255, 255, 255, 150));
+            overlayTexture = wanted;
         }
-        // brick.png shares the tile's native 15x15 size, so matching the tile's
+        // Marker textures share the tile's native size, so matching the tile's
         // current scale makes the overlay cover it exactly — including the hover
         // zoom applied in applyVisualStyle() and any in-progress slide.
-        brickOverlay->setScale(sprite.getScale());
-        brickOverlay->setPosition(sprite.getPosition());
-        renderer.draw(*brickOverlay);
+        overlay->setScale(sprite.getScale());
+        overlay->setPosition(sprite.getPosition());
+        renderer.draw(*overlay);
     }
 }
 
+void Tile::addEffect(std::unique_ptr<Effect> effect) {
+    effects.push_back(std::move(effect));
+}
+
+bool Tile::isImmobilized() const {
+    for (const auto& effect : effects) {
+        if (effect->immobilizesOwner()) return true;
+    }
+    return false;
+}
+
 void Tile::setBricked(bool b) {
-    bricked = b;
+    if (b == isBricked()) return;
+    if (b) {
+        effects.push_back(std::make_unique<BrickEffect>());
+    } else {
+        effects.erase(std::remove_if(effects.begin(), effects.end(),
+                          [](const std::unique_ptr<Effect>& e) {
+                              return dynamic_cast<BrickEffect*>(e.get()) != nullptr;
+                          }),
+                      effects.end());
+    }
+}
+
+bool Tile::isBricked() const {
+    return findEffect<BrickEffect>() != nullptr;
+}
+
+bool Tile::isFrozenThisTurn() const {
+    return findEffect<FrozenEffect>() != nullptr;
 }
 
 void Tile::applyVisualStyle() {
@@ -166,9 +200,10 @@ void Tile::mergeIntoSlot(Slot* target) {
     target->tile->changeSprite();
 
     if (targetWasBricked) {
-        // Transient: not cloned to the next turn, so the tile is normal again
-        // next turn with no extra event. The brick-break event stays in this turn.
-        target->tile->frozenThisTurn = true;
+        // Transient tag (FrozenEffect::isPersistent == false): the clone path
+        // drops it, so the tile is normal again next turn with no extra event.
+        // The brick-break event stays in this turn.
+        target->tile->addEffect(std::make_unique<FrozenEffect>());
     }
 
     // Log the merge at its action site with the FINAL (post-modifier) value, in the
