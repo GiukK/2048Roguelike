@@ -11,6 +11,7 @@
 #include "core/Slot.h"
 #include "core/Tile.h"
 #include "core/Turn.h"
+#include "effects/CoinChips.h"
 #include "rendering/RenderSystem.h"
 
 #include <SFML/Graphics.hpp>
@@ -256,6 +257,87 @@ int main() {
         Board next = Board::cloneFrom(turn.board, &turn);
         CHECK(next.countActiveShops() == 0);
         CHECK(next.removeConsumedShops() == 1);
+    }
+
+    // --- Coin pipeline: a merge chip grants, the event follows the merge -----
+    {
+        auto run = makeRun(9);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* anchor = turn.board.spawnTileAt({0, 0}, 2);
+        CHECK(anchor != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+
+        // No mounting UI yet: programmatic mount IS the engine-level contract.
+        anchor->slot->addEffect(std::make_unique<CoinBonusChip>(5));
+        turn.log().clear();
+
+        const int coins0 = run->getCoins();
+        turn.board.move(Direction::Left);
+        CHECK(run->getCoins() == coins0 + 5);
+        CHECK(turn.log().countOf(TurnEvent::Type::CoinsGained) == 1);
+
+        // Causal order in the log: the merge precedes its coin consequence,
+        // and the coin event carries final/base amounts + the source cell.
+        int mergedIdx = -1, coinsIdx = -1;
+        const auto& evs = turn.log().events();
+        for (int i = 0; i < static_cast<int>(evs.size()); ++i) {
+            if (evs[i].type == TurnEvent::Type::TileMerged)  mergedIdx = i;
+            if (evs[i].type == TurnEvent::Type::CoinsGained) coinsIdx = i;
+        }
+        CHECK(mergedIdx >= 0 && coinsIdx > mergedIdx);
+        CHECK(evs[coinsIdx].valueA == 5 && evs[coinsIdx].valueB == 5);
+        CHECK(evs[coinsIdx].flag && evs[coinsIdx].coord == (Coord{0, 0}));
+    }
+
+    // --- Coin pipeline: multiplier chips scale gains, chips survive the clone -
+    {
+        auto run = makeRun(10);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* anchor = turn.board.spawnTileAt({0, 0}, 2);
+        CHECK(anchor != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+
+        anchor->slot->addEffect(std::make_unique<CoinBonusChip>(5));
+        anchor->slot->addEffect(std::make_unique<CoinMultiplierChip>(2));
+        turn.log().clear();
+
+        const int coins0 = run->getCoins();
+        turn.board.move(Direction::Left);
+        CHECK(run->getCoins() == coins0 + 10);  // 5 granted, ×2 in the pipeline
+        bool amountsMatch = false;
+        for (const auto& e : turn.log().events()) {
+            if (e.type == TurnEvent::Type::CoinsGained) {
+                amountsMatch = (e.valueA == 10 && e.valueB == 5);
+            }
+        }
+        CHECK(amountsMatch);  // event records final AND pre-modifier amounts
+
+        // Chips are persistent slot effects: the turn-to-turn clone keeps them.
+        Board next = Board::cloneFrom(turn.board, &turn);
+        Tile* nextTile = tileAt(next, {0, 0});
+        CHECK(nextTile && nextTile->slot->findEffect<CoinBonusChip>() != nullptr);
+        CHECK(nextTile && nextTile->slot->findEffect<CoinMultiplierChip>() != nullptr);
+    }
+
+    // --- Coin pipeline: spending bypasses modifiers; gains persist undo ------
+    {
+        auto run = makeRun(11);
+        const int c0 = run->getCoins();
+        run->addCoins(-30);  // spending: direct, never amplified, not logged
+        CHECK(run->getCoins() == c0 - 30);
+        CHECK(run->currentTurnLog().countOf(TurnEvent::Type::CoinsGained) == 0);
+
+        run->addCoins(50);   // sourceless gain: logged into the current turn
+        CHECK(run->getCoins() == c0 + 20);
+        CHECK(run->currentTurnLog().countOf(TurnEvent::Type::CoinsGained) == 1);
+
+        // "The world rewinds, the player persists": coins survive goBack.
+        Turn scratch(renderer, run.get());
+        run->newTurn(scratch.board);
+        CHECK(run->goBack());
+        CHECK(run->getCoins() == c0 + 20);
     }
 
     // --- Item use: allowed in Begin, consumed, logged -------------------------

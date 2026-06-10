@@ -15,5 +15,9 @@ struct MergeContext {
     int   sourceValue; // pre-merge value of each merging tile (immutable input)
     int   resultValue; // MUTABLE: the merged tile's value (default = the two summed).
                        // A modifier that changes it must keep it a real, texture-
-                       // backed tile value (2..2048).
+                       // backed tile value (2..Tile::MaxValue).
+    int   coinReward = 0; // MUTABLE accumulator: coins this merge awards (base 0;
+                          // modifiers add). Routed through the coin pipeline
+                          // (GameRun::addCoins) AFTER the merge applies, so coin
+                          // chips on the slot scale it. See effects/CoinContext.h.
 };

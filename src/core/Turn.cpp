@@ -29,6 +29,12 @@ std::string describe(const TurnEvent& e) {
     case TurnEvent::Type::ShopSpawned:
         return "ShopSpawned " + std::to_string(e.valueA) + " at (" +
                std::to_string(e.coord.x) + "," + std::to_string(e.coord.y) + ")";
+    case TurnEvent::Type::CoinsGained:
+        return "CoinsGained " + std::to_string(e.valueA) +
+               " (base " + std::to_string(e.valueB) + ")" +
+               (e.flag ? " at (" + std::to_string(e.coord.x) + "," +
+                             std::to_string(e.coord.y) + ")"
+                       : "");
     case TurnEvent::Type::ItemUsed:
         return "ItemUsed " + e.itemId;
     default:

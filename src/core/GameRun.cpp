@@ -1,4 +1,5 @@
 #include "core/GameRun.h"
+#include "effects/CoinContext.h"
 #include "rendering/RenderSystem.h"
 #include "Debug.h"
 
@@ -248,8 +249,41 @@ std::vector<const ItemDef*> GameRun::pickShopItems(int count) {
     return itemRegistry.pickMultiple(count, rng);
 }
 
-void GameRun::addCoins(int amount) {
-    coins += amount;
+void GameRun::addCoins(int amount, Slot* source) {
+    // Spending and no-ops apply directly: the modifier pipeline is for GAINS
+    // only (a "×2 coins" chip amplifies income, not expenses).
+    if (amount <= 0) {
+        coins += amount;
+        return;
+    }
+
+    // Gain pipeline: thread the mutable amount through the in-scope modifiers
+    // (documented order: tile -> slot -> board -> run; the last two join when
+    // those scopes carry effects), then apply and log the FINAL value.
+    CoinContext coin{source, amount};
+    if (source) {
+        if (source->tile) {
+            for (auto& effect : source->tile->effects) {
+                effect->onCoinsResolving(coin);
+            }
+        }
+        source->resolveCoins(coin);
+    }
+    coins += coin.amount;
+
+    // Attribution: a sourced gain belongs to its board's acting turn (the same
+    // channel every board emission uses, so it works for any Turn, not just the
+    // run's top one); a sourceless gain to the current turn.
+    TurnLog* log = nullptr;
+    if (source && source->board && source->board->turn) {
+        log = &source->board->turn->log();
+    } else if (!turns.empty()) {
+        log = &turns.top()->log();
+    }
+    if (log) {
+        log->push(TurnEvent::coinsGained(coin.amount, amount,
+            source ? source->getCoord() : Coord{0, 0}, source != nullptr));
+    }
 }
 
 int GameRun::getCoins() const {

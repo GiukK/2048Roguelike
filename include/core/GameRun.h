@@ -69,7 +69,13 @@ public:
     sf::Vector2f getBoardContentCenter();
     sf::FloatRect getBoardContentBounds();
 
-    void addCoins(int amount);
+    // The single entry point for coin changes. A positive amount is a GAIN and
+    // runs the coin pipeline first — in-scope effects (chips) may scale it via
+    // onCoinsResolving — then is applied and logged as a CoinsGained event.
+    // `source` is the slot the gain originates over (nullptr = no board origin,
+    // e.g. Coin Bag), which decides whose chips see it. Negative amounts
+    // (spending) apply directly: chips amplify income, not expenses.
+    void addCoins(int amount, Slot* source = nullptr);
     int getCoins() const;
 
     // Returns the final cost of an item after applying all active modifiers.

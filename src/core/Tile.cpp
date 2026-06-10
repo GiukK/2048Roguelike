@@ -2,6 +2,7 @@
 #include "core/Slot.h"
 #include "core/Board.h"
 #include "core/Turn.h"
+#include "core/GameRun.h"
 #include "effects/MergeContext.h"
 #include "effects/TileTags.h"
 #include "rendering/RenderSystem.h"
@@ -213,6 +214,13 @@ void Tile::mergeIntoSlot(Slot* target) {
     if (target->board && target->board->turn) {
         target->board->turn->log().push(
             TurnEvent::tileMerged(merge.resultValue, sourceValue, target->getCoord(), targetWasBricked));
+    }
+
+    // Coin reward accumulated by the merge modifiers, routed through the coin
+    // pipeline AFTER the merge applied and logged (cause before consequence in
+    // the log) — so coin chips on this slot scale what merge chips granted.
+    if (merge.coinReward != 0 && target->board && target->board->turn) {
+        target->board->turn->gameRun->addCoins(merge.coinReward, target);
     }
 
     mergedThisSweep = true;

@@ -11,6 +11,7 @@
 class RenderSystem;
 class Board;
 struct MergeContext;
+struct CoinContext;
 
 class Slot {
 public:
@@ -48,6 +49,11 @@ public:
     // scope leg of the merge dispatch; tile/board/run scopes join as they land (see
     // docs/effect-engine-design.md §6 for the cross-scope order).
     void resolveMerge(MergeContext& merge);
+
+    // The coin-pipeline twin of resolveMerge: runs this slot's effects over a
+    // resolving coin gain so each may scale/alter the amount before it's applied.
+    // Dispatched by GameRun::addCoins for gains sourced at this slot.
+    void resolveCoins(CoinContext& coin);
 
     void update(float deltaTime);
     void render(RenderSystem& renderer);

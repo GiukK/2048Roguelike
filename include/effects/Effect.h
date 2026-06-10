@@ -3,6 +3,7 @@
 #include <memory>
 
 struct MergeContext;
+struct CoinContext;
 
 // Base class for every gameplay effect — the single mechanism behind slot
 // effects, chips (effects mounted on a slot/board), tile tags and run-level
@@ -38,6 +39,12 @@ public:
     // A side-effecting effect (e.g. ShopEffect) may also use it to fire at merge
     // time without altering the outcome. Dispatched by Slot::resolveMerge.
     virtual void onMergeResolving(MergeContext& /*merge*/) {}
+
+    // MODIFIER hook: runs on every coin GAIN resolving in this effect's scope and
+    // may change the amount (e.g. a "×2 coins over this slot" chip). Re-entrancy
+    // rule: mutate the context, never award coins from inside the hook — that
+    // would recurse the pipeline. Dispatched by GameRun::addCoins.
+    virtual void onCoinsResolving(CoinContext& /*coin*/) {}
 
     // --- Capability queries (defaults: none) --------------------------------
     // An effect declares what its PRESENCE does to its owner; owners aggregate

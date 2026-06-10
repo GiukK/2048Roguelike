@@ -1,7 +1,8 @@
 # Effect Engine — Design
 
-Status: **in progress** — slices 1–2 of §11 are implemented (scope-agnostic
-`Effect` base, merge interaction pipeline); the rest is direction. Open decisions
+Status: **in progress** — slices 1–4 of §11 are implemented (scope-agnostic
+`Effect` base, merge interaction pipeline, tile tags + capability queries,
+coin pipeline + first chips); the rest is direction. Open decisions
 are marked `DECISION:`; resolved ones live in §12–§13. The goal is one clean,
 scalable effect-handling system for an effect-based roguelike (Balatro-like),
 built *before* piling on content. See the memory note `effect-system-architecture`
@@ -118,35 +119,45 @@ then is applied, then recorded as a `TurnEvent`. The struct is the single place 
 interaction's result can be changed.
 
 ```cpp
-struct MergeContext {
+struct MergeContext {       // IMPLEMENTED (slices 2 + 4)
     Slot*  slot;            // where the merge resolves
     int    sourceValue;     // pre-merge value of each tile (immutable input)
     int    resultValue;     // mutable: modifiers may change the merged value
-    bool   destroyResult = false;   // chip: "destroy the tile on merge here"
-    int    coinReward    = 0;       // accumulator: modifiers add; applied via CoinContext
-    EffectContext& ctx;
+    int    coinReward = 0;  // accumulator: modifiers add; routed through CoinContext
+    bool   destroyResult = false;   // FUTURE chip: "destroy the tile on merge here"
 };
 
-struct CoinContext {        // every coin award flows through here
+struct CoinContext {        // IMPLEMENTED (slice 4): every coin GAIN flows through
     Slot*  source;          // slot the coins originate over (nullable)
     int    amount;          // mutable: e.g. a chip multiplies it
-    EffectContext& ctx;
 };
 
-struct SpawnContext {
+struct SpawnContext {       // FUTURE
     Slot*  slot;
     int    value;           // mutable: modifiers may change the spawned value
-    EffectContext& ctx;
 };
 ```
 
 This is what the event log alone could **not** give us: chips need to *alter*
 `resultValue` / `destroyResult` / `amount` before they're applied. The log records
-the *final* outcome afterward.
+the *final* outcome afterward (`CoinsGained` carries final AND base amounts).
+
+NOTE: the `EffectContext& ctx` member originally sketched here is deferred with
+`EffectContext` itself (§5) — contexts stay pure data until a reactor needs to
+*act* from inside a hook. Spending (negative amounts) deliberately bypasses the
+coin pipeline: chips amplify income, not expenses (`GameRun::addCoins`).
 
 ---
 
 ## 5. `EffectContext` (shared mutation façade)
+
+**DEFERRED (slice-4 decision, 2026-06-11).** The coin pipeline landed without it:
+modifier hooks only *mutate their context* (re-entrancy rule below), so nothing
+needs a mutation façade yet — building it now would be an inert interface with
+zero consumers, exactly what the slice discipline forbids. It becomes real with
+the **cards slice**: `onEvent(const TurnEvent&, EffectContext&)` is the first
+hook whose implementors must *act* (award coins, destroy tiles) rather than
+tweak an outcome. Build it then, as sketched below.
 
 A thin interface effects (and, eventually, items) act through — so nothing pokes
 `GameRun`/`Board` internals directly, and every mutation can be intercepted.
@@ -207,6 +218,8 @@ scope.** Alternative: insertion order. Must be deterministic and documented.
 
 Setup: slot `S` has a chip *"×2 coins over this slot"*; the run holds a card
 *"each merge of two 2s → +5 coins"*. Player merges two 2-tiles on `S`.
+(As implemented in slice 4 — with the card's role played by a `CoinBonusChip`
+until run scope exists.)
 
 1. `Board` resolves the slide; a merge is about to happen on `S`.
 2. Build `MergeContext{slot=S, sourceValue=2, resultValue=4, coinReward=0}`.
@@ -215,12 +228,15 @@ Setup: slot `S` has a chip *"×2 coins over this slot"*; the run holds a card
    - slot/chip: the ×2-coins chip implements `onCoinsResolving`, not merge → skipped here.
    - run card: "two 2s → +5" sets `coinReward += 5`.
 4. Apply: set merged tile value `= resultValue (4)`; `destroyResult` false.
-5. `ctx.addCoins(coinReward=5, source=S)` → builds `CoinContext{source=S, amount=5}`
-   → the ×2 chip's `onCoinsResolving` doubles it to `10` → apply +10 coins → emit coin event.
-6. Emit `TurnEvent::tileMerged(4, 2, S.coord, brickBroke)` (final values).
+5. Emit `TurnEvent::tileMerged(4, 2, S.coord, brickBroke)` (final values).
+6. `GameRun::addCoins(coinReward=5, source=S)` → builds `CoinContext{source=S, amount=5}`
+   → the ×2 chip's `onCoinsResolving` doubles it to `10` → apply +10 coins →
+   emit `TurnEvent::coinsGained(10, 5, S.coord, sourced=true)`.
 
 Both roles cooperated: card (reactor-ish modifier) added reward, chip (modifier)
-scaled it, log recorded the truth.
+scaled it, log recorded the truth. ORDER NOTE: the merge event precedes its coin
+consequence in the log (cause before effect), so reactors replaying the log see
+a causal narrative; this flips steps 5/6 of the original sketch.
 
 ---
 
@@ -273,7 +289,15 @@ core, policy in registries — no new control-flow per content item.
    effects; both clone paths driven by `isPersistent()`; `copyStateFrom`
    special-case removed; `Board` asks `isImmobilized()`/`isProtected()` instead of
    type-checking effects.
-4. **Coin pipeline + `EffectContext::addCoins`**; first **chip** ("×coins over slot").
+4. **Coin pipeline** — DONE (slice 4, 2026-06-11; `EffectContext` deferred to the
+   cards slice, see §5): `CoinContext` + `Effect::onCoinsResolving` +
+   `MergeContext::coinReward`; `GameRun::addCoins(amount, source)` is the single
+   entry point (gains run the pipeline tile→slot and emit `CoinsGained` with
+   final+base amounts; spending bypasses it). First chips in
+   `effects/CoinChips.h`: `CoinBonusChip` (+N on merge here) and
+   `CoinMultiplierChip` (×N gains sourced here) — engine-level only, mounted
+   programmatically until the mounting layer lands. Normal play unchanged
+   (base merge reward stays 0; no chip is mounted outside tests).
 5. **Chip mounting**: a chip is an `Effect` the player mounts/unmounts on a slot/board;
    first "destroy-on-merge" chip.
 6. **Cards/reactor pass** over the log; first card; retire the debug dump.

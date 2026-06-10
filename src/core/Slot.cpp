@@ -99,3 +99,9 @@ void Slot::resolveMerge(MergeContext& merge) {
         effect->onMergeResolving(merge);
     }
 }
+
+void Slot::resolveCoins(CoinContext& coin) {
+    for (auto& effect : effects) {
+        effect->onCoinsResolving(coin);
+    }
+}
