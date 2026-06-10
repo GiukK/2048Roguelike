@@ -14,6 +14,12 @@ class Tile {
 public:
     enum class Visual { Idle, Hovered, Pressed };
 
+    // Highest value with artwork (textures stop at "2048"). Merges that would
+    // exceed it are refused (Board::resolveNextTileMove), and any future modifier
+    // touching MergeContext::resultValue must respect it — changeSprite() on an
+    // unbacked value would throw on the missing texture.
+    static constexpr int MaxValue = 2048;
+
     Tile(RenderSystem& renderer, Slot* slot, int value);
 
     void render(RenderSystem& renderer);

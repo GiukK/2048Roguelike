@@ -384,6 +384,11 @@ bool Board::spawnShop(int tileValue) {
     slot->setTile(std::make_unique<Tile>(renderer, slot.get(), tileValue));
 
     slots[pos] = std::move(slot);
+
+    // Logged like any other board change so future reactors ("when a shop
+    // appears...") don't need a side channel. Fired at end-of-turn via
+    // GameRun::advanceShopState, so it belongs to the finishing turn.
+    if (turn) turn->log().push(TurnEvent::shopSpawned(tileValue, pos));
     return true;
 }
 
@@ -525,6 +530,10 @@ void Board::resolveNextTileMove(Direction dir) {
     Slot* neighbor = slots[mergeCoord].get();
     if (neighbor->isEmpty()) return;
     if (neighbor->tile->getValue() != tile->getValue()) return;
+    // Value cap: two MaxValue tiles stay side by side instead of producing a
+    // value with no artwork (the texture lookup would throw). The shop strategy
+    // clamps to MaxValue/2 for the same reason; this covers regular play.
+    if (tile->getValue() >= Tile::MaxValue) return;
     if (!slots[current]->canTileStepOut) return;
     if (tile->mergedThisSweep || neighbor->tile->mergedThisSweep) return;
 

@@ -34,23 +34,28 @@ std::vector<const ItemDef*> ItemRegistry::getAll() const {
 const ItemDef* ItemRegistry::pickWeightedRandom(std::mt19937& rng) const {
     if (items.empty()) return nullptr;
 
+    // Walk the id-sorted view, not the unordered_map: map iteration order is
+    // unspecified, so a given roll would map to different items across builds —
+    // breaking the "same seed = same run" reproducibility the run RNG provides.
+    const auto sorted = getAll();
+
     float totalWeight = 0.f;
-    for (const auto& [_, def] : items) {
-        totalWeight += def.weight;
+    for (const ItemDef* def : sorted) {
+        totalWeight += def->weight;
     }
 
     std::uniform_real_distribution<float> dist(0.f, totalWeight);
     float roll = dist(rng);
 
     float cumulative = 0.f;
-    for (const auto& [_, def] : items) {
-        cumulative += def.weight;
+    for (const ItemDef* def : sorted) {
+        cumulative += def->weight;
         if (roll < cumulative) {
-            return &def;
+            return def;
         }
     }
 
-    return &items.begin()->second;
+    return sorted.front();
 }
 
 std::vector<const ItemDef*> ItemRegistry::pickMultiple(int count, std::mt19937& rng) const {

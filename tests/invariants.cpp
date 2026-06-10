@@ -92,6 +92,20 @@ int main() {
         CHECK(turn.board.getAllTiles().size() == 2);
     }
 
+    // --- Value cap: two MaxValue tiles never merge (no artwork above it) -----
+    {
+        auto run = makeRun(8);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnTileAt({0, 0}, Tile::MaxValue) != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, Tile::MaxValue) != nullptr);
+        turn.log().clear();
+
+        turn.board.move(Direction::Left);
+        CHECK(turn.log().mergeCount() == 0);          // refused, no crash
+        CHECK(turn.board.getAllTiles().size() == 2);  // both still on the board
+    }
+
     // --- Brick is persistent across clones; frozen is transient --------------
     {
         auto run = makeRun(2);
@@ -193,7 +207,9 @@ int main() {
         auto run = makeRun(5);
         Turn turn(renderer, run.get());
         turn.board.clear();
+        turn.log().clear();
         CHECK(turn.board.spawnShop(4));
+        CHECK(turn.log().countOf(TurnEvent::Type::ShopSpawned) == 1);
         CHECK(turn.board.countActiveShops() == 1);
 
         Tile* shopTile = nullptr;

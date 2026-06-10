@@ -26,6 +26,9 @@ std::string describe(const TurnEvent& e) {
     case TurnEvent::Type::ShopTriggered:
         return "ShopTriggered at (" + std::to_string(e.coord.x) + "," +
                std::to_string(e.coord.y) + ")";
+    case TurnEvent::Type::ShopSpawned:
+        return "ShopSpawned " + std::to_string(e.valueA) + " at (" +
+               std::to_string(e.coord.x) + "," + std::to_string(e.coord.y) + ")";
     case TurnEvent::Type::ItemUsed:
         return "ItemUsed " + e.itemId;
     default:
@@ -80,18 +83,6 @@ void Turn::nextPhase() {
 }
 
 void Turn::endTurn() {
-    // Debug: dump what happened this turn before anything advances. Done first so
-    // getTurnCount() still reports THIS finishing turn (newTurn below pushes the
-    // next one). Verifies the event log and that nothing leaks across turns; fold
-    // into the real score/ability consumers in Step 2/3.
-    if (debug::Enabled) {
-        std::cout << "[turn " << gameRun->getTurnCount() << "] "
-                  << eventLog.events().size() << " event(s)\n";
-        for (const auto& e : eventLog.events()) {
-            std::cout << "    " << describe(e) << '\n';
-        }
-    }
-
     // Resolve the shop lifecycle on this turn's finished board *before* cloning
     // it into the next turn: a consumed shop is removed and, when the countdown
     // elapses, a new shop is spawned. Doing it here means the next turn's board
@@ -99,6 +90,18 @@ void Turn::endTurn() {
     // this turn's board is immediately reset to its own pre-shop snapshot below
     // — so the undo history stays consistent and no shop pointer dangles.
     gameRun->advanceShopState(board);
+
+    // Debug: dump what happened this turn. After advanceShopState (so end-of-turn
+    // events like ShopSpawned are included) but before newTurn, so getTurnCount()
+    // still reports THIS finishing turn. Verifies the event log and that nothing
+    // leaks across turns; fold into the real score/ability consumers in Step 2/3.
+    if (debug::Enabled) {
+        std::cout << "[turn " << gameRun->getTurnCount() << "] "
+                  << eventLog.events().size() << " event(s)\n";
+        for (const auto& e : eventLog.events()) {
+            std::cout << "    " << describe(e) << '\n';
+        }
+    }
 
     gameRun->newTurn(board);
 

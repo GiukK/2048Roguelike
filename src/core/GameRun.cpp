@@ -145,10 +145,10 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
 
     // Default shop-tile criterion: a copy of the board's current largest tile,
     // so activating the shop costs the player a rebuilt copy of their best tile.
-    // Clamped to [2, 1024] so the activating merge (2x value) never exceeds the
-    // highest tile artwork (2048). Swap via setShopTileValueStrategy().
+    // Clamped to [2, MaxValue/2] so the activating merge (2x value) never
+    // exceeds the highest tile artwork. Swap via setShopTileValueStrategy().
     shopTileValueStrategy = [](const Board& board) {
-        return std::clamp(board.getMaxTileValue(), 2, 1024);
+        return std::clamp(board.getMaxTileValue(), 2, Tile::MaxValue / 2);
     };
     shopCountdown = shopSpawnInterval;
 

@@ -24,6 +24,7 @@ struct TurnEvent {
         TileSpawned,    // a new tile appeared.            valueA = value, coord = cell
         TileDestroyed,  // a tile was removed by an effect (bombs / black hole). valueA = value, coord = cell
         ShopTriggered,  // a shop was activated by a merge. coord = shop cell
+        ShopSpawned,    // a new shop slot appeared.        valueA = phantom tile value, coord = shop cell
         ItemUsed        // an inventory item was consumed.  itemId set
     };
 
@@ -49,6 +50,9 @@ struct TurnEvent {
     }
     static TurnEvent shopTriggered(Coord at) {
         return {Type::ShopTriggered, 0, 0, at};
+    }
+    static TurnEvent shopSpawned(int tileValue, Coord at) {
+        return {Type::ShopSpawned, tileValue, 0, at};
     }
     static TurnEvent itemUsed(std::string id) {
         TurnEvent e{Type::ItemUsed};
