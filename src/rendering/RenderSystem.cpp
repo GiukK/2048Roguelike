@@ -45,6 +45,9 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     scalingRules["vase_of_two"]   = {192 * 2, 108 * 2};
     scalingRules["back_to_back"]  = {192 * 2, 108 * 2};
     scalingRules["bob"]           = {192 * 2, 108 * 2};
+    scalingRules["consume"]       = {192 * 2, 108 * 2};
+    scalingRules["red_light"]     = {192 * 2, 108 * 2};
+    scalingRules["card_ruler"]    = {192 * 2, 108 * 2};
 
     // Board & Slots
     scalingRules["slot"]      = {192 * 2, 108 * 2};

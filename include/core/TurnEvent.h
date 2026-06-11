@@ -21,11 +21,13 @@ struct TurnEvent {
     enum class Type {
         Moved,          // a valid board move resolved.   valueA = Direction (cast to int)
         TileMerged,     // two tiles merged into one.      valueA = resulting value, valueB = source value, coord = target cell, flag = a brick broke
+        TileSlid,       // a tile ended the move in a different cell (once per tile, distance-independent; merge movers included). valueA = its post-move value, coord = final cell
         TileSpawned,    // a new tile appeared.            valueA = value, coord = cell
         TileDestroyed,  // a tile was removed by an effect (bombs / black hole). valueA = value, coord = cell
         ShopTriggered,  // a shop was activated by a merge. coord = shop cell
         ShopSpawned,    // a new shop slot appeared.        valueA = phantom tile value, coord = shop cell
         CoinsGained,    // coins were awarded (post-modifier). valueA = final amount, valueB = base amount, flag = sourced at a slot (then coord = that cell)
+        CardTriggered,  // a card's onEvent reaction mutated the world (one per card per dispatched event). itemId = card id (empty for engine-level cards)
         ItemUsed        // an inventory item was consumed.  itemId set
     };
 
@@ -43,8 +45,16 @@ struct TurnEvent {
     static TurnEvent tileMerged(int resultValue, int sourceValue, Coord at, bool brickBroke) {
         return {Type::TileMerged, resultValue, sourceValue, at, brickBroke};
     }
+    static TurnEvent tileSlid(int value, Coord at) {
+        return {Type::TileSlid, value, 0, at};
+    }
     static TurnEvent tileSpawned(int value, Coord at) {
         return {Type::TileSpawned, value, 0, at};
+    }
+    static TurnEvent cardTriggered(std::string cardId) {
+        TurnEvent e{Type::CardTriggered};
+        e.itemId = std::move(cardId);
+        return e;
     }
     static TurnEvent tileDestroyed(int value, Coord at) {
         return {Type::TileDestroyed, value, 0, at};

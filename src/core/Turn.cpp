@@ -29,6 +29,11 @@ std::string describe(const TurnEvent& e) {
     case TurnEvent::Type::ShopSpawned:
         return "ShopSpawned " + std::to_string(e.valueA) + " at (" +
                std::to_string(e.coord.x) + "," + std::to_string(e.coord.y) + ")";
+    case TurnEvent::Type::TileSlid:
+        return "TileSlid " + std::to_string(e.valueA) + " to (" +
+               std::to_string(e.coord.x) + "," + std::to_string(e.coord.y) + ")";
+    case TurnEvent::Type::CardTriggered:
+        return "CardTriggered " + (e.itemId.empty() ? std::string("<engine>") : e.itemId);
     case TurnEvent::Type::CoinsGained:
         return "CoinsGained " + std::to_string(e.valueA) +
                " (base " + std::to_string(e.valueB) + ")" +

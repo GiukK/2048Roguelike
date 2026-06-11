@@ -222,6 +222,46 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
         }
     });
 
+    // Consume: end-of-turn aggregate over the ItemUsed events.
+    cardRegistry.registerCard({"consume", "consume",
+        "Consume", "At the end of the turn, gain 2 coins per item used.", 40, 1.0f,
+        []() -> std::unique_ptr<Effect> {
+            return std::make_unique<ReactorCard>(nullptr,
+                [](const TurnLog& log, EffectContext& ctx) {
+                    int used = log.countOf(TurnEvent::Type::ItemUsed);
+                    if (used > 0) ctx.addCoins(2 * used);
+                });
+        }
+    });
+
+    // Red Light: end-of-turn aggregate over TileSlid — one per tile whose cell
+    // changed during the move, distance-independent (merge movers included).
+    cardRegistry.registerCard({"red_light", "red_light",
+        "Red Light", "At the end of the turn, gain 1 coin per tile that moved.", 40, 1.0f,
+        []() -> std::unique_ptr<Effect> {
+            return std::make_unique<ReactorCard>(nullptr,
+                [](const TurnLog& log, EffectContext& ctx) {
+                    int moved = log.countOf(TurnEvent::Type::TileSlid);
+                    if (moved > 0) ctx.addCoins(moved);
+                });
+        }
+    });
+
+    // Card Ruler: end-of-turn aggregate over the CardTriggered activations.
+    // Counts ACTIVATIONS (a card firing on three events = three), and only the
+    // granular onEvent ones — every end-of-turn card (itself included) is
+    // outside the count by construction (see EffectContext::noteActivation).
+    cardRegistry.registerCard({"card_ruler", "card_ruler",
+        "Card Ruler", "At the end of the turn, gain 3 coins per card effect triggered.", 60, 1.0f,
+        []() -> std::unique_ptr<Effect> {
+            return std::make_unique<ReactorCard>(nullptr,
+                [](const TurnLog& log, EffectContext& ctx) {
+                    int fired = log.countOf(TurnEvent::Type::CardTriggered);
+                    if (fired > 0) ctx.addCoins(3 * fired);
+                });
+        }
+    });
+
     // Default shop-tile criterion: a copy of the board's current largest tile,
     // so activating the shop costs the player a rebuilt copy of their best tile.
     // Clamped to [2, MaxValue/2] so the activating merge (2x value) never
@@ -545,11 +585,16 @@ void GameRun::flushReactors(Turn& turn) {
     for (size_t i = turn.reactorCursor; i < eventCount; ++i) {
         const TurnEvent event = log.events()[i];
         for (auto& card : cards) {
+            // Attribute the upcoming reaction: its first mutation logs one
+            // CardTriggered (activation observability — see EffectContext).
+            ctx.beginCardDispatch(card.defId);
             card.effect->onEvent(event, ctx);
         }
     }
-    // Jump PAST anything the reactors appended: reactions are logged (the turn
-    // record stays truthful) but never re-dispatched — no cascades, no loops.
+    ctx.endCardDispatch();
+    // Jump PAST anything the reactors appended (CardTriggered included):
+    // reactions are logged (the turn record stays truthful) but never
+    // re-dispatched — no cascades, no loops.
     turn.reactorCursor = log.events().size();
 }
 

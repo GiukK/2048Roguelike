@@ -302,6 +302,15 @@ a causal narrative; this flips steps 5/6 of the original sketch.
   reactors appended (their `CoinsGained` etc. are logged — the turn record
   stays truthful — but never re-dispatched). Each event is copied out before
   dispatch (reactor appends may reallocate the log's storage).
+- **Activation observability (2026-06-11)**: during the onEvent phase the
+  dispatcher tells the context which card is acting; the card's FIRST mutation
+  for that event logs one `CardTriggered(cardId)` — "a card fired" is itself a
+  log event other effects can read (Card Ruler). One per (card, event): firing
+  on three events = three (so "did it fire" vs "how many times" are both
+  parsable); two mutations inside one reaction = one. A mutation ATTEMPT counts
+  (e.g. Bob's brick lost to a full inventory is still an activation).
+  onTurnEnd-phase mutations log nothing — every end-of-turn card is outside the
+  activation count by construction.
 - `ReactorCard` (`effects/Cards.h`) is the generic data+lambda substrate (the
   ItemRegistry pattern) the future CardRegistry feeds; stateful cards subclass
   `Effect` directly. The debug dump in `Turn::endTurn` stays as an independent
@@ -334,10 +343,17 @@ still future.
 at the cell); `economic_boom` (reactor: ItemUsed "bomb" → +3 coins; plain id
 check FOR NOW — the bomb FAMILY needs an ItemDef tag system + tag-query hook,
 deliberately deferred); `vase_of_two` (capability: spawnCountFactor 2);
-`back_to_back` (capability: rewindDepthBonus +2); `bob` (reactor: TileMerged
+`back_to_back` (capability: hourglassRewinds 3); `bob` (reactor: TileMerged
 with brick-broke flag → grant a "brick" item, silently lost on full inventory;
 if brick breaks ever get more sources, promote the flag to a dedicated
 BrickBroken event). `EffectContext` grew `addItem` for Bob.
+
+**End-of-turn aggregates (2026-06-11)** — the onTurnEnd channel's first real
+content: `consume` (2 coins per ItemUsed), `red_light` (1 coin per `TileSlid` —
+new event, one per tile whose CELL changed during the move, distance-
+independent, merge movers included, emitted after the sweep from a before/after
+identity snapshot in `Board::move`), `card_ruler` (3 coins per `CardTriggered`
+activation — see §9's activation observability).
 
 ---
 

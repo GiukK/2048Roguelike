@@ -25,6 +25,9 @@ void TextureManager::initialize() {
     load("vase_of_two",   "assets/textures/vase_of_two.png");
     load("back_to_back",  "assets/textures/back_to_back.png");
     load("bob",           "assets/textures/bob.png");
+    load("consume",       "assets/textures/consume.png");
+    load("red_light",     "assets/textures/red_light.png");
+    load("card_ruler",    "assets/textures/card_ruler.png");
 
     // Board
     load("slot",     "assets/textures/slot.png");

@@ -661,6 +661,96 @@ int main() {
         CHECK(run->getCoins() == coins0 + 50 + 3);  // ...yet the card already paid
     }
 
+    // --- TileSlid: one per tile whose cell changed, distance-independent -----
+    {
+        auto run = makeRun(25);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnTileAt({0, 0}, 2) != nullptr);  // at the wall: stays
+        CHECK(turn.board.spawnTileAt({2, 0}, 4) != nullptr);  // slides (1 cell or 2, irrelevant)
+        turn.log().clear();
+        turn.board.move(Direction::Left);
+        CHECK(turn.log().countOf(TurnEvent::Type::TileSlid) == 1);
+
+        // The mover of a merge counts too (its cell changed); the stationary
+        // target was destroyed and is naturally absent.
+        Turn m(renderer, run.get());
+        m.board.clear();
+        CHECK(m.board.spawnTileAt({0, 0}, 2) != nullptr);
+        CHECK(m.board.spawnTileAt({1, 0}, 2) != nullptr);
+        m.log().clear();
+        m.board.move(Direction::Left);
+        CHECK(m.log().mergeCount() == 1);
+        CHECK(m.log().countOf(TurnEvent::Type::TileSlid) == 1);
+    }
+
+    // --- Consume: 2 coins per item used, at end of turn -----------------------
+    {
+        auto run = makeRun(26);
+        CHECK(run->acquireCard("consume"));
+        Turn turn(renderer, run.get());
+        turn.log().clear();
+        turn.log().push(TurnEvent::itemUsed("bomb"));
+        turn.log().push(TurnEvent::itemUsed("die"));
+
+        const int coins0 = run->getCoins();
+        run->dispatchTurnEnd(turn);
+        CHECK(run->getCoins() == coins0 + 4);
+    }
+
+    // --- Red Light: 1 coin per tile that moved, at end of turn ----------------
+    {
+        auto run = makeRun(27);
+        CHECK(run->acquireCard("red_light"));
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnTileAt({0, 0}, 2) != nullptr);  // stays
+        CHECK(turn.board.spawnTileAt({2, 0}, 4) != nullptr);  // moves
+        CHECK(turn.board.spawnTileAt({3, 0}, 8) != nullptr);  // moves
+        turn.log().clear();
+        turn.board.move(Direction::Left);
+
+        const int coins0 = run->getCoins();
+        run->dispatchTurnEnd(turn);
+        CHECK(run->getCoins() == coins0 + 2);
+    }
+
+    // --- Card Ruler: 3 coins per onEvent ACTIVATION; turn-end cards excluded --
+    {
+        auto run = makeRun(28);
+        CHECK(run->acquireCard("two_for_two"));
+        CHECK(run->acquireCard("card_ruler"));
+
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnTileAt({0, 0}, 2) != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+        CHECK(turn.board.spawnTileAt({0, 1}, 2) != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 1}, 2) != nullptr);
+        turn.log().clear();
+        turn.board.move(Direction::Left);  // two 2+2 merges
+
+        const int coins0 = run->getCoins();
+        run->flushReactors(turn);          // Two for Two fires TWICE: +4
+        CHECK(run->getCoins() == coins0 + 4);
+        // ...and each firing is its own activation ("how many times" parsable).
+        CHECK(turn.log().countOf(TurnEvent::Type::CardTriggered) == 2);
+
+        // Activation precedes its consequence in the log.
+        int trigIdx = -1, coinIdx = -1;
+        const auto& evs = turn.log().events();
+        for (int i = 0; i < static_cast<int>(evs.size()); ++i) {
+            if (trigIdx < 0 && evs[i].type == TurnEvent::Type::CardTriggered) trigIdx = i;
+            if (coinIdx < 0 && evs[i].type == TurnEvent::Type::CoinsGained)   coinIdx = i;
+        }
+        CHECK(trigIdx >= 0 && coinIdx > trigIdx);
+
+        run->dispatchTurnEnd(turn);        // Card Ruler: 3 x 2 activations
+        CHECK(run->getCoins() == coins0 + 4 + 6);
+        // Its own end-of-turn grant is NOT an activation: count unchanged.
+        CHECK(turn.log().countOf(TurnEvent::Type::CardTriggered) == 2);
+    }
+
     std::cout << checks << " checks, " << failures << " failure(s)\n";
     return failures == 0 ? 0 : 1;
 }

@@ -445,9 +445,32 @@ void Board::move(Direction dir) {
         hoveredTile = nullptr;
     }
 
+    // Identity snapshot for the per-tile movement events: which tile sat where
+    // BEFORE the sweep. Pointers of tiles destroyed by merges are afterwards
+    // used only as lookup KEYS (never dereferenced), and no tile is created
+    // during a sweep, so no address can be reused mid-map.
+    std::map<Tile*, Coord> cellBefore;
+    for (const auto& [coord, slot] : slots) {
+        if (!slot->isEmpty()) cellBefore[slot->tile.get()] = coord;
+    }
+
     initializeMovementQueue(dir);
     while (!movementQueue.empty()) {
         resolveNextTileMove(dir);
+    }
+
+    // One TileSlid per surviving tile whose CELL changed — "a tile moved",
+    // regardless of distance (Red Light's counting unit). The mover of a merge
+    // counts (its cell changed); the stationary merge target was destroyed and
+    // is naturally absent. Emitted after the sweep, in coord order, so the
+    // merge events are already in the log.
+    if (turn) {
+        for (Tile* t : getAllTiles()) {
+            auto it = cellBefore.find(t);
+            if (it != cellBefore.end() && it->second != t->slot->getCoord()) {
+                turn->log().push(TurnEvent::tileSlid(t->getValue(), t->slot->getCoord()));
+            }
+        }
     }
 }
 
