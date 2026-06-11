@@ -3,6 +3,7 @@
 #include "states/ItemTooltip.h"
 #include "core/GameRun.h"
 #include "core/ItemRegistry.h"
+#include "core/CardRegistry.h"
 #include "rendering/RenderSystem.h"
 #include "ui/UI.h"
 #include "Debug.h"
@@ -41,6 +42,8 @@ void ShopState::enter() {
 void ShopState::exit() {
     shopItemIds.clear();
     shopButtons.clear();
+    shopCardIds.clear();
+    cardButtons.clear();
     gameRun->shopOpen = false;
     stateManager.requestPop();
 }
@@ -66,7 +69,17 @@ void ShopState::generateShop() {
         }
     }
 
+    // Card stock: every registered card the player doesn't own yet. One copy
+    // per card (acquireCard refuses duplicates), so an owned card isn't shown.
+    shopCardIds.clear();
+    for (const auto* def : gameRun->getCardRegistry().getAll()) {
+        if (!gameRun->ownsCard(def->id)) {
+            shopCardIds.push_back(def->id);
+        }
+    }
+
     rebuildShopButtons();
+    rebuildCardButtons();
 }
 
 void ShopState::rebuildShopButtons() {
@@ -107,6 +120,38 @@ void ShopState::rebuildShopButtons() {
     }
 }
 
+void ShopState::rebuildCardButtons() {
+    cardButtons.clear();
+    if (shopCardIds.empty()) return;
+
+    // Card row: centred below the item row, mirroring its layout.
+    auto ws = renderer.getWindowSize();
+    float centerX = static_cast<float>(ws.x) / 2.f;
+    float cardY = static_cast<float>(ws.y) / 2.f + 280.f;
+
+    const size_t count = shopCardIds.size();
+    const float band = static_cast<float>(ws.x) * 0.9f;
+    float spacing = std::min(250.f, band / static_cast<float>(count));
+    float startX = centerX - (static_cast<float>(count) - 1.f) / 2.f * spacing;
+    const float maxIconWidth = spacing * 0.8f;
+
+    for (size_t i = 0; i < count; ++i) {
+        const auto& def = gameRun->getCardRegistry().get(shopCardIds[i]);
+        float x = startX + static_cast<float>(i) * spacing;
+        size_t idx = i;
+
+        cardButtons.emplace_back(renderer, def.textureId,
+            sf::Vector2f{x, cardY},
+            [this, idx]() { pendingBuyCardIndex = static_cast<int>(idx); });
+
+        sf::Sprite& sprite = cardButtons.back().getSprite();
+        float width = sprite.getGlobalBounds().size.x;
+        if (width > maxIconWidth) {
+            sprite.setScale(sprite.getScale() * (maxIconWidth / width));
+        }
+    }
+}
+
 void ShopState::buyItem(size_t index) {
     if (index >= shopItemIds.size()) return;
 
@@ -127,6 +172,23 @@ void ShopState::buyItem(size_t index) {
     }
 }
 
+void ShopState::buyCard(size_t index) {
+    if (index >= shopCardIds.size()) return;
+
+    const auto& def = gameRun->getCardRegistry().get(shopCardIds[index]);
+    int cost = gameRun->getEffectiveCost(def);
+
+    if (gameRun->getCoins() < cost) return;
+    // Cards mount at run scope, not in the inventory — no inventory-full check.
+    if (!gameRun->acquireCard(shopCardIds[index])) return;
+
+    gameRun->addCoins(-cost);
+
+    // A card is one-copy (unlike items), so it leaves the shop even in debug.
+    shopCardIds.erase(shopCardIds.begin() + static_cast<ptrdiff_t>(index));
+    rebuildCardButtons();
+}
+
 void ShopState::handleInput(sf::Event& event) {
     auto* key = event.getIf<sf::Event::KeyReleased>();
     if (key && key->scancode == sf::Keyboard::Scancode::Escape) {
@@ -144,10 +206,17 @@ void ShopState::update(float deltaTime) {
     for (auto& btn : shopButtons) {
         btn.update(deltaTime);
     }
+    for (auto& btn : cardButtons) {
+        btn.update(deltaTime);
+    }
 
     if (pendingBuyIndex >= 0) {
         buyItem(static_cast<size_t>(pendingBuyIndex));
         pendingBuyIndex = -1;
+    }
+    if (pendingBuyCardIndex >= 0) {
+        buyCard(static_cast<size_t>(pendingBuyCardIndex));
+        pendingBuyCardIndex = -1;
     }
 }
 
@@ -170,6 +239,18 @@ void ShopState::render(RenderSystem& renderer) {
         float priceY = itemPos.y + shopButtons[i].getSprite().getGlobalBounds().size.y / 2.f + 20.f;
 
         renderer.drawNumber(static_cast<unsigned int>(cost), {itemPos.x, priceY}, 6.f);
+    }
+
+    // Card stock below the items, same presentation: sprite + price tag.
+    for (size_t i = 0; i < cardButtons.size(); ++i) {
+        renderer.draw(cardButtons[i].getSprite());
+
+        const auto& def = gameRun->getCardRegistry().get(shopCardIds[i]);
+        int cost = gameRun->getEffectiveCost(def);
+        sf::Vector2f cardPos = cardButtons[i].getSprite().getPosition();
+        float priceY = cardPos.y + cardButtons[i].getSprite().getGlobalBounds().size.y / 2.f + 20.f;
+
+        renderer.drawNumber(static_cast<unsigned int>(cost), {cardPos.x, priceY}, 6.f);
     }
 
     for (auto& anim : decorAnimations) {
@@ -201,6 +282,26 @@ void ShopState::renderHoveredTooltip(RenderSystem& renderer) {
 
         ui::layoutNode(tip, tx, ty);
         ui::drawNode(tip, renderer);
-        break;
+        return;
+    }
+
+    for (std::size_t i = 0; i < cardButtons.size() && i < shopCardIds.size(); ++i) {
+        if (!cardButtons[i].contains(mouse)) continue;
+
+        const CardDef& def = gameRun->getCardRegistry().get(shopCardIds[i]);
+        ui::UINode tip = buildCardTooltip(def, gameRun->getEffectiveCost(def));
+        ui::measureNode(tip, renderer);
+
+        // The card row sits low on the screen, so the tooltip goes above it.
+        const sf::FloatRect b = cardButtons[i].getSprite().getGlobalBounds();
+        const auto ws = renderer.getWindowSize();
+        float tx = std::clamp(b.position.x + b.size.x / 2.f - tip.computedW / 2.f,
+                              10.f, static_cast<float>(ws.x) - tip.computedW - 10.f);
+        float ty = b.position.y - tip.computedH - 16.f;
+        if (ty < 10.f) ty = b.position.y + b.size.y + 16.f;
+
+        ui::layoutNode(tip, tx, ty);
+        ui::drawNode(tip, renderer);
+        return;
     }
 }

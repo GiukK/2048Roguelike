@@ -1,4 +1,5 @@
 #include "core/GameRun.h"
+#include "effects/Cards.h"
 #include "effects/CoinContext.h"
 #include "effects/EffectContext.h"
 #include "rendering/RenderSystem.h"
@@ -142,6 +143,24 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
             auto sel = run.getSelectedTiles();
             if (sel.size() != 1) return false;
             return run.removeSlotUnder(sel[0]);
+        }
+    });
+
+    // --- Card catalogue (data + lambdas, like the items above) --------------
+
+    // Two for Two: the first real card. Reward sourced AT the merge cell, so a
+    // future coin chip mounted on that slot scales it (card × chip composition).
+    // valueB is the pre-merge source value: "two 2s" reads the tiles as they
+    // were, regardless of what merge modifiers do to the result.
+    cardRegistry.registerCard({"two_for_two", "two_for_two",
+        "Two for Two", "Every time two 2 tiles merge, gain 2 coins.", 0, 1.0f,
+        []() -> std::unique_ptr<Effect> {
+            return std::make_unique<ReactorCard>(
+                [](const TurnEvent& e, EffectContext& ctx) {
+                    if (e.type == TurnEvent::Type::TileMerged && e.valueB == 2) {
+                        ctx.addCoins(2, ctx.board().slotAt(e.coord));
+                    }
+                });
         }
     });
 
@@ -300,6 +319,14 @@ int GameRun::getEffectiveCost(const ItemDef& item) const {
     return std::max(cost, 0);
 }
 
+int GameRun::getEffectiveCost(const CardDef& card) const {
+    if (debug::Enabled) return 0;
+
+    int cost = card.cost;
+    // Future: card-specific discounts/markups hook in here.
+    return std::max(cost, 0);
+}
+
 bool GameRun::isInventoryFull() const {
     return inventoryItems.size() >= maxInventorySize;
 }
@@ -377,8 +404,25 @@ void GameRun::discardHeldItem() {
     if (hasHeldItem()) discardItem(static_cast<size_t>(selectedIndex));
 }
 
+bool GameRun::acquireCard(const std::string& cardId) {
+    if (!cardRegistry.has(cardId)) return false;
+    if (ownsCard(cardId)) return false;
+
+    const CardDef& def = cardRegistry.get(cardId);
+    if (!def.instantiate) return false;
+    cards.push_back({cardId, def.instantiate()});
+    return true;
+}
+
+bool GameRun::ownsCard(const std::string& cardId) const {
+    for (const auto& owned : cards) {
+        if (owned.defId == cardId) return true;
+    }
+    return false;
+}
+
 void GameRun::addCard(std::unique_ptr<Effect> card) {
-    if (card) cards.push_back(std::move(card));
+    if (card) cards.push_back({"", std::move(card)});
 }
 
 void GameRun::dispatchReactors(TurnLog& log, Board& board) {
@@ -395,11 +439,11 @@ void GameRun::dispatchReactors(TurnLog& log, Board& board) {
     for (size_t i = 0; i < eventCount; ++i) {
         const TurnEvent event = log.events()[i];
         for (auto& card : cards) {
-            card->onEvent(event, ctx);
+            card.effect->onEvent(event, ctx);
         }
     }
     for (auto& card : cards) {
-        card->onTurnEnd(log, ctx);
+        card.effect->onTurnEnd(log, ctx);
     }
 }
 

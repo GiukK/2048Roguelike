@@ -474,6 +474,38 @@ int main() {
         CHECK(run->currentTurnLog().countOf(TurnEvent::Type::ItemUsed) == 1);
     }
 
+    // --- Card registry: acquire semantics + Two for Two behavior -------------
+    {
+        auto run = makeRun(18);
+        CHECK(!run->acquireCard("no_such_card"));      // unknown id refused
+        CHECK(run->acquireCard("two_for_two"));
+        CHECK(run->ownsCard("two_for_two"));
+        CHECK(!run->acquireCard("two_for_two"));       // one copy per card
+
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnTileAt({0, 0}, 2) != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+        turn.log().clear();
+        turn.board.move(Direction::Left);
+
+        const int coins0 = run->getCoins();
+        run->dispatchReactors(turn.log(), turn.board);
+        CHECK(run->getCoins() == coins0 + 2);          // two 2s merged -> +2 coins
+
+        // A 4+4 merge does not qualify (sourceValue != 2).
+        Turn other(renderer, run.get());
+        other.board.clear();
+        CHECK(other.board.spawnTileAt({0, 0}, 4) != nullptr);
+        CHECK(other.board.spawnTileAt({1, 0}, 4) != nullptr);
+        other.log().clear();
+        other.board.move(Direction::Left);
+
+        const int coins1 = run->getCoins();
+        run->dispatchReactors(other.log(), other.board);
+        CHECK(run->getCoins() == coins1);
+    }
+
     std::cout << checks << " checks, " << failures << " failure(s)\n";
     return failures == 0 ? 0 : 1;
 }

@@ -1,16 +1,19 @@
 #include "states/PlayState.h"
 #include "states/StateManager.h"
 #include "states/ShopState.h"
+#include "states/CardsState.h"
 #include "rendering/RenderSystem.h"
 
 #include <algorithm>
 #include <cmath>
 
 namespace {
-// Screen-space HUD position for the exit button (UI view). Temporary home until
-// the data-driven UI layer lands.
-constexpr float ExitButtonX = 1800.f;
-constexpr float ExitButtonY = 100.f;
+// Screen-space HUD positions for the corner buttons (UI view). Temporary home
+// until the data-driven UI layer lands.
+constexpr float ExitButtonX  = 1800.f;
+constexpr float ExitButtonY  = 100.f;
+constexpr float CardsButtonX = 1800.f;
+constexpr float CardsButtonY = 210.f;
 } // namespace
 
 PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer)
@@ -43,6 +46,15 @@ PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer)
 
     buttons.emplace_back(renderer, "exit_button", sf::Vector2f{ExitButtonX, ExitButtonY},
         [this]() { this->stateManager.requestPop(); });
+
+    // Cards panel: same modal contract as the shop — frozen backdrop, world
+    // below not updated, ESC closes it.
+    buttons.emplace_back(renderer, "cards_button", sf::Vector2f{CardsButtonX, CardsButtonY},
+        [this]() {
+            this->stateManager.pushState(std::make_unique<CardsState>(
+                this->stateManager, this->renderer, currentRun.get(),
+                [this](RenderSystem& r) { renderWorldAndHud(r); }));
+        });
 
     enter();
 }

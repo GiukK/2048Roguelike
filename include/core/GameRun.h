@@ -13,6 +13,7 @@
 #include "rendering/Animation.h"
 #include "core/Turn.h"
 #include "core/ItemRegistry.h"
+#include "core/CardRegistry.h"
 
 class RenderSystem;
 
@@ -82,6 +83,9 @@ public:
     // This is the single hook point for passive abilities, shop discounts,
     // and any future effect that alters item prices.
     int getEffectiveCost(const ItemDef& item) const;
+    // Same hook for card prices (kept separate: card and item discounts will
+    // likely diverge).
+    int getEffectiveCost(const CardDef& card) const;
 
     bool isInventoryFull() const;
     void addItem(const std::string& itemId);
@@ -98,8 +102,25 @@ public:
     // --- Cards: run-scoped reactors ("the player persists") -----------------
     // Held here, outside the board/turn stack, so they survive undo and are
     // never cloned. Reacting happens via dispatchReactors below.
+
+    // An owned card keeps its registry id alongside the live effect, so the UI
+    // (cards panel, shop "already owned" check) can show what the player holds
+    // without the Effect itself needing an identity.
+    struct OwnedCard {
+        std::string defId;  // empty for engine-level cards added without a def
+        std::unique_ptr<Effect> effect;
+    };
+
+    // Instantiates the registered card and mounts it at run scope. Refuses
+    // unknown ids and duplicates (one copy per card — revisit if stacking
+    // becomes a mechanic). Does NOT charge coins: pricing is the shop's job.
+    bool acquireCard(const std::string& cardId);
+    bool ownsCard(const std::string& cardId) const;
+    const std::vector<OwnedCard>& getOwnedCards() const { return cards; }
+
+    // Engine-level escape hatch (tests, debug): mount a card effect that has no
+    // registry def. It won't appear in the cards panel (empty id).
     void addCard(std::unique_ptr<Effect> card);
-    const std::vector<std::unique_ptr<Effect>>& getCards() const { return cards; }
 
     // The reactor pass (design doc §9): called by Turn::endTurn on a COMPLETED
     // turn, after the shop lifecycle resolved, BEFORE the board is cloned into
@@ -146,6 +167,7 @@ public:
     bool hasActiveAnimations() const { return animationsActive && animationsActive(); }
 
     ItemRegistry& getItemRegistry() { return itemRegistry; }
+    CardRegistry& getCardRegistry() { return cardRegistry; }
 
     bool shopOpen = false;
 
@@ -166,7 +188,7 @@ private:
 
     // Run-scoped reactors, in acquisition order — the deterministic dispatch
     // order for the run scope (no board position to sort by).
-    std::vector<std::unique_ptr<Effect>> cards;
+    std::vector<OwnedCard> cards;
 
     std::vector<std::string> inventoryItems;
 
@@ -175,6 +197,7 @@ private:
     int selectedIndex = -1;
 
     ItemRegistry itemRegistry;
+    CardRegistry cardRegistry;
 
     int coins = 100;
     unsigned int maxInventorySize = 3;

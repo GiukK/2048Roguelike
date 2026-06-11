@@ -1,10 +1,12 @@
 #include "states/ItemTooltip.h"
 #include "core/ItemRegistry.h"
+#include "core/CardRegistry.h"
 
-#include <string>
 #include <utility>
 
-ui::UINode buildItemTooltip(const ItemDef& item, int cost, const ui::Theme& theme) {
+ui::UINode buildInfoTooltip(const std::string& textureId, const std::string& name,
+                            const std::string& description, int cost,
+                            const ui::Theme& theme) {
     using namespace ui;
 
     // Wrap width for the description (tooltip layout, not a global theme token).
@@ -19,13 +21,13 @@ ui::UINode buildItemTooltip(const ItemDef& item, int cost, const ui::Theme& them
     card.style.border = theme.panelBorder;
     card.style.borderThickness = theme.borderThickness;
 
-    // Header: item icon + title, side by side and vertically centred.
+    // Header: icon + title, side by side and vertically centred.
     UINode icon{UIType::Image};
-    icon.image = item.textureId;
+    icon.image = textureId;
     icon.imageSize = {theme.iconSize, theme.iconSize};
 
     UINode title{UIType::Text};
-    title.text = item.name.empty() ? item.id : item.name;
+    title.text = name;
     title.style.charSize = theme.titleSize;
     title.style.textColor = theme.accent;
 
@@ -37,9 +39,9 @@ ui::UINode buildItemTooltip(const ItemDef& item, int cost, const ui::Theme& them
     header.children.push_back(std::move(title));
     card.children.push_back(std::move(header));
 
-    if (!item.description.empty()) {
+    if (!description.empty()) {
         UINode desc{UIType::Text};
-        desc.text = item.description;
+        desc.text = description;
         desc.style.charSize = theme.bodySize;
         desc.style.textColor = theme.textPrimary;
         desc.maxW = kDescWidth;  // wrap the description
@@ -62,4 +64,16 @@ ui::UINode buildItemTooltip(const ItemDef& item, int cost, const ui::Theme& them
     }
 
     return card;
+}
+
+ui::UINode buildItemTooltip(const ItemDef& item, int cost, const ui::Theme& theme) {
+    return buildInfoTooltip(item.textureId,
+                            item.name.empty() ? item.id : item.name,
+                            item.description, cost, theme);
+}
+
+ui::UINode buildCardTooltip(const CardDef& card, int cost, const ui::Theme& theme) {
+    return buildInfoTooltip(card.textureId,
+                            card.name.empty() ? card.id : card.name,
+                            card.description, cost, theme);
 }

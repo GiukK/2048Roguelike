@@ -33,8 +33,10 @@ private:
     void initVisuals();
     void generateShop();
     void buyItem(size_t index);
+    void buyCard(size_t index);
     void rebuildShopButtons();
-    // Tooltip (name + description + price) for the shop item under the cursor.
+    void rebuildCardButtons();
+    // Tooltip (name + description + price) for the shop item/card under the cursor.
     void renderHoveredTooltip(RenderSystem& renderer);
 
     StateManager& stateManager;
@@ -48,6 +50,13 @@ private:
     std::vector<std::string> shopItemIds;
     std::vector<UI_Button> shopButtons;
     int pendingBuyIndex = -1;
+
+    // Card stock: a row below the items. Today every unowned registered card is
+    // offered (the catalogue is tiny); switch to weighted picks like the items
+    // once it grows. Same deferred-buy machine as the items.
+    std::vector<std::string> shopCardIds;
+    std::vector<UI_Button> cardButtons;
+    int pendingBuyCardIndex = -1;
 
     static constexpr int SHOP_SLOTS = 3;
 };

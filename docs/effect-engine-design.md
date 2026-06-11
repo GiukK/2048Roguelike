@@ -293,6 +293,18 @@ later. Likely: `ChipRegistry`, `CardRegistry`, and a `SlotTypeRegistry`/factory
 (Shop/Dark Shop/Event = recipes that attach the right slot effects). Mechanism in
 core, policy in registries — no new control-flow per content item.
 
+**`CardRegistry` DONE (2026-06-11)** — `core/CardRegistry.h`: `CardDef` = display
+data (texture/name/description) + cost/weight + an `instantiate` factory building
+the run-scoped effect (usually a `ReactorCard`). `GameRun::acquireCard(id)` mounts
+it (one copy per card; `OwnedCard` keeps the def id beside the live effect so the
+UI can show what's owned). Pricing through `getEffectiveCost(CardDef)` — the card
+twin of the item hook. First content: **Two for Two** ("every time two 2 tiles
+merge, gain 2 coins", reward sourced at the merge cell so slot chips scale it).
+Shop offers every unowned card in a row below the items; the Cards panel
+(`states/CardsState`, opened by the play screen's cards button) lists owned cards
+— both reuse the modal-overlay + tooltip patterns. `ChipRegistry`/`SlotTypeRegistry`
+still future.
+
 ---
 
 ## 11. Migration plan (incremental, behavior-preserving, always builds)
