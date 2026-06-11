@@ -406,12 +406,29 @@ void GameRun::discardHeldItem() {
 
 bool GameRun::acquireCard(const std::string& cardId) {
     if (!cardRegistry.has(cardId)) return false;
-    if (ownsCard(cardId)) return false;
 
     const CardDef& def = cardRegistry.get(cardId);
     if (!def.instantiate) return false;
     cards.push_back({cardId, def.instantiate()});
     return true;
+}
+
+void GameRun::toggleSelectedCard(int index) {
+    selectedCardIndex = (selectedCardIndex == index) ? -1 : index;
+}
+
+bool GameRun::discardCard(size_t index) {
+    if (index >= cards.size()) return false;
+    cards.erase(cards.begin() + static_cast<ptrdiff_t>(index));
+    // Indices shifted; a stale selection must not point at the wrong card.
+    selectedCardIndex = -1;
+    return true;
+}
+
+void GameRun::discardSelectedCard() {
+    if (selectedCardIndex >= 0 && selectedCardIndex < static_cast<int>(cards.size())) {
+        discardCard(static_cast<size_t>(selectedCardIndex));
+    }
 }
 
 bool GameRun::ownsCard(const std::string& cardId) const {

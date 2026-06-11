@@ -69,11 +69,13 @@ void ShopState::generateShop() {
         }
     }
 
-    // Card stock: every registered card the player doesn't own yet. One copy
-    // per card (acquireCard refuses duplicates), so an owned card isn't shown.
+    // Card stock. Debug: the whole catalogue, always — duplicates included, so
+    // stacked copies (two "Two for Two" both firing) can be tested. Normal play
+    // policy for now: only cards the player doesn't own yet (the model allows
+    // stacking; offering duplicates is a shop-design decision for later).
     shopCardIds.clear();
     for (const auto* def : gameRun->getCardRegistry().getAll()) {
-        if (!gameRun->ownsCard(def->id)) {
+        if (debug::Enabled || !gameRun->ownsCard(def->id)) {
             shopCardIds.push_back(def->id);
         }
     }
@@ -184,9 +186,12 @@ void ShopState::buyCard(size_t index) {
 
     gameRun->addCoins(-cost);
 
-    // A card is one-copy (unlike items), so it leaves the shop even in debug.
-    shopCardIds.erase(shopCardIds.begin() + static_cast<ptrdiff_t>(index));
-    rebuildCardButtons();
+    // Debug shop stays fully stocked (infinite copies, for synergy testing);
+    // normally a bought card leaves this shop's stock.
+    if (!debug::Enabled) {
+        shopCardIds.erase(shopCardIds.begin() + static_cast<ptrdiff_t>(index));
+        rebuildCardButtons();
+    }
 }
 
 void ShopState::handleInput(sf::Event& event) {

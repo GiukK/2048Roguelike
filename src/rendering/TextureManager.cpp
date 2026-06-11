@@ -17,7 +17,6 @@ void TextureManager::initialize() {
     load("use_button",      "assets/textures/use_button.png");
     load("discard_button",  "assets/textures/discard_button.png");
     load("exit_button",     "assets/textures/exit_button.png");
-    load("cards_button",    "assets/textures/cards_button.png");
     load("digits",          "assets/textures/digits.png");
 
     // Cards

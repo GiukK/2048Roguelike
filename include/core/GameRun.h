@@ -111,12 +111,22 @@ public:
         std::unique_ptr<Effect> effect;
     };
 
-    // Instantiates the registered card and mounts it at run scope. Refuses
-    // unknown ids and duplicates (one copy per card — revisit if stacking
-    // becomes a mechanic). Does NOT charge coins: pricing is the shop's job.
+    // Instantiates the registered card and mounts it at run scope. Refuses only
+    // unknown ids. STACKING IS LEGAL at the model level: two copies are two
+    // reactors and both fire (Balatro-style synergy); whether duplicates are
+    // OFFERED is shop policy. Does NOT charge coins: pricing is the shop's job.
     bool acquireCard(const std::string& cardId);
     bool ownsCard(const std::string& cardId) const;
     const std::vector<OwnedCard>& getOwnedCards() const { return cards; }
+
+    // Card selection + discard, mirroring the inventory commands so PlayUI
+    // drives both columns the same way. Discarding unmounts the reactor — its
+    // effects simply stop. No phase gate: like an item discard, it never
+    // touches the board.
+    void toggleSelectedCard(int index);
+    int getSelectedCardIndex() const { return selectedCardIndex; }
+    bool discardCard(size_t index);
+    void discardSelectedCard();
 
     // Engine-level escape hatch (tests, debug): mount a card effect that has no
     // registry def. It won't appear in the cards panel (empty id).
@@ -195,6 +205,9 @@ private:
     // Selection: only one item at a time. -1 = nothing selected. This is the
     // "held item" the player is interacting with; PlayUI shows its action buttons.
     int selectedIndex = -1;
+
+    // Card selection (independent of the item one — separate columns). -1 = none.
+    int selectedCardIndex = -1;
 
     ItemRegistry itemRegistry;
     CardRegistry cardRegistry;

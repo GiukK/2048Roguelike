@@ -7,9 +7,11 @@
 class RenderSystem;
 class GameRun;
 
-// The play-screen UI layer: full-screen backdrop, HUD counters, and the
-// inventory / action buttons. It OWNS the screen-space widgets and reads/commands
-// the GameRun MODEL (which keeps the run state). Owned by PlayState.
+// The play-screen UI layer: full-screen backdrop, HUD counters, and the two
+// side columns — consumable items on the RIGHT, owned cards on the LEFT — each
+// framed by a themed panel, with selection + action buttons. It OWNS the
+// screen-space widgets and reads/commands the GameRun MODEL (which keeps the
+// run state). Owned by PlayState.
 //
 // This is the seam the future data-driven UI framework will grow into: the
 // UI_Button widgets here become UINodes, and isPointOverUI is subsumed by the
@@ -22,8 +24,8 @@ public:
     void renderBackground(RenderSystem& r); // full-screen UI backdrop (UI view)
     void renderForeground(RenderSystem& r); // HUD counters + buttons + tooltip (UI view)
 
-    // Screen-space hit-test over the inventory/action buttons (raw pixel point).
-    // Lets PlayState give the UI priority over the board for pan/selection.
+    // Screen-space hit-test over the inventory/card/action buttons (raw pixel
+    // point). Lets PlayState give the UI priority over the board for pan/selection.
     bool isPointOverUI(sf::Vector2f screenPoint) const;
 
 private:
@@ -32,8 +34,13 @@ private:
     void syncButtonsToModel();
     void rebuildInventoryButtons();
     void rebuildActionButtons();
-    // Draws the tooltip for the inventory item currently under the cursor (if any).
+    void rebuildCardButtons();
+    void rebuildCardActionButtons();
+    // Themed frame + title behind each side column (drawn before its buttons).
+    void drawColumnPanel(RenderSystem& r, float centerX, const char* title);
+    // Tooltips for the item/card under the cursor (if any).
     void renderInventoryTooltip(RenderSystem& r);
+    void renderCardsTooltip(RenderSystem& r);
     void drawDigitCounter(RenderSystem& r, unsigned int value, float xOffset,
                           float y = 18.f, float scale = 10.f);
 
@@ -44,13 +51,24 @@ private:
     std::vector<UI_Button> inventoryButtons;
     std::vector<UI_Button> actionButtons;
 
+    // Cards column (left). cardModelIndex maps button i -> index into
+    // GameRun::getOwnedCards(): engine-level cards without a registry def have
+    // nothing to show and are skipped, so the two indexings can diverge.
+    std::vector<UI_Button> cardButtons;
+    std::vector<size_t> cardModelIndex;
+    std::vector<UI_Button> cardActionButtons;  // discard only — cards are passive
+
     // Deferred actions — set by button callbacks, processed after the button
     // update loop to avoid invalidating the vectors mid-iteration.
     int pendingSelectIndex = -1;
     enum class PendingAction { None, Use, Discard };
     PendingAction pendingAction = PendingAction::None;
+    int pendingCardSelect = -1;        // model index (via cardModelIndex)
+    bool pendingCardDiscard = false;
 
     // Last observed model state, to detect when a rebuild is needed.
     int lastInventorySize = -1;
     int lastSelectedIndex = -1;
+    int lastCardCount = -1;
+    int lastSelectedCardIndex = -1;
 };

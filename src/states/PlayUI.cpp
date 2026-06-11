@@ -2,6 +2,7 @@
 #include "states/ItemTooltip.h"
 #include "core/GameRun.h"
 #include "core/ItemRegistry.h"
+#include "core/CardRegistry.h"
 #include "rendering/RenderSystem.h"
 #include "ui/UI.h"
 
@@ -10,8 +11,9 @@
 
 namespace {
 // HUD layout, screen-space (drawn in the UI view). Hardcoded for now; moves into
-// the data-driven UI layer later. The inventory row geometry is shared so the
-// use/discard action buttons line up with the selected item.
+// the data-driven UI layer later. The two side columns mirror each other:
+// consumable items on the right, owned cards on the left; each column's row
+// geometry is shared so its action buttons line up with the selected entry.
 constexpr float TurnCounterX       = 350.f;   // top-left turn count
 constexpr float CoinsCounterX      = 1380.f;  // top-right coin count
 constexpr float ShopCountdownX     = 350.f;   // below the turn count
@@ -22,6 +24,16 @@ constexpr float InventoryTopY      = 350.f;   // first item's Y
 constexpr float InventorySpacingY  = 200.f;   // vertical gap between items
 constexpr float ActionButtonX      = 1350.f;  // use/discard column (left of items)
 constexpr float ActionButtonGapY   = 55.f;    // offset of use/discard from item Y
+constexpr float CardsX             = 180.f;   // left-side cards column
+constexpr float CardsTopY          = 350.f;   // mirrors the inventory rows
+constexpr float CardsSpacingY      = 200.f;
+constexpr float CardMaxWidth       = 130.f;   // keeps the 31x41 card inside its row
+constexpr float CardActionX        = 330.f;   // discard button, board-side of the card
+// Themed frame around each column ("Items" / "Cards"): half-width and the
+// vertical band covering the 3 rows plus headroom for the title.
+constexpr float PanelHalfW         = 120.f;
+constexpr float PanelTop           = 245.f;
+constexpr float PanelHeight        = 630.f;
 } // namespace
 
 PlayUI::PlayUI(RenderSystem& renderer, GameRun& run)
@@ -35,6 +47,8 @@ PlayUI::PlayUI(RenderSystem& renderer, GameRun& run)
 void PlayUI::update(float dt) {
     for (auto& btn : inventoryButtons) btn.update(dt);
     for (auto& btn : actionButtons) btn.update(dt);
+    for (auto& btn : cardButtons) btn.update(dt);
+    for (auto& btn : cardActionButtons) btn.update(dt);
 
     // Deferred selection toggle (set by an inventory button click).
     if (pendingSelectIndex >= 0) {
@@ -47,6 +61,16 @@ void PlayUI::update(float dt) {
         if (pendingAction == PendingAction::Use) run.useHeldItem();
         else                                     run.discardHeldItem();
         pendingAction = PendingAction::None;
+    }
+
+    // Same deferred machine for the cards column.
+    if (pendingCardSelect >= 0) {
+        run.toggleSelectedCard(pendingCardSelect);
+        pendingCardSelect = -1;
+    }
+    if (pendingCardDiscard) {
+        run.discardSelectedCard();
+        pendingCardDiscard = false;
     }
 
     // Rebuild AFTER processing, so a model change this frame is reflected this
@@ -65,6 +89,16 @@ void PlayUI::syncButtonsToModel() {
     if (sel != lastSelectedIndex) {
         rebuildActionButtons();
         lastSelectedIndex = sel;
+    }
+    int cardCount = static_cast<int>(run.getOwnedCards().size());
+    if (cardCount != lastCardCount) {
+        rebuildCardButtons();
+        lastCardCount = cardCount;
+    }
+    int cardSel = run.getSelectedCardIndex();
+    if (cardSel != lastSelectedCardIndex) {
+        rebuildCardActionButtons();
+        lastSelectedCardIndex = cardSel;
     }
 }
 
@@ -96,8 +130,65 @@ void PlayUI::rebuildActionButtons() {
         [this]() { pendingAction = PendingAction::Discard; });
 }
 
+void PlayUI::rebuildCardButtons() {
+    cardButtons.clear();
+    cardModelIndex.clear();
+
+    const auto& owned = run.getOwnedCards();
+    for (size_t i = 0; i < owned.size(); ++i) {
+        // Engine-level cards (empty id, tests/debug only) have nothing to show.
+        if (owned[i].defId.empty() || !run.getCardRegistry().has(owned[i].defId)) continue;
+        const auto& def = run.getCardRegistry().get(owned[i].defId);
+
+        size_t modelIdx = i;
+        size_t row = cardButtons.size();
+        cardButtons.emplace_back(renderer, def.textureId,
+            sf::Vector2f{CardsX, CardsTopY + CardsSpacingY * static_cast<float>(row)},
+            [this, modelIdx]() { pendingCardSelect = static_cast<int>(modelIdx); });
+        cardModelIndex.push_back(modelIdx);
+
+        // Clamp to the row height (the card art is taller than the item icons).
+        sf::Sprite& sprite = cardButtons.back().getSprite();
+        float width = sprite.getGlobalBounds().size.x;
+        if (width > CardMaxWidth) {
+            sprite.setScale(sprite.getScale() * (CardMaxWidth / width));
+        }
+    }
+}
+
+void PlayUI::rebuildCardActionButtons() {
+    cardActionButtons.clear();
+    int sel = run.getSelectedCardIndex();
+    if (sel < 0 || sel >= static_cast<int>(run.getOwnedCards().size())) return;
+
+    // The selected MODEL index maps back to its visual row to align the button.
+    auto it = std::find(cardModelIndex.begin(), cardModelIndex.end(),
+                        static_cast<size_t>(sel));
+    if (it == cardModelIndex.end()) return;
+    float rowY = CardsTopY + CardsSpacingY *
+                 static_cast<float>(it - cardModelIndex.begin());
+
+    // Cards are passive: the only action is unmounting (discard).
+    cardActionButtons.emplace_back(renderer, "discard_button",
+        sf::Vector2f{CardActionX, rowY},
+        [this]() { pendingCardDiscard = true; });
+}
+
 void PlayUI::renderBackground(RenderSystem& r) {
     r.draw(backUI);
+}
+
+void PlayUI::drawColumnPanel(RenderSystem& r, float centerX, const char* title) {
+    const ui::Theme& theme = ui::defaultTheme();
+    const sf::FloatRect rect({centerX - PanelHalfW, PanelTop},
+                             {PanelHalfW * 2.f, PanelHeight});
+    r.drawPixelRoundedRect(rect, theme.radius, theme.panelFill,
+                           theme.panelBorder, theme.borderThickness);
+
+    const std::string text = title;
+    sf::Vector2f size = r.measureText(text, theme.titleSize);
+    r.drawText(text, {centerX - size.x / 2.f, PanelTop + theme.padding / 2.f},
+               theme.titleSize, theme.accent);
 }
 
 void PlayUI::renderForeground(RenderSystem& r) {
@@ -110,6 +201,10 @@ void PlayUI::renderForeground(RenderSystem& r) {
     // interval once the shop is consumed.
     drawDigitCounter(r, static_cast<unsigned int>(run.getShopCountdown()),
                      ShopCountdownX, ShopCountdownY, ShopCountdownScale);
+
+    // Column frames first, so every widget draws on top of them.
+    drawColumnPanel(r, InventoryX, "Items");
+    drawColumnPanel(r, CardsX, "Cards");
 
     int sel = run.getSelectedIndex();
     for (size_t i = 0; i < inventoryButtons.size(); ++i) {
@@ -125,7 +220,22 @@ void PlayUI::renderForeground(RenderSystem& r) {
         r.draw(btn.getSprite());
     }
 
+    int cardSel = run.getSelectedCardIndex();
+    for (size_t i = 0; i < cardButtons.size(); ++i) {
+        auto& btn = cardButtons[i];
+        bool held = (cardSel >= 0 && cardModelIndex[i] == static_cast<size_t>(cardSel));
+
+        if (held) btn.getSprite().setColor(sf::Color::Red);
+        r.draw(btn.getSprite());
+        if (held) btn.getSprite().setColor(sf::Color::White);
+    }
+
+    for (auto& btn : cardActionButtons) {
+        r.draw(btn.getSprite());
+    }
+
     renderInventoryTooltip(r);
+    renderCardsTooltip(r);
 }
 
 void PlayUI::renderInventoryTooltip(RenderSystem& r) {
@@ -155,11 +265,44 @@ void PlayUI::renderInventoryTooltip(RenderSystem& r) {
     }
 }
 
+void PlayUI::renderCardsTooltip(RenderSystem& r) {
+    const sf::Vector2i mp = sf::Mouse::getPosition(r.getWindow());
+    const sf::Vector2f mouse(mp);
+
+    const auto& owned = run.getOwnedCards();
+    for (std::size_t i = 0; i < cardButtons.size(); ++i) {
+        if (!cardButtons[i].contains(mouse)) continue;
+
+        const auto& def = run.getCardRegistry().get(owned[cardModelIndex[i]].defId);
+        ui::UINode tip = buildCardTooltip(def, -1);  // owned: no price badge
+        ui::measureNode(tip, r);
+
+        // Cards hug the left edge, so the tooltip goes to their RIGHT (the
+        // mirror of the inventory tooltip), vertically centred and clamped.
+        const sf::FloatRect b = cardButtons[i].getSprite().getGlobalBounds();
+        const auto ws = r.getWindowSize();
+        float tx = std::min(b.position.x + b.size.x + 24.f,
+                            static_cast<float>(ws.x) - tip.computedW - 10.f);
+        float ty = std::clamp(b.position.y + b.size.y / 2.f - tip.computedH / 2.f,
+                              10.f, static_cast<float>(ws.y) - tip.computedH - 10.f);
+
+        ui::layoutNode(tip, tx, ty);
+        ui::drawNode(tip, r);
+        break;  // one tooltip at a time
+    }
+}
+
 bool PlayUI::isPointOverUI(sf::Vector2f screenPoint) const {
     for (const auto& btn : inventoryButtons) {
         if (btn.contains(screenPoint)) return true;
     }
     for (const auto& btn : actionButtons) {
+        if (btn.contains(screenPoint)) return true;
+    }
+    for (const auto& btn : cardButtons) {
+        if (btn.contains(screenPoint)) return true;
+    }
+    for (const auto& btn : cardActionButtons) {
         if (btn.contains(screenPoint)) return true;
     }
     return false;

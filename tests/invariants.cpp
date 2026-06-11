@@ -474,13 +474,14 @@ int main() {
         CHECK(run->currentTurnLog().countOf(TurnEvent::Type::ItemUsed) == 1);
     }
 
-    // --- Card registry: acquire semantics + Two for Two behavior -------------
+    // --- Card registry: acquire + stacking + discard + Two for Two behavior --
     {
         auto run = makeRun(18);
         CHECK(!run->acquireCard("no_such_card"));      // unknown id refused
         CHECK(run->acquireCard("two_for_two"));
         CHECK(run->ownsCard("two_for_two"));
-        CHECK(!run->acquireCard("two_for_two"));       // one copy per card
+        CHECK(run->acquireCard("two_for_two"));        // stacking is legal:
+        CHECK(run->getOwnedCards().size() == 2);       // two copies = two reactors
 
         Turn turn(renderer, run.get());
         turn.board.clear();
@@ -491,7 +492,23 @@ int main() {
 
         const int coins0 = run->getCoins();
         run->dispatchReactors(turn.log(), turn.board);
-        CHECK(run->getCoins() == coins0 + 2);          // two 2s merged -> +2 coins
+        CHECK(run->getCoins() == coins0 + 4);          // both copies fired: 2 + 2
+
+        // Discard unmounts one reactor; the survivor still fires alone.
+        CHECK(run->discardCard(0));
+        CHECK(run->getOwnedCards().size() == 1);
+        CHECK(run->ownsCard("two_for_two"));           // one copy remains
+
+        Turn again(renderer, run.get());
+        again.board.clear();
+        CHECK(again.board.spawnTileAt({0, 0}, 2) != nullptr);
+        CHECK(again.board.spawnTileAt({1, 0}, 2) != nullptr);
+        again.log().clear();
+        again.board.move(Direction::Left);
+
+        const int coins1 = run->getCoins();
+        run->dispatchReactors(again.log(), again.board);
+        CHECK(run->getCoins() == coins1 + 2);
 
         // A 4+4 merge does not qualify (sourceValue != 2).
         Turn other(renderer, run.get());
@@ -501,9 +518,14 @@ int main() {
         other.log().clear();
         other.board.move(Direction::Left);
 
-        const int coins1 = run->getCoins();
+        const int coins2 = run->getCoins();
         run->dispatchReactors(other.log(), other.board);
-        CHECK(run->getCoins() == coins1);
+        CHECK(run->getCoins() == coins2);
+
+        // Discarding the last copy: nothing fires anymore.
+        CHECK(run->discardCard(0));
+        CHECK(!run->ownsCard("two_for_two"));
+        CHECK(!run->discardCard(0));                   // nothing left to discard
     }
 
     std::cout << checks << " checks, " << failures << " failure(s)\n";
