@@ -53,14 +53,15 @@ private:
     int factor;
 };
 
-// Adds extra turns to an Hourglass rewind (Back to Back).
-class RewindDepthCard : public Effect {
+// Makes each Hourglass use rewind `rewinds` turns (Back to Back = 3). Copies
+// sum their full value, replacing the base single rewind.
+class HourglassRewindsCard : public Effect {
 public:
-    explicit RewindDepthCard(int bonus) : bonus(bonus) {}
-    int rewindDepthBonus() const override { return bonus; }
+    explicit HourglassRewindsCard(int rewinds) : rewinds(rewinds) {}
+    int hourglassRewinds() const override { return rewinds; }
     std::unique_ptr<Effect> clone() const override {
-        return std::make_unique<RewindDepthCard>(*this);
+        return std::make_unique<HourglassRewindsCard>(*this);
     }
 private:
-    int bonus;
+    int rewinds;
 };

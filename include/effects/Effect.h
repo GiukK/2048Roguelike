@@ -88,10 +88,12 @@ public:
     // "no spawns at all". Aggregated by GameRun::getSpawnCountPerTurn.
     virtual int spawnCountFactor() const { return 1; }
 
-    // Extra turns an Hourglass rewind goes back (Back to Back = +2, so one
-    // copy turns the rewind into 3). Additive across copies. Aggregated by
-    // GameRun::getRewindDepth.
-    virtual int rewindDepthBonus() const { return 0; }
+    // Turns an Hourglass use rewinds BECAUSE OF this effect (Back to Back = 3).
+    // Copies stack their FULL effect — the game's card-stacking rule — so the
+    // total is the SUM over cards, REPLACING the base single rewind: no cards
+    // = 1, one Back to Back = 3, two = 6 ("as if you used 6 Hourglasses").
+    // Aggregated by GameRun::getRewindDepth.
+    virtual int hourglassRewinds() const { return 0; }
 
     // --- Presentation hints (defaults: none) --------------------------------
     // Optional slot skin: texture id the owning slot adopts while this effect is

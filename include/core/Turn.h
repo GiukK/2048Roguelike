@@ -30,6 +30,12 @@ public:
     // setupInitialBoard() -> spawnTileInRandomEmptySlot(), which emits into it.
     TurnLog eventLog;
 
+    // How many of this turn's events the reactors have already seen. Advanced
+    // by GameRun::flushReactors at each safe point, so dispatch is in-order and
+    // exactly-once no matter how many flushes happen; reset with the log in
+    // endTurn so a replayed turn re-fires from scratch.
+    size_t reactorCursor = 0;
+
     GameRun* gameRun;
     Board board;
     Board boardSnapshot;

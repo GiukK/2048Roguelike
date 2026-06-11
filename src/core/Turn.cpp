@@ -97,12 +97,13 @@ void Turn::endTurn() {
     // — so the undo history stays consistent and no shop pointer dangles.
     gameRun->advanceShopState(board);
 
-    // Reactor pass: cards observe this COMPLETED turn's log and act through
-    // EffectContext. After advanceShopState (so ShopSpawned is observable) and
-    // before newTurn (so reactor mutations to `board` are inherited by the next
-    // turn's clone, while the snapshot reset below wipes them from THIS turn —
-    // a replay after undo starts clean, per the §13 undo semantics).
-    gameRun->dispatchReactors(eventLog, board);
+    // Final flush (catches end-of-turn events like ShopSpawned) + the aggregate
+    // onTurnEnd pass over the full log. Before newTurn, so reactor mutations to
+    // `board` are inherited by the next turn's clone, while the snapshot reset
+    // below wipes them from THIS turn — a replay after undo starts clean, per
+    // the §13 undo semantics.
+    gameRun->flushReactors(*this);
+    gameRun->dispatchTurnEnd(*this);
 
     // Debug: dump what happened this turn — including what the reactors just
     // appended. Before newTurn, so getTurnCount() still reports THIS finishing
@@ -120,12 +121,14 @@ void Turn::endTurn() {
     currentPhase = Phase::Begin;
     currentMove = Direction::None;
     inputReceived = false;
-    // Reset board AND log together: this turn is now rewound to its pre-move
-    // snapshot, ready to be replayed if the player undoes back into it (Hourglass
-    // / debug B). Clearing the log here is what keeps a replayed turn from
-    // carrying ghost events from its previous play-through.
+    // Reset board, log AND reactor cursor together: this turn is now rewound to
+    // its pre-move snapshot, ready to be replayed if the player undoes back into
+    // it (Hourglass / debug B). Clearing the log keeps a replayed turn from
+    // carrying ghost events; resetting the cursor lets the replay re-fire its
+    // reactors from scratch (the §13 balance-watch consequence, accepted).
     board.copyStateFrom(boardSnapshot);
     eventLog.clear();
+    reactorCursor = 0;
 }
 
 void Turn::requestShop() {
@@ -151,6 +154,10 @@ void Turn::update(float deltaTime) {
             // space within the same move — so the one-shot contract is load-bearing.
             board.move(currentMove);
             inputReceived = false;
+            // Safe point: the sweep is fully resolved, so reactors may now see
+            // its events (merges, brick breaks) and mutate freely — granular
+            // "as it happens" timing without ever touching an in-flight sweep.
+            gameRun->flushReactors(*this);
         }
         board.update(deltaTime);
 
@@ -173,6 +180,9 @@ void Turn::update(float deltaTime) {
         for (int i = 0; i < spawns; ++i) {
             board.spawnTileInRandomEmptySlot();
         }
+        // Safe point: the Moved event (pushed on entering this phase) and the
+        // spawns above reach the reactors before the turn wraps up.
+        gameRun->flushReactors(*this);
         nextPhase();
         break;
     }

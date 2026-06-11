@@ -109,11 +109,13 @@ and owners aggregate them so board logic never type-switches on concrete effects
   a context pipeline's ordering guarantee would buy nothing:
   `spawnCountFactor()` (default 1; Vase of Two = 2, copies multiply, 0 = "no
   spawns", capped at 64 — read by `Turn` BoardResolution via
-  `GameRun::getSpawnCountPerTurn()`) and `rewindDepthBonus()` (default 0; Back
-  to Back = +2, additive — read by the Hourglass via `GameRun::getRewindDepth()`,
-  which rewinds up to that many turns, clamping at the first; consumed iff at
-  least one rewind happened). RULE OF THUMB: outcome needs ordering or carries
-  data → context pipeline; commutative scalar → capability.
+  `GameRun::getSpawnCountPerTurn()`) and `hourglassRewinds()` (default 0; Back
+  to Back = 3; copies SUM their full value and REPLACE the base single rewind:
+  none = 1, one = 3, two = 6 — read by the Hourglass via
+  `GameRun::getRewindDepth()`, which rewinds up to that many turns, clamping at
+  the first; consumed iff at least one rewind happened). RULE OF THUMB: outcome
+  needs ordering or carries data → context pipeline; commutative scalar →
+  capability.
 - Presentation hints: `slotTextureId()` (slot skin) and `overlayTextureId()`
   (marker drawn over the owning tile — brick/frozen show the brick marker).
 
@@ -276,17 +278,30 @@ a causal narrative; this flips steps 5/6 of the original sketch.
   acquisition order — the deterministic dispatch order for the run scope. They
   live outside the board/turn stack: they persist through undo and are never
   cloned ("the player persists").
-- Reactor dispatch: `GameRun::dispatchReactors(log, board)`, called by
-  `Turn::endTurn` on the COMPLETED turn — after `advanceShopState` (so
-  `ShopSpawned` is observable), before `newTurn` (so reactor mutations to the
-  board carry into the next turn's clone, while the snapshot reset wipes them
-  from the replayable current turn). **Event-major order**: every card sees
-  event *i* before any card sees event *i+1* (the Balatro left-to-right rule),
-  then each card gets one `onTurnEnd(log, ctx)` for aggregate reactions.
-- **No cascades**: the pass iterates the event count captured up front; events
-  appended by reactors (e.g. their `CoinsGained`) are logged in the same turn
-  but not re-dispatched. Each event is copied out before dispatch (reactor
-  appends may reallocate the log's storage).
+- **Reactor dispatch is STREAMING at safe points (revised 2026-06-11)** —
+  `GameRun::flushReactors(turn)` dispatches the turn's not-yet-seen events
+  (tracked by `Turn::reactorCursor`) and is called wherever the world sits
+  between atomic operations: **after an item use** (`GameRun::useItem` — so
+  Economic Boom pays the instant the bomb goes off), **after the move sweep
+  resolves** (`Turn::update` Movement — so brick-break reactions land with the
+  move, same frame), **after board-resolution spawns**, and **at end of turn**
+  (final flush + `dispatchTurnEnd` for the aggregate `onTurnEnd` pass, before
+  `newTurn` so reactor board mutations carry into the next turn's clone).
+  The cursor makes dispatch **in-order and exactly-once regardless of how many
+  flushes run** — flush placement tunes LATENCY, never correctness.
+- **The sweep stays atomic — deliberately.** Events emitted mid-sweep (merges,
+  brick breaks) are dispatched at the first safe point after `Board::move`
+  returns, never inside it: a reactor mutating the board mid-sweep could
+  corrupt the movement queue or free the merging tile under its own feet
+  (`mergedThisSweep` write-after-free). A future mechanic that must STOP or
+  alter a sweep in progress is a MODIFIER at the interaction site (context
+  hook), not a reactor — the two-role split covers it by design.
+- **Event-major order** within a flush: every card sees event *i* before any
+  card sees event *i+1* (the Balatro left-to-right rule).
+- **No cascades**: after dispatching, the cursor jumps PAST anything the
+  reactors appended (their `CoinsGained` etc. are logged — the turn record
+  stays truthful — but never re-dispatched). Each event is copied out before
+  dispatch (reactor appends may reallocate the log's storage).
 - `ReactorCard` (`effects/Cards.h`) is the generic data+lambda substrate (the
   ItemRegistry pattern) the future CardRegistry feeds; stateful cards subclass
   `Effect` directly. The debug dump in `Turn::endTurn` stays as an independent
@@ -415,15 +430,17 @@ Accepted consequences:
   is cloned with the board (world ⇒ rewinds); run-scoped state (cards) persists
   (player ⇒ survives undo).
 
-**Reactor visibility under undo (PINNED 2026-06-11, before cards land):**
+**Reactor visibility under undo (PINNED 2026-06-11; REVISED same day when
+dispatch went streaming):**
 
-- **Reactors only observe COMPLETED turns.** The reactor pass runs at end of
-  turn over that turn's log; a turn popped by `goBack` never ends, so its events
-  are never observed. Events are world-state: they rewind with the turn — even
-  `ItemUsed`, although the consumed item itself persists (player). So a card
-  like "gain 2 coins per item used" never fires for items consumed in a turn
-  that was later undone: a knowable cost of the Hourglass, same family as the
-  re-buyable shop above. Uniform rule, no per-event exceptions.
+- **Reactors observe events at SAFE POINTS as the turn progresses** (item use,
+  post-sweep, post-spawn, end of turn — see §9), exactly once each, in order.
+  Undo interplay: the log AND the reactor cursor rewind together (`endTurn`
+  resets both for the replayable turn), so an undone-then-replayed turn
+  re-fires its reactors from scratch, and a POPPED turn's unobserved events
+  vanish with it. Rewards a reactor already granted before the pop persist
+  (player) — the balance-watch family, accepted. Uniform rule, no per-event
+  exceptions.
 - **The Hourglass's own `ItemUsed` lands in the ARRIVAL turn's log** (the
   rewound turn the player resumes). Chronologically accurate — the rewind
   happened, then the replay experience — and observed exactly once, when the

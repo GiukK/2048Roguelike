@@ -141,12 +141,20 @@ public:
     // rewindDepthBonus (Back to Back), floored at 0.
     int getRewindDepth() const;
 
-    // The reactor pass (design doc §9): called by Turn::endTurn on a COMPLETED
-    // turn, after the shop lifecycle resolved, BEFORE the board is cloned into
-    // the next turn — so reactor mutations to `board` carry forward. Each card
-    // sees every logged event in order (event-major), then one onTurnEnd.
-    // Events the reactors append land in the same log but are NOT re-dispatched.
-    void dispatchReactors(TurnLog& log, Board& board);
+    // Streaming reactor dispatch (design doc §9): dispatches the turn's not-yet-
+    // seen events (from turn.reactorCursor) to the cards, in log order, then
+    // advances the cursor PAST anything the reactors appended — so reactions
+    // are never re-dispatched (no cascades) and every event fires exactly once
+    // no matter how often this is called. Called at the SAFE POINTS where the
+    // world is between atomic operations: after an item use, after the move
+    // sweep resolves, after board-resolution spawns, and at end of turn —
+    // never mid-sweep, so a reactor can't corrupt an in-flight move.
+    void flushReactors(Turn& turn);
+
+    // The aggregate pass: one onTurnEnd per card over the full log. Called by
+    // Turn::endTurn after the final flush, BEFORE the board is cloned into the
+    // next turn — so reactor mutations to the board carry forward.
+    void dispatchTurnEnd(Turn& turn);
     // Toggle which inventory item is held/selected (clicking the same one clears).
     void toggleSelectedItem(int index);
 

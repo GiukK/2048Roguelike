@@ -374,7 +374,7 @@ int main() {
         turn.board.move(Direction::Left);
 
         const int coins0 = run->getCoins();
-        run->dispatchReactors(turn.log(), turn.board);
+        run->flushReactors(turn);
         CHECK(run->getCoins() == coins0 + 3);
         // The reward is logged into the observed turn (sourced channel)...
         CHECK(turn.log().countOf(TurnEvent::Type::CoinsGained) == 1);
@@ -404,7 +404,7 @@ int main() {
         turn.board.move(Direction::Left);
 
         const int coins0 = run->getCoins();
-        run->dispatchReactors(turn.log(), turn.board);
+        run->flushReactors(turn);
         CHECK(run->getCoins() == coins0 + 6);  // card grants 3, chip doubles it
     }
 
@@ -430,7 +430,7 @@ int main() {
 
         const int coins0 = run->getCoins();
         turn.board.move(Direction::Left);            // chip: +5, logged
-        run->dispatchReactors(turn.log(), turn.board);
+        run->flushReactors(turn);
         CHECK(run->getCoins() == coins0 + 6);         // +5 chip, +1 card, no cascade
         CHECK(turn.log().countOf(TurnEvent::Type::CoinsGained) == 2);
     }
@@ -452,14 +452,14 @@ int main() {
         turn.board.move(Direction::Left);
 
         const int coins0 = run->getCoins();
-        run->dispatchReactors(turn.log(), turn.board);
+        run->dispatchTurnEnd(turn);   // the aggregate pass, separate from flush
         CHECK(run->getCoins() == coins0 + 2);
     }
 
     // --- Hourglass: ItemUsed lands in the ARRIVAL turn's log (pinned) ---------
-    // "Reactors only observe completed turns" (design doc §13): the popped
-    // turn's events rewind away; the hourglass use itself is recorded in the
-    // turn the player resumes, observed once when that turn completes.
+    // Design doc §13: the popped turn's events rewind away; the hourglass use
+    // itself is recorded in the turn the player resumes and dispatched to the
+    // reactors right away (the use-time safe point), exactly once.
     {
         auto run = makeRun(13);
         run->addItem("hourglass");
@@ -491,7 +491,7 @@ int main() {
         turn.board.move(Direction::Left);
 
         const int coins0 = run->getCoins();
-        run->dispatchReactors(turn.log(), turn.board);
+        run->flushReactors(turn);
         CHECK(run->getCoins() == coins0 + 4);          // both copies fired: 2 + 2
 
         // Discard unmounts one reactor; the survivor still fires alone.
@@ -507,7 +507,7 @@ int main() {
         again.board.move(Direction::Left);
 
         const int coins1 = run->getCoins();
-        run->dispatchReactors(again.log(), again.board);
+        run->flushReactors(again);
         CHECK(run->getCoins() == coins1 + 2);
 
         // A 4+4 merge does not qualify (sourceValue != 2).
@@ -519,7 +519,7 @@ int main() {
         other.board.move(Direction::Left);
 
         const int coins2 = run->getCoins();
-        run->dispatchReactors(other.log(), other.board);
+        run->flushReactors(other);
         CHECK(run->getCoins() == coins2);
 
         // Discarding the last copy: nothing fires anymore.
@@ -539,7 +539,11 @@ int main() {
         turn.log().push(TurnEvent::itemUsed("coin_bag"));  // not a bomb: ignored
 
         const int coins0 = run->getCoins();
-        run->dispatchReactors(turn.log(), turn.board);
+        run->flushReactors(turn);
+        CHECK(run->getCoins() == coins0 + 3);
+
+        // Exactly-once: the cursor makes a second flush a no-op.
+        run->flushReactors(turn);
         CHECK(run->getCoins() == coins0 + 3);
     }
 
@@ -593,6 +597,16 @@ int main() {
         run->useHeldItem();
         CHECK(run->getTurnCount() == 1);
         CHECK(run->getInventoryItems().size() == 1);
+
+        // Copies stack their FULL effect: two cards = 6 rewinds ("as if you
+        // used 6 Hourglasses"), not 1 + 2 + 2.
+        CHECK(run->acquireCard("back_to_back"));
+        CHECK(run->getRewindDepth() == 6);
+        for (int i = 0; i < 6; ++i) run->newTurn(scratch.board);
+        CHECK(run->getTurnCount() == 7);
+        run->useHeldItem();                                // still held from above
+        CHECK(run->getTurnCount() == 1);                   // 7 -> 1: all 6 rewinds
+        CHECK(run->getInventoryItems().empty());
     }
 
     // --- Bob: a broken brick grants a brick item; full inventory loses it ----
@@ -609,7 +623,7 @@ int main() {
         turn.log().clear();
 
         turn.board.move(Direction::Left);                  // merge breaks the brick
-        run->dispatchReactors(turn.log(), turn.board);
+        run->flushReactors(turn);
         CHECK(run->getInventoryItems().size() == 1);
         CHECK(run->getInventoryItems()[0] == "brick");
 
@@ -626,8 +640,25 @@ int main() {
         brick2->setBricked(true);
         again.log().clear();
         again.board.move(Direction::Left);
-        run->dispatchReactors(again.log(), again.board);
+        run->flushReactors(again);
         CHECK(run->getInventoryItems().size() == 3);       // unchanged
+    }
+
+    // --- Streaming dispatch: item reactions fire AT use time, not at turn end -
+    {
+        auto run = makeRun(24);
+        run->addCard(std::make_unique<ReactorCard>(
+            [](const TurnEvent& e, EffectContext& ctx) {
+                if (e.type == TurnEvent::Type::ItemUsed && e.itemId == "coin_bag") {
+                    ctx.addCoins(3);
+                }
+            }));
+
+        run->addItem("coin_bag");
+        run->toggleSelectedItem(0);
+        const int coins0 = run->getCoins();
+        run->useHeldItem();  // no turn ends anywhere in this test...
+        CHECK(run->getCoins() == coins0 + 50 + 3);  // ...yet the card already paid
     }
 
     std::cout << checks << " checks, " << failures << " failure(s)\n";

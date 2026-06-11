@@ -196,12 +196,13 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
         }
     });
 
-    // Back to Back: +2 rewind depth, so one copy makes the Hourglass rewind 3
-    // turns (additive: two copies = 5). The Hourglass itself reads the depth.
+    // Back to Back: each copy makes an Hourglass use worth a full 3 rewinds
+    // (two copies = 6, not 5 — copies stack their whole effect, the game's
+    // card-stacking rule). The Hourglass itself reads the depth.
     cardRegistry.registerCard({"back_to_back", "back_to_back",
-        "Back to Back", "An Hourglass rewinds 3 turns instead of 1.", 50, 1.0f,
+        "Back to Back", "An Hourglass rewinds 3 turns instead of 1. Copies add 3 each.", 50, 1.0f,
         []() -> std::unique_ptr<Effect> {
-            return std::make_unique<RewindDepthCard>(2);
+            return std::make_unique<HourglassRewindsCard>(3);
         }
     });
 
@@ -413,11 +414,14 @@ void GameRun::useItem(size_t index) {
 
     // Logged after the effect resolved (so it follows any TileDestroyed/etc. the
     // item emitted) but still within the same acting turn. PINNED semantics for
-    // the Hourglass (whose effect pops the acting turn): the event lands in the
+    // the Hourglass (whose effect pops acting turns): the event lands in the
     // log of the turn the player ARRIVES in — chronologically accurate (rewind,
-    // then replay) and observed exactly once when that turn completes. Reactors
-    // only ever observe completed turns (docs/effect-engine-design.md §13).
-    if (!turns.empty()) turns.top()->log().push(TurnEvent::itemUsed(def.id));
+    // then replay). The flush below makes item reactions INSTANT (Economic
+    // Boom pays the moment the bomb goes off), not end-of-turn.
+    if (!turns.empty()) {
+        turns.top()->log().push(TurnEvent::itemUsed(def.id));
+        flushReactors(*turns.top());
+    }
 
     inventoryItems.erase(inventoryItems.begin() + static_cast<ptrdiff_t>(index));
     clearSelection();
@@ -503,11 +507,13 @@ int GameRun::getSpawnCountPerTurn() const {
 }
 
 int GameRun::getRewindDepth() const {
-    int depth = 1;
+    // Sum of what the cards grant; they REPLACE the base single rewind, they
+    // don't add to it (two Back to Back = 6, "as if you used 6 Hourglasses").
+    int granted = 0;
     for (const auto& card : cards) {
-        depth += card.effect->rewindDepthBonus();
+        granted += card.effect->hourglassRewinds();
     }
-    return std::max(depth, 0);
+    return granted > 0 ? granted : 1;
 }
 
 bool GameRun::ownsCard(const std::string& cardId) const {
@@ -521,25 +527,38 @@ void GameRun::addCard(std::unique_ptr<Effect> card) {
     if (card) cards.push_back({"", std::move(card)});
 }
 
-void GameRun::dispatchReactors(TurnLog& log, Board& board) {
-    if (cards.empty()) return;
+void GameRun::flushReactors(Turn& turn) {
+    TurnLog& log = turn.log();
+    if (cards.empty()) {
+        // Keep the cursor honest even with no cards mounted, so a card bought
+        // mid-run doesn't retroactively see the whole backlog.
+        turn.reactorCursor = log.events().size();
+        return;
+    }
 
-    EffectContext ctx(*this, board, log);
+    EffectContext ctx(*this, turn.board, log);
 
-    // Iterate by index up to the count captured NOW: reactor mutations may
-    // append events to this same log (and reallocate its storage), so no
-    // reference into it may be held across a hook call — each event is copied
-    // out before dispatch. Appended events are logged but not re-dispatched:
-    // observations cannot cascade into more observations (no infinite loops).
+    // Dispatch [cursor, size-at-entry): reactor mutations may append events to
+    // this same log (and reallocate its storage), so no reference into it may
+    // be held across a hook call — each event is copied out before dispatch.
     const size_t eventCount = log.events().size();
-    for (size_t i = 0; i < eventCount; ++i) {
+    for (size_t i = turn.reactorCursor; i < eventCount; ++i) {
         const TurnEvent event = log.events()[i];
         for (auto& card : cards) {
             card.effect->onEvent(event, ctx);
         }
     }
+    // Jump PAST anything the reactors appended: reactions are logged (the turn
+    // record stays truthful) but never re-dispatched — no cascades, no loops.
+    turn.reactorCursor = log.events().size();
+}
+
+void GameRun::dispatchTurnEnd(Turn& turn) {
+    if (cards.empty()) return;
+
+    EffectContext ctx(*this, turn.board, turn.log());
     for (auto& card : cards) {
-        card.effect->onTurnEnd(log, ctx);
+        card.effect->onTurnEnd(turn.log(), ctx);
     }
 }
 
