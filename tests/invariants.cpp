@@ -353,6 +353,24 @@ int main() {
         CHECK(run->currentTurnLog().countOf(TurnEvent::Type::ItemUsed) == 1);
     }
 
+    // --- Hourglass: ItemUsed lands in the ARRIVAL turn's log (pinned) ---------
+    // "Reactors only observe completed turns" (design doc §13): the popped
+    // turn's events rewind away; the hourglass use itself is recorded in the
+    // turn the player resumes, observed once when that turn completes.
+    {
+        auto run = makeRun(13);
+        run->addItem("hourglass");
+        Turn scratch(renderer, run.get());
+        run->newTurn(scratch.board);                  // now on turn 2
+        CHECK(run->getTurnCount() == 2);
+
+        run->toggleSelectedItem(0);
+        run->useHeldItem();                           // rewinds to turn 1
+        CHECK(run->getTurnCount() == 1);
+        CHECK(run->getInventoryItems().empty());      // consumed: player persists
+        CHECK(run->currentTurnLog().countOf(TurnEvent::Type::ItemUsed) == 1);
+    }
+
     std::cout << checks << " checks, " << failures << " failure(s)\n";
     return failures == 0 ? 0 : 1;
 }

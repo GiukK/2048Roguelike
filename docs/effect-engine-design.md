@@ -362,3 +362,20 @@ Accepted consequences:
 - Future effect state follows the same split: board/slot/tile-scoped effect state
   is cloned with the board (world ⇒ rewinds); run-scoped state (cards) persists
   (player ⇒ survives undo).
+
+**Reactor visibility under undo (PINNED 2026-06-11, before cards land):**
+
+- **Reactors only observe COMPLETED turns.** The reactor pass runs at end of
+  turn over that turn's log; a turn popped by `goBack` never ends, so its events
+  are never observed. Events are world-state: they rewind with the turn — even
+  `ItemUsed`, although the consumed item itself persists (player). So a card
+  like "gain 2 coins per item used" never fires for items consumed in a turn
+  that was later undone: a knowable cost of the Hourglass, same family as the
+  re-buyable shop above. Uniform rule, no per-event exceptions.
+- **The Hourglass's own `ItemUsed` lands in the ARRIVAL turn's log** (the
+  rewound turn the player resumes). Chronologically accurate — the rewind
+  happened, then the replay experience — and observed exactly once, when the
+  arrival turn completes. If a second Hourglass pops that turn too, the first
+  event is rewound away with it (the rule above, applied consistently).
+  Emission site: `GameRun::useItem` logs into `turns.top()` AFTER the item's
+  effect resolved, which for the Hourglass is the post-pop top. Pinned by test.

@@ -327,7 +327,11 @@ void GameRun::useItem(size_t index) {
     }
 
     // Logged after the effect resolved (so it follows any TileDestroyed/etc. the
-    // item emitted) but still within the same acting turn.
+    // item emitted) but still within the same acting turn. PINNED semantics for
+    // the Hourglass (whose effect pops the acting turn): the event lands in the
+    // log of the turn the player ARRIVES in — chronologically accurate (rewind,
+    // then replay) and observed exactly once when that turn completes. Reactors
+    // only ever observe completed turns (docs/effect-engine-design.md §13).
     if (!turns.empty()) turns.top()->log().push(TurnEvent::itemUsed(def.id));
 
     inventoryItems.erase(inventoryItems.begin() + static_cast<ptrdiff_t>(index));
