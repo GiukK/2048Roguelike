@@ -323,6 +323,11 @@ Tile* Board::spawnTileAt(Coord c, int value) {
     return slot->tile.get();
 }
 
+Slot* Board::slotAt(Coord c) const {
+    auto it = slots.find(c);
+    return it == slots.end() ? nullptr : it->second.get();
+}
+
 std::vector<Tile*> Board::getAllTiles() const {
     std::vector<Tile*> result;
     for (const auto& [_, slot] : slots) {

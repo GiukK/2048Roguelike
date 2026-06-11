@@ -11,7 +11,9 @@
 #include "core/Slot.h"
 #include "core/Tile.h"
 #include "core/Turn.h"
+#include "effects/Cards.h"
 #include "effects/CoinChips.h"
+#include "effects/EffectContext.h"
 #include "rendering/RenderSystem.h"
 
 #include <SFML/Graphics.hpp>
@@ -351,6 +353,107 @@ int main() {
         CHECK(run->getCoins() == coins + 50);
         CHECK(run->getInventoryItems().empty());
         CHECK(run->currentTurnLog().countOf(TurnEvent::Type::ItemUsed) == 1);
+    }
+
+    // --- Cards: a reactor observes the completed turn and acts ---------------
+    {
+        auto run = makeRun(14);
+        // "Every merge of two 2s → +3 coins, sourced at the merge cell."
+        run->addCard(std::make_unique<ReactorCard>(
+            [](const TurnEvent& e, EffectContext& ctx) {
+                if (e.type == TurnEvent::Type::TileMerged && e.valueB == 2) {
+                    ctx.addCoins(3, ctx.board().slotAt(e.coord));
+                }
+            }));
+
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnTileAt({0, 0}, 2) != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+        turn.log().clear();
+        turn.board.move(Direction::Left);
+
+        const int coins0 = run->getCoins();
+        run->dispatchReactors(turn.log(), turn.board);
+        CHECK(run->getCoins() == coins0 + 3);
+        // The reward is logged into the observed turn (sourced channel)...
+        CHECK(turn.log().countOf(TurnEvent::Type::CoinsGained) == 1);
+
+        // ...and a 4+4 merge does not match the card's condition.
+        turn.board.move(Direction::Right);  // lone 4 slides, no merge
+        CHECK(turn.log().mergeCount() == 1);
+    }
+
+    // --- Cards × chips: a slot chip scales the card's sourced reward ---------
+    {
+        auto run = makeRun(15);
+        run->addCard(std::make_unique<ReactorCard>(
+            [](const TurnEvent& e, EffectContext& ctx) {
+                if (e.type == TurnEvent::Type::TileMerged) {
+                    ctx.addCoins(3, ctx.board().slotAt(e.coord));
+                }
+            }));
+
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* anchor = turn.board.spawnTileAt({0, 0}, 2);
+        CHECK(anchor != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+        anchor->slot->addEffect(std::make_unique<CoinMultiplierChip>(2));
+        turn.log().clear();
+        turn.board.move(Direction::Left);
+
+        const int coins0 = run->getCoins();
+        run->dispatchReactors(turn.log(), turn.board);
+        CHECK(run->getCoins() == coins0 + 6);  // card grants 3, chip doubles it
+    }
+
+    // --- Cards: reactor-caused events are logged but NOT re-dispatched -------
+    {
+        auto run = makeRun(16);
+        // "Every coin gain → +1 more coin": would loop forever if observations
+        // cascaded; the capture-count rule makes it fire once per PRIOR gain.
+        run->addCard(std::make_unique<ReactorCard>(
+            [](const TurnEvent& e, EffectContext& ctx) {
+                if (e.type == TurnEvent::Type::CoinsGained) {
+                    ctx.addCoins(1, ctx.board().slotAt(e.coord));
+                }
+            }));
+
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* anchor = turn.board.spawnTileAt({0, 0}, 2);
+        CHECK(anchor != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+        anchor->slot->addEffect(std::make_unique<CoinBonusChip>(5));
+        turn.log().clear();
+
+        const int coins0 = run->getCoins();
+        turn.board.move(Direction::Left);            // chip: +5, logged
+        run->dispatchReactors(turn.log(), turn.board);
+        CHECK(run->getCoins() == coins0 + 6);         // +5 chip, +1 card, no cascade
+        CHECK(turn.log().countOf(TurnEvent::Type::CoinsGained) == 2);
+    }
+
+    // --- Cards: onTurnEnd fires once with the whole log ----------------------
+    {
+        auto run = makeRun(17);
+        run->addCard(std::make_unique<ReactorCard>(
+            nullptr,
+            [](const TurnLog& log, EffectContext& ctx) {
+                if (log.mergeCount() >= 1) ctx.addCoins(2);
+            }));
+
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnTileAt({0, 0}, 2) != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+        turn.log().clear();
+        turn.board.move(Direction::Left);
+
+        const int coins0 = run->getCoins();
+        run->dispatchReactors(turn.log(), turn.board);
+        CHECK(run->getCoins() == coins0 + 2);
     }
 
     // --- Hourglass: ItemUsed lands in the ARRIVAL turn's log (pinned) ---------

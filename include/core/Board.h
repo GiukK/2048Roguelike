@@ -45,6 +45,11 @@ public:
     // Read-only iteration primitive for effects, debug tooling and the tests.
     std::vector<Tile*> getAllTiles() const;
 
+    // The slot at `c`, or nullptr if no slot exists there. Lookup primitive for
+    // effects acting on logged coordinates (e.g. a card rewarding the cell a
+    // merge happened on).
+    Slot* slotAt(Coord c) const;
+
     void move(Direction dir);
     void clear();
 

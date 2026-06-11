@@ -1,8 +1,9 @@
 # Effect Engine — Design
 
-Status: **in progress** — slices 1–4 of §11 are implemented (scope-agnostic
+Status: **in progress** — slices 1–4 and 6 of §11 are implemented (scope-agnostic
 `Effect` base, merge interaction pipeline, tile tags + capability queries,
-coin pipeline + first chips); the rest is direction. Open decisions
+coin pipeline + first chips, cards/reactor pass + `EffectContext`). Remaining:
+chip mounting (§11.5) and the content registries (§11.7). Open decisions
 are marked `DECISION:`; resolved ones live in §12–§13. The goal is one clean,
 scalable effect-handling system for an effect-based roguelike (Balatro-like),
 built *before* piling on content. See the memory note `effect-system-architecture`
@@ -151,13 +152,16 @@ coin pipeline: chips amplify income, not expenses (`GameRun::addCoins`).
 
 ## 5. `EffectContext` (shared mutation façade)
 
-**DEFERRED (slice-4 decision, 2026-06-11).** The coin pipeline landed without it:
-modifier hooks only *mutate their context* (re-entrancy rule below), so nothing
-needs a mutation façade yet — building it now would be an inert interface with
-zero consumers, exactly what the slice discipline forbids. It becomes real with
-the **cards slice**: `onEvent(const TurnEvent&, EffectContext&)` is the first
-hook whose implementors must *act* (award coins, destroy tiles) rather than
-tweak an outcome. Build it then, as sketched below.
+**IMPLEMENTED (cards slice, 2026-06-11)** — deferred out of slice 4 (no consumer
+there: modifier hooks only mutate their context, per the re-entrancy rule), it
+landed with the reactor hooks, its first real consumers. As built
+(`effects/EffectContext.h`): a small CONCRETE adapter, not an abstract base —
+it binds `GameRun& + Board& + const TurnLog&` for the duration of ONE reactor
+pass (constructed by `GameRun::dispatchReactors`), and routes every mutation
+through the existing guarded entry points: `addCoins` → the coin pipeline
+(chips on the source slot scale a card's reward), `destroyTile` →
+`Board::destroyTile` (protection + logging), `spawnTile` → `Board::spawnTileAt`.
+Items still act on `GameRun&` (resolved: converge later).
 
 A thin interface effects (and, eventually, items) act through — so nothing pokes
 `GameRun`/`Board` internals directly, and every mutation can be intercepted.
@@ -256,13 +260,27 @@ a causal narrative; this flips steps 5/6 of the original sketch.
 
 ---
 
-## 9. Cards (run-level reactors) & the log
+## 9. Cards (run-level reactors) & the log — IMPLEMENTED (2026-06-11)
 
-- Cards are run-scoped `Effect`s held on `GameRun` (a `std::vector<std::unique_ptr<Effect>>`).
-- Reactor dispatch point: **end of turn**, iterate `currentTurnLog().events()` and
-  call `card.onEvent(e, ctx)` (and/or one `onTurnEnd(log, ctx)` per card). This is
-  the consumer the event log was built for — replacing the debug dump in
-  `Turn::endTurn`.
+- Cards are run-scoped `Effect`s held on `GameRun` (`cards`, via `addCard`), in
+  acquisition order — the deterministic dispatch order for the run scope. They
+  live outside the board/turn stack: they persist through undo and are never
+  cloned ("the player persists").
+- Reactor dispatch: `GameRun::dispatchReactors(log, board)`, called by
+  `Turn::endTurn` on the COMPLETED turn — after `advanceShopState` (so
+  `ShopSpawned` is observable), before `newTurn` (so reactor mutations to the
+  board carry into the next turn's clone, while the snapshot reset wipes them
+  from the replayable current turn). **Event-major order**: every card sees
+  event *i* before any card sees event *i+1* (the Balatro left-to-right rule),
+  then each card gets one `onTurnEnd(log, ctx)` for aggregate reactions.
+- **No cascades**: the pass iterates the event count captured up front; events
+  appended by reactors (e.g. their `CoinsGained`) are logged in the same turn
+  but not re-dispatched. Each event is copied out before dispatch (reactor
+  appends may reallocate the log's storage).
+- `ReactorCard` (`effects/Cards.h`) is the generic data+lambda substrate (the
+  ItemRegistry pattern) the future CardRegistry feeds; stateful cards subclass
+  `Effect` directly. The debug dump in `Turn::endTurn` stays as an independent
+  verification channel (it now also shows reactor-appended events).
 - A card that is *also* a modifier (e.g. "all merges +1 coin") is included in the
   run scope of the merge dispatch (section 6), so it participates live.
 
@@ -300,7 +318,10 @@ core, policy in registries — no new control-flow per content item.
    (base merge reward stays 0; no chip is mounted outside tests).
 5. **Chip mounting**: a chip is an `Effect` the player mounts/unmounts on a slot/board;
    first "destroy-on-merge" chip.
-6. **Cards/reactor pass** over the log; first card; retire the debug dump.
+6. **Cards/reactor pass** — DONE (2026-06-11, with §5's `EffectContext` and the
+   `onEvent`/`onTurnEnd` hooks; see §9). The debug dump was kept (independent
+   verification), not retired. Suite covers: react+sourced reward, card×chip
+   composition (chip scales a card's reward), no-cascade rule, onTurnEnd.
 7. **Registries** for chips/cards/slot-types; config-driven data later.
 
 Cross-cutting derisking — **DONE (2026-06-10)**:

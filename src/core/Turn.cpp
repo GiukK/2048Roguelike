@@ -97,10 +97,16 @@ void Turn::endTurn() {
     // — so the undo history stays consistent and no shop pointer dangles.
     gameRun->advanceShopState(board);
 
-    // Debug: dump what happened this turn. After advanceShopState (so end-of-turn
-    // events like ShopSpawned are included) but before newTurn, so getTurnCount()
-    // still reports THIS finishing turn. Verifies the event log and that nothing
-    // leaks across turns; fold into the real score/ability consumers in Step 2/3.
+    // Reactor pass: cards observe this COMPLETED turn's log and act through
+    // EffectContext. After advanceShopState (so ShopSpawned is observable) and
+    // before newTurn (so reactor mutations to `board` are inherited by the next
+    // turn's clone, while the snapshot reset below wipes them from THIS turn —
+    // a replay after undo starts clean, per the §13 undo semantics).
+    gameRun->dispatchReactors(eventLog, board);
+
+    // Debug: dump what happened this turn — including what the reactors just
+    // appended. Before newTurn, so getTurnCount() still reports THIS finishing
+    // turn. Independent verification channel; kept alongside the real consumers.
     if (debug::Enabled) {
         std::cout << "[turn " << gameRun->getTurnCount() << "] "
                   << eventLog.events().size() << " event(s)\n";

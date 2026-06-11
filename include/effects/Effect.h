@@ -4,6 +4,9 @@
 
 struct MergeContext;
 struct CoinContext;
+struct TurnEvent;
+class TurnLog;
+class EffectContext;
 
 // Base class for every gameplay effect — the single mechanism behind slot
 // effects, chips (effects mounted on a slot/board), tile tags and run-level
@@ -45,6 +48,20 @@ public:
     // rule: mutate the context, never award coins from inside the hook — that
     // would recurse the pipeline. Dispatched by GameRun::addCoins.
     virtual void onCoinsResolving(CoinContext& /*coin*/) {}
+
+    // --- REACTOR hooks (cards): observe a COMPLETED turn, act via ctx --------
+    // Dispatched by GameRun::dispatchReactors at end of turn, over the turn's
+    // log. They cannot rewrite the past (the events are already applied); they
+    // act on the world through EffectContext, and what they cause is logged in
+    // the same turn but NOT re-dispatched (no reaction cascades).
+
+    // Called once per logged event, in log order (event-major: every card sees
+    // event i before any card sees event i+1 — the Balatro left-to-right rule).
+    virtual void onEvent(const TurnEvent& /*event*/, EffectContext& /*ctx*/) {}
+
+    // Called once after the per-event pass, for aggregate reactions over the
+    // whole turn ("if you merged 3+ times this turn...").
+    virtual void onTurnEnd(const TurnLog& /*log*/, EffectContext& /*ctx*/) {}
 
     // --- Capability queries (defaults: none) --------------------------------
     // An effect declares what its PRESENCE does to its owner; owners aggregate

@@ -94,6 +94,19 @@ public:
     // Event log of the current (top) turn — the read side of the per-turn event
     // substrate. Score (Step 2) and reactive abilities (Step 3) consume this.
     const TurnLog& currentTurnLog() const;
+
+    // --- Cards: run-scoped reactors ("the player persists") -----------------
+    // Held here, outside the board/turn stack, so they survive undo and are
+    // never cloned. Reacting happens via dispatchReactors below.
+    void addCard(std::unique_ptr<Effect> card);
+    const std::vector<std::unique_ptr<Effect>>& getCards() const { return cards; }
+
+    // The reactor pass (design doc §9): called by Turn::endTurn on a COMPLETED
+    // turn, after the shop lifecycle resolved, BEFORE the board is cloned into
+    // the next turn — so reactor mutations to `board` carry forward. Each card
+    // sees every logged event in order (event-major), then one onTurnEnd.
+    // Events the reactors append land in the same log but are NOT re-dispatched.
+    void dispatchReactors(TurnLog& log, Board& board);
     // Toggle which inventory item is held/selected (clicking the same one clears).
     void toggleSelectedItem(int index);
 
@@ -150,6 +163,10 @@ private:
     unsigned int runSeed = 0;  // the seed rng was actually seeded with
 
     std::stack<std::unique_ptr<Turn>> turns;
+
+    // Run-scoped reactors, in acquisition order — the deterministic dispatch
+    // order for the run scope (no board position to sort by).
+    std::vector<std::unique_ptr<Effect>> cards;
 
     std::vector<std::string> inventoryItems;
 

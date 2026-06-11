@@ -1,5 +1,6 @@
 #include "core/GameRun.h"
 #include "effects/CoinContext.h"
+#include "effects/EffectContext.h"
 #include "rendering/RenderSystem.h"
 #include "Debug.h"
 
@@ -374,6 +375,32 @@ void GameRun::useHeldItem() {
 
 void GameRun::discardHeldItem() {
     if (hasHeldItem()) discardItem(static_cast<size_t>(selectedIndex));
+}
+
+void GameRun::addCard(std::unique_ptr<Effect> card) {
+    if (card) cards.push_back(std::move(card));
+}
+
+void GameRun::dispatchReactors(TurnLog& log, Board& board) {
+    if (cards.empty()) return;
+
+    EffectContext ctx(*this, board, log);
+
+    // Iterate by index up to the count captured NOW: reactor mutations may
+    // append events to this same log (and reallocate its storage), so no
+    // reference into it may be held across a hook call — each event is copied
+    // out before dispatch. Appended events are logged but not re-dispatched:
+    // observations cannot cascade into more observations (no infinite loops).
+    const size_t eventCount = log.events().size();
+    for (size_t i = 0; i < eventCount; ++i) {
+        const TurnEvent event = log.events()[i];
+        for (auto& card : cards) {
+            card->onEvent(event, ctx);
+        }
+    }
+    for (auto& card : cards) {
+        card->onTurnEnd(log, ctx);
+    }
 }
 
 const TurnLog& GameRun::currentTurnLog() const {
