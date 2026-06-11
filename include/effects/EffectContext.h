@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "core/utils/Coord.h"
 
 class GameRun;
@@ -33,6 +35,9 @@ public:
     void addCoins(int amount, Slot* source = nullptr);
     void destroyTile(Tile* tile);          // honors slot protection, logs
     Tile* spawnTile(Coord at, int value);  // nullptr if the cell is taken/missing
+    // Grants an inventory item (Bob). Silently lost when the inventory is full
+    // — the standard "reward you had no room for" roguelike rule.
+    void addItem(const std::string& itemId);
 
 private:
     GameRun& run_;

@@ -78,6 +78,21 @@ public:
     // the spawn countdown forever).
     virtual bool protectsOwner() const { return false; }
 
+    // --- Run-scope capability queries (defaults: neutral) --------------------
+    // Aggregated by GameRun over the owned cards. Capabilities (not context
+    // pipelines) because both are commutative — a product of factors and a sum
+    // of bonuses need no dispatch ordering.
+
+    // Multiplies how many tiles spawn during board resolution each turn
+    // (Vase of Two = 2; copies multiply: two cards = x4). 0 is legal and means
+    // "no spawns at all". Aggregated by GameRun::getSpawnCountPerTurn.
+    virtual int spawnCountFactor() const { return 1; }
+
+    // Extra turns an Hourglass rewind goes back (Back to Back = +2, so one
+    // copy turns the rewind into 3). Additive across copies. Aggregated by
+    // GameRun::getRewindDepth.
+    virtual int rewindDepthBonus() const { return 0; }
+
     // --- Presentation hints (defaults: none) --------------------------------
     // Optional slot skin: texture id the owning slot adopts while this effect is
     // mounted (nullptr = leave the slot's look unchanged). Each slot TYPE (shop,

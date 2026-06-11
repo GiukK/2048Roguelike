@@ -104,6 +104,16 @@ and owners aggregate them so board logic never type-switches on concrete effects
   Aggregated by `Tile::isImmobilized()`, checked in `Board::resolveNextTileMove`.
 - `protectsOwner()` — owner is off-limits to destroy/wrench/shuffle/area targeting
   (the shop). Aggregated by `Slot::isProtected()`.
+- **Run-scope capabilities (2026-06-11)** — same pattern, aggregated by GameRun
+  over the owned cards; used for COMMUTATIVE run modifiers (product/sum), where
+  a context pipeline's ordering guarantee would buy nothing:
+  `spawnCountFactor()` (default 1; Vase of Two = 2, copies multiply, 0 = "no
+  spawns", capped at 64 — read by `Turn` BoardResolution via
+  `GameRun::getSpawnCountPerTurn()`) and `rewindDepthBonus()` (default 0; Back
+  to Back = +2, additive — read by the Hourglass via `GameRun::getRewindDepth()`,
+  which rewinds up to that many turns, clamping at the first; consumed iff at
+  least one rewind happened). RULE OF THUMB: outcome needs ordering or carries
+  data → context pipeline; commutative scalar → capability.
 - Presentation hints: `slotTextureId()` (slot skin) and `overlayTextureId()`
   (marker drawn over the owning tile — brick/frozen show the brick marker).
 
@@ -300,10 +310,19 @@ it (one copy per card; `OwnedCard` keeps the def id beside the live effect so th
 UI can show what's owned). Pricing through `getEffectiveCost(CardDef)` — the card
 twin of the item hook. First content: **Two for Two** ("every time two 2 tiles
 merge, gain 2 coins", reward sourced at the merge cell so slot chips scale it).
-Shop offers every unowned card in a row below the items; the Cards panel
-(`states/CardsState`, opened by the play screen's cards button) lists owned cards
-— both reuse the modal-overlay + tooltip patterns. `ChipRegistry`/`SlotTypeRegistry`
+Shop offers every unowned card in a row below the items (the DEBUG shop offers
+the whole catalogue forever, duplicates included); owned cards live in the play
+screen's LEFT column with select/discard. `ChipRegistry`/`SlotTypeRegistry`
 still future.
+
+**Catalogue (2026-06-11):** `two_for_two` (reactor: 2+2 merge → +2 coins, sourced
+at the cell); `economic_boom` (reactor: ItemUsed "bomb" → +3 coins; plain id
+check FOR NOW — the bomb FAMILY needs an ItemDef tag system + tag-query hook,
+deliberately deferred); `vase_of_two` (capability: spawnCountFactor 2);
+`back_to_back` (capability: rewindDepthBonus +2); `bob` (reactor: TileMerged
+with brick-broke flag → grant a "brick" item, silently lost on full inventory;
+if brick breaks ever get more sources, promote the flag to a dedicated
+BrickBroken event). `EffectContext` grew `addItem` for Bob.
 
 ---
 

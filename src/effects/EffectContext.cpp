@@ -17,3 +17,7 @@ void EffectContext::destroyTile(Tile* tile) {
 Tile* EffectContext::spawnTile(Coord at, int value) {
     return board_.spawnTileAt(at, value);
 }
+
+void EffectContext::addItem(const std::string& itemId) {
+    run_.addItem(itemId);
+}

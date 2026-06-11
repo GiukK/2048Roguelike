@@ -528,6 +528,108 @@ int main() {
         CHECK(!run->discardCard(0));                   // nothing left to discard
     }
 
+    // --- Economic Boom: reacts to bomb use only -------------------------------
+    {
+        auto run = makeRun(19);
+        CHECK(run->acquireCard("economic_boom"));
+
+        Turn turn(renderer, run.get());
+        turn.log().clear();
+        turn.log().push(TurnEvent::itemUsed("bomb"));
+        turn.log().push(TurnEvent::itemUsed("coin_bag"));  // not a bomb: ignored
+
+        const int coins0 = run->getCoins();
+        run->dispatchReactors(turn.log(), turn.board);
+        CHECK(run->getCoins() == coins0 + 3);
+    }
+
+    // --- Vase of Two: spawn count multiplies, capped, zero is legal ----------
+    {
+        auto run = makeRun(20);
+        CHECK(run->getSpawnCountPerTurn() == 1);           // baseline
+        CHECK(run->acquireCard("vase_of_two"));
+        CHECK(run->getSpawnCountPerTurn() == 2);
+        CHECK(run->acquireCard("vase_of_two"));
+        CHECK(run->getSpawnCountPerTurn() == 4);           // copies multiply
+
+        for (int i = 0; i < 10; ++i) run->acquireCard("vase_of_two");
+        CHECK(run->getSpawnCountPerTurn() == 64);          // sanity cap holds
+
+        auto zeroRun = makeRun(21);
+        zeroRun->addCard(std::make_unique<SpawnCountCard>(0));
+        CHECK(zeroRun->getSpawnCountPerTurn() == 0);       // "nothing spawns"
+    }
+
+    // --- Back to Back: hourglass rewinds 3, clamps at the first turn ----------
+    {
+        auto run = makeRun(22);
+        CHECK(run->getRewindDepth() == 1);                 // baseline
+        CHECK(run->acquireCard("back_to_back"));
+        CHECK(run->getRewindDepth() == 3);
+
+        Turn scratch(renderer, run.get());
+        run->newTurn(scratch.board);
+        run->newTurn(scratch.board);
+        run->newTurn(scratch.board);                       // 4 turns on the stack
+        CHECK(run->getTurnCount() == 4);
+
+        run->addItem("hourglass");
+        run->toggleSelectedItem(0);
+        run->useHeldItem();
+        CHECK(run->getTurnCount() == 1);                   // went back 3, not 1
+        CHECK(run->getInventoryItems().empty());           // consumed
+
+        // Fewer turns than the depth: rewind as far as possible, still consumed.
+        run->newTurn(scratch.board);                       // back to 2 turns
+        run->addItem("hourglass");
+        run->toggleSelectedItem(0);
+        run->useHeldItem();
+        CHECK(run->getTurnCount() == 1);
+        CHECK(run->getInventoryItems().empty());
+
+        // Nothing to rewind at all: the hourglass is refused and kept.
+        run->addItem("hourglass");
+        run->toggleSelectedItem(0);
+        run->useHeldItem();
+        CHECK(run->getTurnCount() == 1);
+        CHECK(run->getInventoryItems().size() == 1);
+    }
+
+    // --- Bob: a broken brick grants a brick item; full inventory loses it ----
+    {
+        auto run = makeRun(23);
+        CHECK(run->acquireCard("bob"));
+
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* brick = turn.board.spawnTileAt({0, 0}, 2);
+        CHECK(brick != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+        brick->setBricked(true);
+        turn.log().clear();
+
+        turn.board.move(Direction::Left);                  // merge breaks the brick
+        run->dispatchReactors(turn.log(), turn.board);
+        CHECK(run->getInventoryItems().size() == 1);
+        CHECK(run->getInventoryItems()[0] == "brick");
+
+        // Full inventory: the granted brick is silently lost (not queued).
+        run->addItem("coin_bag");
+        run->addItem("coin_bag");
+        CHECK(run->isInventoryFull());
+
+        Turn again(renderer, run.get());
+        again.board.clear();
+        Tile* brick2 = again.board.spawnTileAt({0, 0}, 2);
+        CHECK(brick2 != nullptr);
+        CHECK(again.board.spawnTileAt({1, 0}, 2) != nullptr);
+        brick2->setBricked(true);
+        again.log().clear();
+        again.board.move(Direction::Left);
+        run->dispatchReactors(again.log(), again.board);
+        CHECK(run->getInventoryItems().size() == 3);       // unchanged
+    }
+
     std::cout << checks << " checks, " << failures << " failure(s)\n";
     return failures == 0 ? 0 : 1;
 }

@@ -165,10 +165,17 @@ void Turn::update(float deltaTime) {
         }
         break;
 
-    case Phase::BoardResolution:
-        board.spawnTileInRandomEmptySlot();
+    case Phase::BoardResolution: {
+        // Cards may multiply the per-turn spawn count (Vase of Two). Each spawn
+        // is an independent random draw — position and value are re-rolled, not
+        // copied — and a full board simply absorbs the extras as no-ops.
+        const int spawns = gameRun->getSpawnCountPerTurn();
+        for (int i = 0; i < spawns; ++i) {
+            board.spawnTileInRandomEmptySlot();
+        }
         nextPhase();
         break;
+    }
 
     case Phase::End:
         if (!shopRequested && !gameRun->shopOpen) {

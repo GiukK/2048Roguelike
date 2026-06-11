@@ -20,7 +20,11 @@ void TextureManager::initialize() {
     load("digits",          "assets/textures/digits.png");
 
     // Cards
-    load("two_for_two", "assets/textures/two_for_two.png");
+    load("two_for_two",   "assets/textures/two_for_two.png");
+    load("economic_boom", "assets/textures/economic_boom.png");
+    load("vase_of_two",   "assets/textures/vase_of_two.png");
+    load("back_to_back",  "assets/textures/back_to_back.png");
+    load("bob",           "assets/textures/bob.png");
 
     // Board
     load("slot",     "assets/textures/slot.png");

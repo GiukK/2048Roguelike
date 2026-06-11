@@ -36,3 +36,31 @@ private:
     EventHandler   onEvt;
     TurnEndHandler onEnd;
 };
+
+// Capability-only cards: passive run-scope stats the model aggregates (no
+// hooks, no handlers). Parametrized so future variants are registry entries,
+// not new classes ("Vase of Three" = SpawnCountCard(3)).
+
+// Multiplies the per-turn spawn count (Vase of Two).
+class SpawnCountCard : public Effect {
+public:
+    explicit SpawnCountCard(int factor) : factor(factor) {}
+    int spawnCountFactor() const override { return factor; }
+    std::unique_ptr<Effect> clone() const override {
+        return std::make_unique<SpawnCountCard>(*this);
+    }
+private:
+    int factor;
+};
+
+// Adds extra turns to an Hourglass rewind (Back to Back).
+class RewindDepthCard : public Effect {
+public:
+    explicit RewindDepthCard(int bonus) : bonus(bonus) {}
+    int rewindDepthBonus() const override { return bonus; }
+    std::unique_ptr<Effect> clone() const override {
+        return std::make_unique<RewindDepthCard>(*this);
+    }
+private:
+    int bonus;
+};

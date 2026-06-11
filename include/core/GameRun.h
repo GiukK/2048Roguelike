@@ -132,6 +132,15 @@ public:
     // registry def. It won't appear in the cards panel (empty id).
     void addCard(std::unique_ptr<Effect> card);
 
+    // --- Run-scope capability aggregations (over the owned cards) -----------
+    // How many tiles spawn during board resolution each turn: the product of
+    // every card's spawnCountFactor (Vase of Two stacks multiplicatively),
+    // clamped to a sanity cap. Each spawn is an independent random draw.
+    int getSpawnCountPerTurn() const;
+    // How many turns an Hourglass rewinds: 1 + the sum of every card's
+    // rewindDepthBonus (Back to Back), floored at 0.
+    int getRewindDepth() const;
+
     // The reactor pass (design doc §9): called by Turn::endTurn on a COMPLETED
     // turn, after the shop lifecycle resolved, BEFORE the board is cloned into
     // the next turn — so reactor mutations to `board` carry forward. Each card

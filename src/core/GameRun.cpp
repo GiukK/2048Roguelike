@@ -117,12 +117,19 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
         }
     });
 
-    // Hourglass: rewinds one turn. In normal play this is the ONLY way to go back
-    // (the B key is debug-only); refuses if there is no earlier turn to return to.
+    // Hourglass: rewinds the game. In normal play this is the ONLY way to go back
+    // (the B key is debug-only). The depth is card-modifiable (Back to Back):
+    // rewind up to getRewindDepth() turns, stopping at the first turn; consumed
+    // if at least one rewind happened, kept otherwise (nothing to rewind).
     itemRegistry.registerItem({"hourglass", "hourglass",
         "Hourglass", "Rewinds the game by one turn.", 80, 0.25f,
         [](GameRun& run) -> bool {
-            return run.goBack();
+            const int depth = run.getRewindDepth();
+            bool rewound = false;
+            for (int i = 0; i < depth && run.goBack(); ++i) {
+                rewound = true;
+            }
+            return rewound;
         }
     });
 
@@ -159,6 +166,56 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
                 [](const TurnEvent& e, EffectContext& ctx) {
                     if (e.type == TurnEvent::Type::TileMerged && e.valueB == 2) {
                         ctx.addCoins(2, ctx.board().slotAt(e.coord));
+                    }
+                });
+        }
+    });
+
+    // Economic Boom: reacts to bomb use. Plain id check FOR NOW — the intended
+    // future is an item TAG system ("bomb" family covering Bomb II/III, plus
+    // "X counts as a bomb" modifier effects), which needs ItemDef tags + a
+    // tag-query hook on the run. Deliberately not built for one card.
+    cardRegistry.registerCard({"economic_boom", "economic_boom",
+        "Economic Boom", "Every time you use a Bomb, gain 3 coins.", 30, 1.0f,
+        []() -> std::unique_ptr<Effect> {
+            return std::make_unique<ReactorCard>(
+                [](const TurnEvent& e, EffectContext& ctx) {
+                    if (e.type == TurnEvent::Type::ItemUsed && e.itemId == "bomb") {
+                        ctx.addCoins(3);
+                    }
+                });
+        }
+    });
+
+    // Vase of Two: each board resolution rolls the spawn twice (independent
+    // random draws, not copies). Copies multiply: two cards = x4, three = x8.
+    cardRegistry.registerCard({"vase_of_two", "vase_of_two",
+        "Vase of Two", "Twice as many tiles spawn each turn. Copies multiply.", 80, 1.0f,
+        []() -> std::unique_ptr<Effect> {
+            return std::make_unique<SpawnCountCard>(2);
+        }
+    });
+
+    // Back to Back: +2 rewind depth, so one copy makes the Hourglass rewind 3
+    // turns (additive: two copies = 5). The Hourglass itself reads the depth.
+    cardRegistry.registerCard({"back_to_back", "back_to_back",
+        "Back to Back", "An Hourglass rewinds 3 turns instead of 1.", 50, 1.0f,
+        []() -> std::unique_ptr<Effect> {
+            return std::make_unique<RewindDepthCard>(2);
+        }
+    });
+
+    // Bob: the brick-break signal is the TileMerged event's flag (the only way
+    // a brick breaks today). If breaks ever get more sources, promote the flag
+    // to a dedicated BrickBroken event and Bob listens to that instead. The
+    // granted brick is silently lost if the inventory is full.
+    cardRegistry.registerCard({"bob", "bob",
+        "Bob", "When a Brick breaks, gain a Brick item.", 40, 1.0f,
+        []() -> std::unique_ptr<Effect> {
+            return std::make_unique<ReactorCard>(
+                [](const TurnEvent& e, EffectContext& ctx) {
+                    if (e.type == TurnEvent::Type::TileMerged && e.flag) {
+                        ctx.addItem("brick");
                     }
                 });
         }
@@ -429,6 +486,28 @@ void GameRun::discardSelectedCard() {
     if (selectedCardIndex >= 0 && selectedCardIndex < static_cast<int>(cards.size())) {
         discardCard(static_cast<size_t>(selectedCardIndex));
     }
+}
+
+int GameRun::getSpawnCountPerTurn() const {
+    // Capped so absurd debug stacks can't freeze a turn in a spawn loop (the
+    // board self-limits anyway: spawns into a full board are no-ops).
+    constexpr int MaxSpawnsPerTurn = 64;
+
+    int count = 1;
+    for (const auto& card : cards) {
+        count *= card.effect->spawnCountFactor();
+        if (count >= MaxSpawnsPerTurn) return MaxSpawnsPerTurn;
+        if (count <= 0) return 0;  // a zero factor means "nothing spawns"
+    }
+    return count;
+}
+
+int GameRun::getRewindDepth() const {
+    int depth = 1;
+    for (const auto& card : cards) {
+        depth += card.effect->rewindDepthBonus();
+    }
+    return std::max(depth, 0);
 }
 
 bool GameRun::ownsCard(const std::string& cardId) const {

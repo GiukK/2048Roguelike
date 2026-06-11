@@ -39,8 +39,12 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     scalingRules["discard_button"]   = {192 * 4, 108 * 4};
     scalingRules["exit_button"]      = {192 * 2, 108 * 2};
 
-    // Cards (the sprite is 31x41; this rule shows it at a readable card size)
-    scalingRules["two_for_two"] = {192 * 2, 108 * 2};
+    // Cards (sprites are 31x41; this rule shows them at a readable card size)
+    scalingRules["two_for_two"]   = {192 * 2, 108 * 2};
+    scalingRules["economic_boom"] = {192 * 2, 108 * 2};
+    scalingRules["vase_of_two"]   = {192 * 2, 108 * 2};
+    scalingRules["back_to_back"]  = {192 * 2, 108 * 2};
+    scalingRules["bob"]           = {192 * 2, 108 * 2};
 
     // Board & Slots
     scalingRules["slot"]      = {192 * 2, 108 * 2};
