@@ -80,20 +80,20 @@ void PlayUI::update(float dt) {
 }
 
 void PlayUI::syncButtonsToModel() {
-    int invSize = static_cast<int>(run.getInventoryItems().size());
-    if (invSize != lastInventorySize) {
+    unsigned int invVersion = run.getInventoryVersion();
+    if (invVersion != lastInventoryVersion) {
         rebuildInventoryButtons();
-        lastInventorySize = invSize;
+        lastInventoryVersion = invVersion;
     }
     int sel = run.getSelectedIndex();
     if (sel != lastSelectedIndex) {
         rebuildActionButtons();
         lastSelectedIndex = sel;
     }
-    int cardCount = static_cast<int>(run.getOwnedCards().size());
-    if (cardCount != lastCardCount) {
+    unsigned int cardsVersion = run.getCardsVersion();
+    if (cardsVersion != lastCardsVersion) {
         rebuildCardButtons();
-        lastCardCount = cardCount;
+        lastCardsVersion = cardsVersion;
     }
     int cardSel = run.getSelectedCardIndex();
     if (cardSel != lastSelectedCardIndex) {

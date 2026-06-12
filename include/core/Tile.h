@@ -15,10 +15,18 @@ public:
     enum class Visual { Idle, Hovered, Pressed };
 
     // Highest value with artwork (textures stop at "2048"). Merges that would
-    // exceed it are refused (Board::resolveNextTileMove), and any future modifier
-    // touching MergeContext::resultValue must respect it — changeSprite() on an
-    // unbacked value would throw on the missing texture.
+    // exceed it are refused (Board::resolveNextTileMove).
     static constexpr int MaxValue = 2048;
+
+    // True if `v` is a value a tile can legally hold: a power of two within
+    // [2, MaxValue] — exactly the set with artwork (changeSprite() on anything
+    // else throws on the missing texture). THE validation point for any code
+    // that invents tile values; the apply sites enforce it (Tile::mergeIntoSlot
+    // drops an unbacked modifier result, Board::spawnTileAt refuses the spawn),
+    // so a buggy effect degrades instead of crashing the game.
+    static constexpr bool isValidValue(int v) {
+        return v >= 2 && v <= MaxValue && (v & (v - 1)) == 0;
+    }
 
     Tile(RenderSystem& renderer, Slot* slot, int value);
 

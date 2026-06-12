@@ -339,6 +339,14 @@ void GameRun::handleInput(sf::Event& event) {
 }
 
 void GameRun::update(float deltaTime) {
+    // A rewind requested from inside the current turn (debug B) is processed
+    // HERE, before entering Turn::update: at this point no Turn method is on
+    // the call stack, so popping (destroying) the turn is safe.
+    if (goBackRequested) {
+        goBackRequested = false;
+        goBack();
+    }
+
     // Model/turn update only. The HUD/inventory widgets are owned and updated by
     // PlayUI (driven from PlayState), so the model stays free of view concerns.
     turns.top()->update(deltaTime);
@@ -434,6 +442,7 @@ void GameRun::addItem(const std::string& itemId) {
     if (!itemRegistry.has(itemId)) return;
 
     inventoryItems.push_back(itemId);
+    ++inventoryVersion;
     clearSelection();
     // PlayUI rebuilds its buttons from this changed state (change detection).
 }
@@ -464,6 +473,7 @@ void GameRun::useItem(size_t index) {
     }
 
     inventoryItems.erase(inventoryItems.begin() + static_cast<ptrdiff_t>(index));
+    ++inventoryVersion;
     clearSelection();
     // A consumed item finishes its interaction with the board, so any tiles it had
     // targeted should no longer stay selected (e.g. SWITCH leaving both tiles red).
@@ -474,6 +484,7 @@ void GameRun::discardItem(size_t index) {
     if (index >= inventoryItems.size()) return;
 
     inventoryItems.erase(inventoryItems.begin() + static_cast<ptrdiff_t>(index));
+    ++inventoryVersion;
     clearSelection();
 }
 
@@ -511,6 +522,7 @@ bool GameRun::acquireCard(const std::string& cardId) {
     const CardDef& def = cardRegistry.get(cardId);
     if (!def.instantiate) return false;
     cards.push_back({cardId, def.instantiate()});
+    ++cardsVersion;
     return true;
 }
 
@@ -521,6 +533,7 @@ void GameRun::toggleSelectedCard(int index) {
 bool GameRun::discardCard(size_t index) {
     if (index >= cards.size()) return false;
     cards.erase(cards.begin() + static_cast<ptrdiff_t>(index));
+    ++cardsVersion;
     // Indices shifted; a stale selection must not point at the wrong card.
     selectedCardIndex = -1;
     return true;
@@ -564,7 +577,10 @@ bool GameRun::ownsCard(const std::string& cardId) const {
 }
 
 void GameRun::addCard(std::unique_ptr<Effect> card) {
-    if (card) cards.push_back({"", std::move(card)});
+    if (card) {
+        cards.push_back({"", std::move(card)});
+        ++cardsVersion;
+    }
 }
 
 void GameRun::flushReactors(Turn& turn) {
@@ -653,9 +669,9 @@ void GameRun::destroyTile(Tile* tile) {
     }
 }
 
-void GameRun::swapTiles(Tile* a, Tile* b) {
+void GameRun::swapTiles(Tile* a, Tile* b, bool allowProtected) {
     if (!turns.empty()) {
-        turns.top()->board.swapTiles(a, b);
+        turns.top()->board.swapTiles(a, b, allowProtected);
     }
 }
 

@@ -39,8 +39,16 @@ public:
 
     void newTurn(const Board& currentBoard);
     // Rewinds to the previous turn. Returns false if there is no earlier turn.
-    // In normal play only the Hourglass item calls this; the debug B key also does.
+    // In normal play only the Hourglass item calls this — synchronously, which
+    // its pinned ItemUsed log semantics rely on (the event lands in the
+    // arrival turn).
     bool goBack();
+    // Defers goBack() to the start of the next update(), where no Turn method
+    // is on the call stack. REQUIRED for callers inside the turn machinery
+    // (the debug B key in Turn::handleBeginInput): a synchronous goBack there
+    // would pop — and destroy — the very Turn whose member function is still
+    // executing.
+    void requestGoBack() { goBackRequested = true; }
     void openShop();
 
     // Drives the whole shop-spawn lifecycle for one completed turn. Called by
@@ -94,6 +102,14 @@ public:
     const std::vector<std::string>& getInventoryItems() const { return inventoryItems; }
     int getSelectedIndex() const { return selectedIndex; }
     size_t getTurnCount() const { return turns.size(); }
+
+    // Monotonic content-change counters for the UI's change detection: bumped
+    // on EVERY mutation of the respective list, not just size changes — a
+    // same-size replacement (an item consumed while a reactor grants another
+    // in the same frame) must still trigger a rebuild, which keying on size
+    // would miss. PlayUI compares these against its last observed values.
+    unsigned int getInventoryVersion() const { return inventoryVersion; }
+    unsigned int getCardsVersion() const { return cardsVersion; }
 
     // Event log of the current (top) turn — the read side of the per-turn event
     // substrate. Score (Step 2) and reactive abilities (Step 3) consume this.
@@ -171,7 +187,10 @@ public:
     // Item effects use these to interact with targeted tiles.
     std::vector<Tile*> getSelectedTiles() const;
     void destroyTile(Tile* tile);
-    void swapTiles(Tile* a, Tile* b);
+    // Swap refuses protected slots (the shop) by default, mirroring the other
+    // board manipulations. allowProtected exists for future content (e.g. an
+    // upgraded Switch) to override that as an explicit balance decision.
+    void swapTiles(Tile* a, Tile* b, bool allowProtected = false);
     void clearBoardSelection();
 
     // Occupied tiles around `center` on the current board (delegates to Board).
@@ -219,6 +238,11 @@ private:
 
     std::vector<std::string> inventoryItems;
 
+    // Content versions (see getInventoryVersion/getCardsVersion above). Both
+    // start at 0 = "never mutated", matching a fresh PlayUI's last-seen state.
+    unsigned int inventoryVersion = 0;
+    unsigned int cardsVersion = 0;
+
     // Selection: only one item at a time. -1 = nothing selected. This is the
     // "held item" the player is interacting with; PlayUI shows its action buttons.
     int selectedIndex = -1;
@@ -231,6 +255,9 @@ private:
 
     int coins = 100;
     unsigned int maxInventorySize = 3;
+
+    // Set by requestGoBack(), consumed at the top of update() (see goBack docs).
+    bool goBackRequested = false;
 
     // --- Shop spawn state (all tunable; see the setters above) ---
     // shopSpawnInterval: turns the countdown starts from (the "10").

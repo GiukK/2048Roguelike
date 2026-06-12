@@ -42,7 +42,9 @@ public:
     // logged; the reactor pass does NOT re-dispatch the events this appends.
     void addCoins(int amount, Slot* source = nullptr);
     void destroyTile(Tile* tile);          // honors slot protection, logs
-    Tile* spawnTile(Coord at, int value);  // nullptr if the cell is taken/missing
+    // nullptr if the cell is taken/missing OR `value` has no artwork
+    // (Tile::isValidValue) — an unbacked spawn is refused, never crashes.
+    Tile* spawnTile(Coord at, int value);
     // Grants an inventory item (Bob). Silently lost when the inventory is full
     // — the standard "reward you had no room for" roguelike rule.
     void addItem(const std::string& itemId);

@@ -66,9 +66,14 @@ private:
     int pendingCardSelect = -1;        // model index (via cardModelIndex)
     bool pendingCardDiscard = false;
 
-    // Last observed model state, to detect when a rebuild is needed.
-    int lastInventorySize = -1;
+    // Last observed model state, to detect when a rebuild is needed. Content
+    // is tracked through GameRun's version counters — NOT by list size, which
+    // misses a same-size replacement (an item consumed while a reactor grants
+    // another in the same frame). Selection is tracked by the index itself.
+    // 0 matches the model's "never mutated" state, so a fresh PlayUI starts
+    // consistent (empty lists, empty buttons) without a forced first rebuild.
+    unsigned int lastInventoryVersion = 0;
     int lastSelectedIndex = -1;
-    int lastCardCount = -1;
+    unsigned int lastCardsVersion = 0;
     int lastSelectedCardIndex = -1;
 };

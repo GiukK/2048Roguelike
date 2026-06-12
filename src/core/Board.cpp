@@ -4,9 +4,11 @@
 #include "effects/ShopEffect.h"
 #include "rendering/RenderSystem.h"
 #include "rendering/Animation.h"
+#include "Debug.h"
 
 #include <algorithm>
 #include <array>
+#include <iostream>
 #include <set>
 
 Board::Board(RenderSystem& renderer, Turn* turn, bool doInitialSetup)
@@ -250,8 +252,15 @@ std::vector<Tile*> Board::getTilesInRadius(const Tile* center, int radius,
     return result;
 }
 
-void Board::swapTiles(Tile* a, Tile* b) {
-    if (!a || !b || !a->slot || !b->slot) return;
+void Board::swapTiles(Tile* a, Tile* b, bool allowProtected) {
+    // Self-swap would releaseTile() the same slot twice and null-deref below.
+    if (!a || !b || a == b || !a->slot || !b->slot) return;
+    // Default policy: protected slots (the shop) keep their tile, consistent
+    // with destroy / wrench / shuffle / area targeting. This is a POLICY, not
+    // an invariant — pulling the phantom tile off a shop is a plausible future
+    // mechanic (an upgraded Switch, an ability), so callers opt in explicitly
+    // via allowProtected instead of the rule being unhookable.
+    if (!allowProtected && (a->slot->isProtected() || b->slot->isProtected())) return;
 
     Slot* slotA = a->slot;
     Slot* slotB = b->slot;
@@ -311,6 +320,16 @@ void Board::spawnTileInRandomEmptySlot() {
 }
 
 Tile* Board::spawnTileAt(Coord c, int value) {
+    // Unbacked values are refused like a taken cell (nullptr): effects can pass
+    // arbitrary ints here, and a Tile without artwork would throw deep in the
+    // texture lookup. Guarded at this primitive so every spawn path inherits it.
+    if (!Tile::isValidValue(value)) {
+        if (debug::Enabled) {
+            std::cerr << "[spawn] refused unbacked tile value " << value << '\n';
+        }
+        return nullptr;
+    }
+
     auto it = slots.find(c);
     if (it == slots.end() || !it->second->isEmpty()) return nullptr;
 

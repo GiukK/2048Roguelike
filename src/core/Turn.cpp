@@ -238,9 +238,10 @@ void Turn::handleBeginInput(sf::Event& event) {
         }
         break;
     case sf::Keyboard::Scancode::B:
-        // Debug-only shortcut. In normal play the Hourglass item is the only
-        // way to rewind a turn.
-        if (debug::Enabled) gameRun->goBack();
+        // Debug-only shortcut (the Hourglass is the only rewind in normal play).
+        // DEFERRED via requestGoBack: a synchronous goBack() here would pop —
+        // and destroy — this very Turn while this method is still executing.
+        if (debug::Enabled) gameRun->requestGoBack();
         break;
     default:
         break;

@@ -39,6 +39,8 @@ public:
     // if that slot exists and is empty; returns the tile, else nullptr. The
     // random spawn delegates here; tests and future effects ("spawn a 2 in the
     // corner") use it directly. Emits the TileSpawned event like any spawn.
+    // Refuses values without artwork (Tile::isValidValue) the same way — so no
+    // effect can ever crash the texture lookup by inventing a tile value.
     Tile* spawnTileAt(Coord c, int value);
 
     // Every tile currently on the board (shops included), in coord order.
@@ -96,7 +98,10 @@ public:
     std::vector<Tile*> getSelectedTiles() const;
     void clearSelection();
     void destroyTile(Tile* tile);
-    void swapTiles(Tile* a, Tile* b);
+    // Refuses protected slots (the shop) by default, like every other board
+    // manipulation. allowProtected is the deliberate escape hatch for future
+    // effects that may move a shop's phantom tile as an explicit mechanic.
+    void swapTiles(Tile* a, Tile* b, bool allowProtected = false);
 
     // Occupied tiles inside the square of Chebyshev radius `radius` around
     // `center` (radius 1 = the 3x3 block; diagonals included). Shop tiles are

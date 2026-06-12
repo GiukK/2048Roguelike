@@ -14,6 +14,7 @@
 #include "effects/Cards.h"
 #include "effects/CoinChips.h"
 #include "effects/EffectContext.h"
+#include "effects/MergeContext.h"
 #include "rendering/RenderSystem.h"
 
 #include <SFML/Graphics.hpp>
@@ -41,6 +42,19 @@ Tile* tileAt(Board& board, Coord c) {
     }
     return nullptr;
 }
+
+// Test-only merge modifier: forces the merge's resultValue, to exercise the
+// apply-site validation (unbacked values are dropped, backed ones applied).
+class ForcedValueModifier : public Effect {
+public:
+    explicit ForcedValueModifier(int v) : v(v) {}
+    void onMergeResolving(MergeContext& merge) override { merge.resultValue = v; }
+    std::unique_ptr<Effect> clone() const override {
+        return std::make_unique<ForcedValueModifier>(*this);
+    }
+private:
+    int v;
+};
 
 } // namespace
 
@@ -749,6 +763,119 @@ int main() {
         CHECK(run->getCoins() == coins0 + 4 + 6);
         // Its own end-of-turn grant is NOT an activation: count unchanged.
         CHECK(turn.log().countOf(TurnEvent::Type::CardTriggered) == 2);
+    }
+
+    // --- Swap: protected slots keep their tile; override is an explicit opt-in -
+    {
+        auto run = makeRun(29);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnShop(4));
+        Tile* phantom = nullptr;
+        for (Tile* t : turn.board.getAllTiles()) {
+            if (t->slot && t->slot->isProtected()) phantom = t;
+        }
+        CHECK(phantom != nullptr);
+        Tile* regular = turn.board.spawnTileAt({0, 0}, 2);
+        CHECK(regular != nullptr);
+
+        Slot* shopSlot = phantom->slot;
+        Slot* baseSlot = regular->slot;
+
+        // Default policy: the swap is refused, consistent with destroy/wrench.
+        turn.board.swapTiles(phantom, regular);
+        CHECK(phantom->slot == shopSlot && regular->slot == baseSlot);
+
+        // Self-swap is a no-op (would otherwise release the same slot twice).
+        turn.board.swapTiles(regular, regular);
+        CHECK(regular->slot == baseSlot);
+
+        // allowProtected is the deliberate escape hatch for future mechanics.
+        turn.board.swapTiles(phantom, regular, /*allowProtected=*/true);
+        CHECK(phantom->slot == baseSlot && regular->slot == shopSlot);
+    }
+
+    // --- Merge validation: unbacked resultValue dropped, backed one applied --
+    {
+        auto run = makeRun(30);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* anchor = turn.board.spawnTileAt({0, 0}, 2);
+        CHECK(anchor != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+        anchor->slot->addEffect(std::make_unique<ForcedValueModifier>(5));  // no artwork
+        turn.log().clear();
+
+        turn.board.move(Direction::Left);          // must not crash
+        Tile* merged = tileAt(turn.board, {0, 0});
+        CHECK(merged && merged->getValue() == 4);   // modifier dropped, sum applied
+        CHECK(turn.log().highestMergeValue() == 4); // the EVENT matches what landed
+
+        // A backed value passes through the same gate untouched.
+        Turn valid(renderer, run.get());
+        valid.board.clear();
+        Tile* anchor2 = valid.board.spawnTileAt({0, 0}, 2);
+        CHECK(anchor2 != nullptr);
+        CHECK(valid.board.spawnTileAt({1, 0}, 2) != nullptr);
+        anchor2->slot->addEffect(std::make_unique<ForcedValueModifier>(16));
+        valid.board.move(Direction::Left);
+        Tile* merged2 = tileAt(valid.board, {0, 0});
+        CHECK(merged2 && merged2->getValue() == 16);
+    }
+
+    // --- Spawn validation: unbacked values refused like a taken cell ----------
+    {
+        auto run = makeRun(31);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        turn.log().clear();
+        CHECK(turn.board.spawnTileAt({2, 2}, 3) == nullptr);
+        CHECK(turn.board.spawnTileAt({2, 2}, 0) == nullptr);
+        CHECK(turn.board.spawnTileAt({2, 2}, -4) == nullptr);
+        CHECK(turn.board.spawnTileAt({2, 2}, Tile::MaxValue * 2) == nullptr);
+        CHECK(turn.log().countOf(TurnEvent::Type::TileSpawned) == 0);  // nothing logged
+        CHECK(turn.board.spawnTileAt({2, 2}, 2) != nullptr);  // the cell itself was fine
+    }
+
+    // --- Deferred rewind: requestGoBack pops at the next update, not mid-call -
+    {
+        auto run = makeRun(32);
+        Turn scratch(renderer, run.get());
+        run->newTurn(scratch.board);
+        CHECK(run->getTurnCount() == 2);
+        run->requestGoBack();
+        CHECK(run->getTurnCount() == 2);   // deferred: nothing popped yet
+        run->update(0.f);                  // processed at the safe point
+        CHECK(run->getTurnCount() == 1);
+    }
+
+    // --- UI content versions: bumped on every mutation, only on mutations -----
+    {
+        auto run = makeRun(33);
+        const unsigned int i0 = run->getInventoryVersion();
+        run->addItem("coin_bag");
+        CHECK(run->getInventoryVersion() != i0);
+        const unsigned int i1 = run->getInventoryVersion();
+        run->toggleSelectedItem(0);
+        CHECK(run->getInventoryVersion() == i1);   // selection is not content
+        run->useHeldItem();                        // consume mutates
+        CHECK(run->getInventoryVersion() != i1);
+
+        const unsigned int c0 = run->getCardsVersion();
+        CHECK(run->acquireCard("bob"));
+        CHECK(run->getCardsVersion() != c0);
+        const unsigned int c1 = run->getCardsVersion();
+        CHECK(run->discardCard(0));
+        CHECK(run->getCardsVersion() != c1);
+
+        // A refused mutation (inventory full) must NOT bump.
+        run->addItem("coin_bag");
+        run->addItem("coin_bag");
+        run->addItem("coin_bag");
+        CHECK(run->isInventoryFull());
+        const unsigned int iFull = run->getInventoryVersion();
+        run->addItem("coin_bag");
+        CHECK(run->getInventoryVersion() == iFull);
     }
 
     std::cout << checks << " checks, " << failures << " failure(s)\n";

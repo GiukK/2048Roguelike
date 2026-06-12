@@ -6,9 +6,11 @@
 #include "effects/MergeContext.h"
 #include "effects/TileTags.h"
 #include "rendering/RenderSystem.h"
+#include "Debug.h"
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 Tile::Tile(RenderSystem& renderer, Slot* slot, int value)
     : renderer(renderer),
@@ -193,7 +195,22 @@ void Tile::mergeIntoSlot(Slot* target) {
     // is unchanged. Run the pipeline BEFORE applying so modifiers act on the value
     // that actually lands on the tile and in the event.
     MergeContext merge{target, sourceValue, value + target->tile->getValue()};
+    const int defaultResult = merge.resultValue;
     target->resolveMerge(merge);
+
+    // Validation gate (Tile::isValidValue): a modifier that produced an
+    // unbacked value is DROPPED — back to the plain sum, which is always legal
+    // here (resolveNextTileMove refuses merges at MaxValue). Enforced at the
+    // apply site so the rule holds for every effect ever written, instead of
+    // each author having to remember it; debug builds surface the buggy effect.
+    if (!isValidValue(merge.resultValue)) {
+        if (debug::Enabled) {
+            std::cerr << "[merge] effect produced unbacked value "
+                      << merge.resultValue << "; reverting to "
+                      << defaultResult << '\n';
+        }
+        merge.resultValue = defaultResult;
+    }
 
     target->removeTile();
     changeSlot(slot, target);
