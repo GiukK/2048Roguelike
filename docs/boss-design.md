@@ -1,6 +1,7 @@
 # Boss & Enemy System — Design
 
-Status: **design pinned (2026-06-12), pre-implementation.** Companion to
+Status: **design pinned (2026-06-12); slice 1 (defeat check) landed 2026-06-12,
+slices 2+ pre-implementation.** Companion to
 `docs/effect-engine-design.md` (the engine this builds on); read that first.
 All major decisions below are RESOLVED from the 2026-06-12 design session;
 the few still open are marked `DECISION:`. See the memory note
@@ -289,6 +290,12 @@ three `TurnEvent` types (§3).
    boss exists. `Board::hasLegalMove` + game-over callback + screen.
    Invariants: predicate true/false fixtures (full board, immobilized-only,
    hole-locked).
+   **DONE (2026-06-12):** `Board::hasLegalMove()` (pure const, mirrors the
+   sweep's slide/merge gates; shop-feed counts, holes/immobilized/cap don't);
+   `GameRun::setDefeatCallback` + latched `isDefeated()`, checked in `newTurn`
+   on the freshly cloned board (post shop-lifecycle/reactors); `GameOverState`
+   modal (frozen-backdrop pattern, double-pop to menu). All headless per the
+   boundary rule. Fixtures + shop-valve + latch tests in invariants.cpp.
 2. **Board-scope reactor dispatch** (§9.2) — the load-bearing engine
    extension; ship with a test-only board reactor before any boss uses it.
 3. **Minimal Boss vertical slice** — 1x1 Brute: entity + clone + occupancy +
@@ -307,4 +314,4 @@ three `TurnEvent` types (§3).
    per-ante difficulty scaling.
 
 Extend `tests/invariants.cpp` with every slice (the suite is the project's
-regression net — 175 checks as of 2026-06-11).
+regression net — 246 checks as of 2026-06-12, slice 1 included).

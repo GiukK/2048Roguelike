@@ -1,6 +1,7 @@
 #include "states/PlayState.h"
 #include "states/StateManager.h"
 #include "states/ShopState.h"
+#include "states/GameOverState.h"
 #include "rendering/RenderSystem.h"
 
 #include <algorithm>
@@ -32,6 +33,15 @@ PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer)
 
     currentRun = std::make_unique<GameRun>(renderer, animCallback, shopCallback);
     currentRun->setAnimationsActiveQuery([this]() { return hasActiveAnimations(); });
+
+    // Defeat → the terminal game-over overlay, same modal pattern as the shop:
+    // the run model signals, the state layer presents. The overlay's exit pops
+    // both itself and this PlayState — there is no way back into a dead run.
+    currentRun->setDefeatCallback([this](GameRun* run) {
+        this->stateManager.pushState(std::make_unique<GameOverState>(
+            this->stateManager, this->renderer, run,
+            [this](RenderSystem& r) { renderWorldAndHud(r); }));
+    });
 
     // The HUD/inventory UI lives in PlayUI (the play state's view layer); GameRun
     // is the model. Created after currentRun, which PlayUI reads.

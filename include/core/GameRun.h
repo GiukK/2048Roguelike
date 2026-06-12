@@ -22,6 +22,10 @@ public:
     using AnimationCallback = std::function<void(std::unique_ptr<Animation>)>;
     using ShopCallback = std::function<void(GameRun*)>;
     using AnimationsActiveQuery = std::function<bool()>;
+    // Fired once, when a new turn begins with no legal move on its board (the
+    // defeat rule, docs/boss-design.md §8). Same decoupling as ShopCallback:
+    // GameRun signals, the state layer decides how to present game over.
+    using DefeatCallback = std::function<void(GameRun*)>;
 
     // Decides the value of the phantom tile a freshly spawned shop holds.
     // Default: a copy of the board's current largest tile (see constructor).
@@ -50,6 +54,13 @@ public:
     // executing.
     void requestGoBack() { goBackRequested = true; }
     void openShop();
+
+    // Set like setAnimationsActiveQuery (after construction, by the state
+    // layer); tests run headless without one — isDefeated() still latches.
+    void setDefeatCallback(DefeatCallback callback) { defeatCallback = std::move(callback); }
+    // True once a turn began with no legal move. Latched: the run is over, the
+    // callback never re-fires (the game-over presentation is terminal anyway).
+    bool isDefeated() const { return defeated; }
 
     // Drives the whole shop-spawn lifecycle for one completed turn. Called by
     // Turn::endTurn on the just-finished board, before it is cloned into the
@@ -235,6 +246,8 @@ private:
     AnimationCallback animationCallback;
     ShopCallback shopCallback;
     AnimationsActiveQuery animationsActive;
+    DefeatCallback defeatCallback;
+    bool defeated = false;
 
     std::mt19937 rng;
     unsigned int runSeed = 0;  // the seed rng was actually seeded with

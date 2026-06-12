@@ -42,6 +42,19 @@ void GameRun::exit() {}
 
 void GameRun::newTurn(const Board& currentBoard) {
     turns.push(std::make_unique<Turn>(renderer, this, currentBoard));
+
+    // The defeat check (docs/boss-design.md §8), at its safe point: a turn that
+    // BEGINS with no legal move is the lost position. Checking the freshly
+    // cloned board means everything end-of-turn did — resolution spawns, the
+    // shop lifecycle, reactor mutations — has already settled, so a shop whose
+    // phantom a tile can still feed counts as the escape valve it is. Items
+    // are deliberately ignored (Board::hasLegalMove). Latched: one signal per
+    // run, and the genesis turn (constructor) is never checked — a fresh board
+    // with one tile always has a move.
+    if (!defeated && !turns.top()->board.hasLegalMove()) {
+        defeated = true;
+        if (defeatCallback) defeatCallback(this);
+    }
 }
 
 bool GameRun::goBack() {

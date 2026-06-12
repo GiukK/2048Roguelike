@@ -597,6 +597,50 @@ void Board::resolveNextTileMove(Direction dir) {
     moveValidFlag = true;
 }
 
+bool Board::hasLegalMove() const {
+    // Mirror of resolveNextTileMove's decision logic, side-effect-free: a tile
+    // has a legal move if it can SLIDE one step (empty target slot, step-in and
+    // step-out allowed) or MERGE into an equal-valued neighbor below the value
+    // cap. One step suffices for the existence check — sliding is stepwise, so
+    // any longer slide implies a first step.
+    //
+    // A board with NO tiles also reports false, and that is correct, not an
+    // artifact: a move with nothing to slide is refused by the turn machinery
+    // (moveValidFlag stays false), so an emptied board never reaches the
+    // BoardResolution spawn — a genuine softlock, not a fresh start.
+    static constexpr std::array<Direction, 4> dirs = {
+        Direction::Left, Direction::Right, Direction::Up, Direction::Down};
+
+    for (const auto& [coord, slot] : slots) {
+        if (slot->isEmpty()) continue;
+
+        const Tile* tile = slot->tile.get();
+        // Immobilized tiles (brick, frozen) neither slide nor initiate merges.
+        // They can still be merge TARGETS — covered when the mover is iterated.
+        if (tile->isImmobilized()) continue;
+        // Same for a locked-in tile (the shop's phantom): step-out gates both
+        // the slide and the merge in the sweep, so it gates both here.
+        if (!slot->canTileStepOut) continue;
+
+        for (Direction dir : dirs) {
+            auto it = slots.find(getNextCoord(coord, dir));
+            if (it == slots.end()) continue;  // no slot: board edge or a hole
+
+            const Slot* target = it->second.get();
+            if (target->isEmpty()) {
+                if (target->canTileStepIn) return true;  // a slide
+            } else if (tile->getValue() == target->tile->getValue() &&
+                       tile->getValue() < Tile::MaxValue) {
+                // A merge. The sweep doesn't check the target's canTileStepIn
+                // for merges (that's how feeding the shop's phantom works), so
+                // neither does the predicate — merging into a shop counts.
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 Coord Board::getNextCoord(Coord from, Direction dir) {
     switch (dir) {
     case Direction::Left:  return {from.x - 1, from.y};

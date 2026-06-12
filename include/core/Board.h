@@ -55,6 +55,15 @@ public:
     void move(Direction dir);
     void clear();
 
+    // The defeat predicate (docs/boss-design.md §8): does ANY tile have a slide
+    // or a merge available in some direction? Pure const — it mirrors
+    // resolveNextTileMove's decision logic (immobilized tiles, step-in/step-out
+    // locks, holes, the value cap) without mutating anything. Items are
+    // deliberately NOT consulted: a full board with a bomb in the inventory is
+    // still a loss. Boss occupancy will add its "attack" answer here when the
+    // attack interaction lands (attacking a boss IS a legal move).
+    bool hasLegalMove() const;
+
     // --- Shop mechanics ---------------------------------------------------
     // A "shop" is a Slot carrying a ShopEffect. It is spawned outside the base
     // playfield (orthogonally adjacent to an existing slot, on an otherwise
@@ -142,7 +151,9 @@ private:
 
     void initializeMovementQueue(Direction dir);
     void resolveNextTileMove(Direction dir);
-    Coord getNextCoord(Coord from, Direction dir);
+    // Pure coordinate math (static): shared by the movement sweep and the
+    // const hasLegalMove predicate.
+    static Coord getNextCoord(Coord from, Direction dir);
 
     // interaction
     void updateHoverState();

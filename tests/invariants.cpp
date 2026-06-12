@@ -43,6 +43,20 @@ Tile* tileAt(Board& board, Coord c) {
     return nullptr;
 }
 
+// Locked-board fixture for the defeat-check tests: fills the 4x4 base grid so
+// no two orthogonal neighbors are equal — no merge anywhere, and once full, no
+// slide either. Variants overwrite cells before/after filling.
+void fillGrid(Board& board, const int (&vals)[4][4]) {
+    for (int y = 0; y < 4; ++y)
+        for (int x = 0; x < 4; ++x)
+            board.spawnTileAt({x, y}, vals[y][x]);
+}
+
+constexpr int LockedGrid[4][4] = {{2, 4, 2, 4},
+                                  {8, 16, 8, 16},
+                                  {2, 4, 2, 4},
+                                  {8, 16, 8, 16}};
+
 // Test-only merge modifier: forces the merge's resultValue, to exercise the
 // apply-site validation (unbacked values are dropped, backed ones applied).
 class ForcedValueModifier : public Effect {
@@ -920,6 +934,146 @@ int main() {
         const unsigned int iFull = run->getInventoryVersion();
         run->addItem("coin_bag");
         CHECK(run->getInventoryVersion() == iFull);
+    }
+
+    // --- hasLegalMove: slides, full-board lock, immobilized-only escape -------
+    {
+        auto run = makeRun(40);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+
+        // Empty board: nothing can act. Correct as DEFEAT semantics, not just a
+        // degenerate answer — an emptied board never produces a valid move, so
+        // BoardResolution's spawn is unreachable (a genuine softlock).
+        CHECK(!turn.board.hasLegalMove());
+
+        // One tile on an open board: slides everywhere.
+        CHECK(turn.board.spawnTileAt({1, 1}, 2) != nullptr);
+        CHECK(turn.board.hasLegalMove());
+
+        // Full board, no equal neighbors: locked.
+        turn.board.clear();
+        fillGrid(turn.board, LockedGrid);
+        CHECK(turn.board.getAllTiles().size() == 16);
+        CHECK(!turn.board.hasLegalMove());
+
+        // Free one cell: its neighbors gain a slide...
+        Tile* center = tileAt(turn.board, {1, 1});
+        CHECK(center != nullptr);
+        turn.board.destroyTile(center);
+        CHECK(turn.board.hasLegalMove());
+
+        // ...unless every tile adjacent to the empty cell is immobilized (the
+        // "immobilized-only" fixture: bricks may not slide or initiate merges).
+        for (Coord c : {Coord{0, 1}, Coord{2, 1}, Coord{1, 0}, Coord{1, 2}}) {
+            Tile* t = tileAt(turn.board, c);
+            CHECK(t != nullptr);
+            t->setBricked(true);
+        }
+        CHECK(!turn.board.hasLegalMove());
+
+        // Un-bricking one neighbor re-opens the slide.
+        tileAt(turn.board, {0, 1})->setBricked(false);
+        CHECK(turn.board.hasLegalMove());
+    }
+
+    // --- hasLegalMove: the value cap is not a move; holes are not targets ----
+    {
+        auto run = makeRun(41);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+
+        // The only equal-adjacent pair is two MaxValue tiles: merging them is
+        // refused by the cap (no artwork above it), so the board is LOCKED.
+        int vals[4][4];
+        for (int y = 0; y < 4; ++y)
+            for (int x = 0; x < 4; ++x)
+                vals[y][x] = LockedGrid[y][x];
+        vals[0][0] = Tile::MaxValue;
+        vals[0][1] = Tile::MaxValue;
+        fillGrid(turn.board, vals);
+        CHECK(!turn.board.hasLegalMove());
+
+        // A wrenched-out slot is a HOLE, not an empty cell: no slot to slide
+        // into, so the board stays locked (the "hole-locked" fixture).
+        Tile* wrenched = tileAt(turn.board, {2, 0});
+        CHECK(wrenched != nullptr);
+        CHECK(turn.board.removeSlotUnder(wrenched));
+        CHECK(turn.board.slotAt({2, 0}) == nullptr);
+        CHECK(!turn.board.hasLegalMove());
+
+        // An uncapped equal pair anywhere unlocks it.
+        Tile* repaint = tileAt(turn.board, {2, 1});
+        CHECK(repaint != nullptr);
+        turn.board.destroyTile(repaint);
+        CHECK(turn.board.spawnTileAt({2, 1}, 16) != nullptr);  // pairs with {1,1}
+        CHECK(turn.board.hasLegalMove());
+    }
+
+    // --- hasLegalMove: feeding the shop's phantom is the escape valve --------
+    {
+        auto run = makeRun(42);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+
+        // Shop value 32: a value LockedGrid never uses, so the phantom can only
+        // ever pair with the tile we repaint below.
+        CHECK(turn.board.spawnShop(32));
+        Tile* phantom = nullptr;
+        for (Tile* t : turn.board.getAllTiles()) {
+            if (t->slot && t->slot->isProtected()) phantom = t;
+        }
+        CHECK(phantom != nullptr);
+
+        // The base-grid cell the shop is attached to (it spawns orthogonally
+        // adjacent to an existing slot).
+        const Coord sc = phantom->slot->getCoord();
+        Coord nc{0, 0};
+        bool found = false;
+        for (Coord off : {Coord{-1, 0}, Coord{1, 0}, Coord{0, -1}, Coord{0, 1}}) {
+            Coord c{sc.x + off.x, sc.y + off.y};
+            if (turn.board.slotAt(c)) {
+                nc = c;
+                found = true;
+                break;
+            }
+        }
+        CHECK(found);
+
+        // Full locked grid + a shop whose phantom matches nothing: still defeat.
+        // The phantom itself may not initiate (its slot forbids stepping out).
+        fillGrid(turn.board, LockedGrid);
+        CHECK(!turn.board.hasLegalMove());
+
+        // Repaint the attached neighbor to the phantom's value: feeding the
+        // shop IS a legal move (boss-design §8 — same rule attacks will use).
+        turn.board.destroyTile(tileAt(turn.board, nc));
+        CHECK(turn.board.spawnTileAt(nc, 32) != nullptr);
+        CHECK(turn.board.hasLegalMove());
+    }
+
+    // --- Defeat signal: a dead new turn fires the callback, latched once -----
+    {
+        auto run = makeRun(43);
+        int defeats = 0;
+        run->setDefeatCallback([&defeats](GameRun*) { ++defeats; });
+        CHECK(!run->isDefeated());
+
+        // A healthy board does not trip the check.
+        Turn scratch(renderer, run.get());
+        run->newTurn(scratch.board);
+        CHECK(!run->isDefeated());
+        CHECK(defeats == 0);
+
+        // A locked board does — exactly once, even if more turns are pushed
+        // (the latch: one game-over per run).
+        scratch.board.clear();
+        fillGrid(scratch.board, LockedGrid);
+        run->newTurn(scratch.board);
+        CHECK(run->isDefeated());
+        CHECK(defeats == 1);
+        run->newTurn(scratch.board);
+        CHECK(defeats == 1);
     }
 
     std::cout << checks << " checks, " << failures << " failure(s)\n";
