@@ -790,9 +790,40 @@ int main() {
         turn.board.swapTiles(regular, regular);
         CHECK(regular->slot == baseSlot);
 
-        // allowProtected is the deliberate escape hatch for future mechanics.
+        // allowProtected is the deliberate escape hatch (the Switch item uses it).
         turn.board.swapTiles(phantom, regular, /*allowProtected=*/true);
         CHECK(phantom->slot == baseSlot && regular->slot == shopSlot);
+    }
+
+    // --- Switch item: moving the shop's phantom tile is its FEATURE ----------
+    // End-to-end through the real item flow (selection -> useHeldItem): the
+    // Switch opts into allowProtected, so it may reposition the shop's
+    // requirement tile — a deliberate balance decision, pinned here so the
+    // opt-in can't be lost in a refactor.
+    {
+        auto run = makeRun(34);
+        Board& board = run->currentBoard();
+        board.clear();
+        CHECK(board.spawnShop(4));
+        Tile* phantom = nullptr;
+        for (Tile* t : board.getAllTiles()) {
+            if (t->slot && t->slot->isProtected()) phantom = t;
+        }
+        CHECK(phantom != nullptr);
+        Tile* regular = board.spawnTileAt({0, 0}, 2);
+        CHECK(regular != nullptr);
+        Slot* shopSlot = phantom->slot;
+        Slot* baseSlot = regular->slot;
+
+        phantom->setSelected(true);
+        regular->setSelected(true);
+        run->addItem("switch");
+        run->toggleSelectedItem(0);
+        run->useHeldItem();
+
+        CHECK(run->getInventoryItems().empty());   // consumed: the swap happened
+        CHECK(phantom->slot == baseSlot && regular->slot == shopSlot);
+        CHECK(board.getSelectedTiles().empty());   // targeting cleared after use
     }
 
     // --- Merge validation: unbacked resultValue dropped, backed one applied --

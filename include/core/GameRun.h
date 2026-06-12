@@ -115,6 +115,14 @@ public:
     // substrate. Score (Step 2) and reactive abilities (Step 3) consume this.
     const TurnLog& currentTurnLog() const;
 
+    // The acting turn's live board — the engine-level seam (tests, debug
+    // tooling), like Board::spawnTileAt/getAllTiles. Gameplay code goes
+    // through the specific delegates below (getSelectedTiles, destroyTile,
+    // ...) so the interaction surface stays curated; reach for this only when
+    // they don't suffice. turns is never empty in normal play (the
+    // constructor pushes the first turn).
+    Board& currentBoard() { return turns.top()->board; }
+
     // --- Cards: run-scoped reactors ("the player persists") -----------------
     // Held here, outside the board/turn stack, so they survive undo and are
     // never cloned. Reacting happens via dispatchReactors below.
@@ -188,8 +196,9 @@ public:
     std::vector<Tile*> getSelectedTiles() const;
     void destroyTile(Tile* tile);
     // Swap refuses protected slots (the shop) by default, mirroring the other
-    // board manipulations. allowProtected exists for future content (e.g. an
-    // upgraded Switch) to override that as an explicit balance decision.
+    // board manipulations. allowProtected is the explicit opt-in for content
+    // that moves shop tiles as a mechanic — the Switch item uses it; future
+    // effects decide per-case as a balance call.
     void swapTiles(Tile* a, Tile* b, bool allowProtected = false);
     void clearBoardSelection();
 

@@ -35,12 +35,18 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
         }
     });
 
+    // Switch: swaps any two selected tiles — INCLUDING a shop's phantom tile
+    // (allowProtected). Repositioning the shop's requirement, or planting a
+    // cheap tile on the shop slot for an easier activation, is part of the
+    // item's intended value: a deliberate balance decision priced into the
+    // item, not an oversight. Every other board manipulation still refuses
+    // protected slots by default (Board::swapTiles).
     itemRegistry.registerItem({"switch", "switch",
         "Switch", "Swaps the two selected tiles.", 50, 0.25f,
         [](GameRun& run) -> bool {
             auto tiles = run.getSelectedTiles();
             if (tiles.size() != 2) return false;
-            run.swapTiles(tiles[0], tiles[1]);
+            run.swapTiles(tiles[0], tiles[1], /*allowProtected=*/true);
             return true;
         }
     });

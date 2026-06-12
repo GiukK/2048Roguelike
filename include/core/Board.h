@@ -99,8 +99,9 @@ public:
     void clearSelection();
     void destroyTile(Tile* tile);
     // Refuses protected slots (the shop) by default, like every other board
-    // manipulation. allowProtected is the deliberate escape hatch for future
-    // effects that may move a shop's phantom tile as an explicit mechanic.
+    // manipulation. allowProtected is the deliberate escape hatch for effects
+    // that move a shop's phantom tile as an explicit mechanic — the Switch
+    // item is the first; future effects opt in per-case.
     void swapTiles(Tile* a, Tile* b, bool allowProtected = false);
 
     // Occupied tiles inside the square of Chebyshev radius `radius` around

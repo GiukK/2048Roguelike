@@ -257,9 +257,9 @@ void Board::swapTiles(Tile* a, Tile* b, bool allowProtected) {
     if (!a || !b || a == b || !a->slot || !b->slot) return;
     // Default policy: protected slots (the shop) keep their tile, consistent
     // with destroy / wrench / shuffle / area targeting. This is a POLICY, not
-    // an invariant — pulling the phantom tile off a shop is a plausible future
-    // mechanic (an upgraded Switch, an ability), so callers opt in explicitly
-    // via allowProtected instead of the rule being unhookable.
+    // an invariant — moving the shop's phantom tile is a legal mechanic for
+    // callers that opt in explicitly via allowProtected (the Switch item does
+    // exactly this), instead of the rule being unhookable.
     if (!allowProtected && (a->slot->isProtected() || b->slot->isProtected())) return;
 
     Slot* slotA = a->slot;
