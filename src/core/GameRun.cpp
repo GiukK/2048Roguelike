@@ -361,8 +361,16 @@ void GameRun::addCard(std::unique_ptr<Effect> card) {
 
 void GameRun::flushReactors(Turn& turn) {
     TurnLog& log = turn.log();
-    if (cards.empty()) {
-        // Keep the cursor honest even with no cards mounted, so a card bought
+
+    // Board-resident reactors (effects mounted on tiles/slots — boss maluses
+    // later) join the run-scoped cards in this pass. The dispatch list is
+    // SNAPSHOT up front: reactors may mount or destroy board effects
+    // mid-flush, and an effect mounted mid-flush joins the NEXT flush — the
+    // same no-cascade family as the events reactors append.
+    const std::vector<Effect*> boardEffects = turn.board.collectBoardEffects();
+
+    if (boardEffects.empty() && cards.empty()) {
+        // Keep the cursor honest even with no reactors mounted, so one bought
         // mid-run doesn't retroactively see the whole backlog.
         turn.reactorCursor = log.events().size();
         return;
@@ -376,14 +384,35 @@ void GameRun::flushReactors(Turn& turn) {
     const size_t eventCount = log.events().size();
     for (size_t i = turn.reactorCursor; i < eventCount; ++i) {
         const TurnEvent event = log.events()[i];
+
+        // Board scope first — the pinned cross-scope order (engine doc §6:
+        // tile → slot → board-owned → run). Every owner is RE-VALIDATED on the
+        // live board before its effect fires: a reactor earlier in this very
+        // pass may have destroyed it (the owner-lifetime wrinkle, boss-design
+        // §9.2) — a vanished owner means the effect is skipped, never called.
+        // Accepted corner: should the allocator hand a destroyed effect's
+        // address to one mounted mid-flush, the newcomer is dispatched early;
+        // benign (it would legitimately see all later events anyway).
+        for (Effect* effect : boardEffects) {
+            Slot* owner = turn.board.findOwnerSlot(effect);
+            if (!owner) continue;
+            ctx.setDispatchOwner(owner);
+            effect->onEvent(event, ctx);
+        }
+        ctx.setDispatchOwner(nullptr);
+
         for (auto& card : cards) {
             // Attribute the upcoming reaction: its first mutation logs one
             // CardTriggered (activation observability — see EffectContext).
             ctx.beginCardDispatch(card.defId);
             card.effect->onEvent(event, ctx);
         }
+        // Close attribution before the next event's board leg: board-effect
+        // mutations must never be billed to this event's last card. (Board
+        // reactions are attribution-free for now — revisit with boss content
+        // if "the boss's malus fired" needs to be a readable event.)
+        ctx.endCardDispatch();
     }
-    ctx.endCardDispatch();
     // Jump PAST anything the reactors appended (CardTriggered included):
     // reactions are logged (the turn record stays truthful) but never
     // re-dispatched — no cascades, no loops.
@@ -391,9 +420,21 @@ void GameRun::flushReactors(Turn& turn) {
 }
 
 void GameRun::dispatchTurnEnd(Turn& turn) {
-    if (cards.empty()) return;
+    const std::vector<Effect*> boardEffects = turn.board.collectBoardEffects();
+    if (boardEffects.empty() && cards.empty()) return;
 
     EffectContext ctx(*this, turn.board, turn.log());
+
+    // Same scope order and same defensive owner re-validation as the
+    // streaming pass — an onTurnEnd reaction can destroy a later owner too.
+    for (Effect* effect : boardEffects) {
+        Slot* owner = turn.board.findOwnerSlot(effect);
+        if (!owner) continue;
+        ctx.setDispatchOwner(owner);
+        effect->onTurnEnd(turn.log(), ctx);
+    }
+    ctx.setDispatchOwner(nullptr);
+
     for (auto& card : cards) {
         card.effect->onTurnEnd(turn.log(), ctx);
     }

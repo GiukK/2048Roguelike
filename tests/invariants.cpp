@@ -1076,6 +1076,183 @@ int main() {
         CHECK(defeats == 1);
     }
 
+    // --- Board-scope reactors: a slot-mounted effect reacts, with identity ----
+    // The same ReactorCard substrate as the run-scoped cards, mounted on a
+    // slot: board-scope dispatch is the SAME pipeline, not a parallel engine
+    // (boss-design §2/§9.2). NOTE: zero cards are mounted here — the board leg
+    // must dispatch on its own.
+    {
+        auto run = makeRun(50);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* anchor = turn.board.spawnTileAt({0, 0}, 2);
+        CHECK(anchor != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+
+        // "Every merge: +1 coin, sourced at MY slot" — owner identity through
+        // ctx.ownerSlot(), the §9.2 interface (passed at dispatch, not bound).
+        Coord seenOwner{-1, -1};
+        anchor->slot->addEffect(std::make_unique<ReactorCard>(
+            [&seenOwner](const TurnEvent& e, EffectContext& ctx) {
+                if (e.type == TurnEvent::Type::TileMerged && ctx.ownerSlot()) {
+                    seenOwner = ctx.ownerSlot()->getCoord();
+                    ctx.addCoins(1, ctx.ownerSlot());
+                }
+            }));
+        turn.log().clear();
+        turn.board.move(Direction::Left);
+
+        const int coins0 = run->getCoins();
+        run->flushReactors(turn);
+        CHECK(run->getCoins() == coins0 + 1);
+        CHECK(seenOwner == (Coord{0, 0}));
+
+        // Exactly-once: the cursor covers the board scope too.
+        run->flushReactors(turn);
+        CHECK(run->getCoins() == coins0 + 1);
+    }
+
+    // --- Board-scope reactors: owners destroyed mid-flush are skipped ---------
+    // The owner-lifetime wrinkle (boss-design §9.2): the dispatch list is
+    // snapshot up front, so each owner is re-validated before its hook runs.
+    // (Destruction and mid-flush MOUNTING are tested in separate blocks on
+    // purpose: free-then-allocate in one flush can hand the freed effect's
+    // address to the newcomer — the accepted-benign pointer-reuse corner
+    // documented in GameRun::flushReactors — which would make a combined
+    // test nondeterministic.)
+    {
+        auto run = makeRun(51);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* killer = turn.board.spawnTileAt({0, 0}, 2);
+        Tile* victim = turn.board.spawnTileAt({2, 0}, 4);
+        CHECK(killer && victim);
+
+        // Killer (tile effect at {0,0}) dispatches first in the tile leg's
+        // coord order and destroys the victim's tile — the victim's own
+        // reactor must be defensively skipped, not fired or crashed into.
+        killer->addEffect(std::make_unique<ReactorCard>(
+            [&victim](const TurnEvent& e, EffectContext& ctx) {
+                if (e.type == TurnEvent::Type::Moved) ctx.destroyTile(victim);
+            }));
+        victim->addEffect(std::make_unique<ReactorCard>(
+            [](const TurnEvent& e, EffectContext& ctx) {
+                if (e.type == TurnEvent::Type::Moved) ctx.addCoins(100);
+            }));
+
+        turn.log().clear();
+        turn.log().push(TurnEvent::moved(static_cast<int>(Direction::Left)));
+
+        const int coins0 = run->getCoins();
+        run->flushReactors(turn);
+        CHECK(run->getCoins() == coins0);                  // the victim never fired
+        CHECK(tileAt(turn.board, {2, 0}) == nullptr);      // it died mid-flush
+        CHECK(turn.log().countOf(TurnEvent::Type::TileDestroyed) == 1);
+    }
+
+    // --- Board-scope reactors: effects mounted mid-flush wait for the next ----
+    // Additions join like appended events do — never the in-flight pass.
+    {
+        auto run = makeRun(54);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* mounter = turn.board.spawnTileAt({0, 0}, 2);
+        CHECK(mounter != nullptr);
+
+        mounter->addEffect(std::make_unique<ReactorCard>(
+            [](const TurnEvent& e, EffectContext& ctx) {
+                if (e.type == TurnEvent::Type::Moved) {
+                    ctx.ownerSlot()->addEffect(std::make_unique<ReactorCard>(
+                        [](const TurnEvent& ev, EffectContext& c) {
+                            if (ev.type == TurnEvent::Type::Moved) c.addCoins(100);
+                        }));
+                }
+            }));
+
+        turn.log().clear();
+        turn.log().push(TurnEvent::moved(static_cast<int>(Direction::Left)));
+
+        const int coins0 = run->getCoins();
+        run->flushReactors(turn);
+        CHECK(run->getCoins() == coins0);   // the newcomer saw nothing this flush
+
+        // The NEXT flush is its first: a fresh Moved event reaches it.
+        turn.log().push(TurnEvent::moved(static_cast<int>(Direction::Right)));
+        run->flushReactors(turn);
+        CHECK(run->getCoins() == coins0 + 100);
+    }
+
+    // --- Board-scope reactors: dispatch order board-before-cards, no
+    // CardTriggered attribution for board effects -----------------------------
+    {
+        auto run = makeRun(52);
+        run->addCard(std::make_unique<ReactorCard>(
+            [](const TurnEvent& e, EffectContext& ctx) {
+                if (e.type == TurnEvent::Type::TileMerged) {
+                    ctx.addCoins(2, ctx.board().slotAt(e.coord));
+                }
+            }));
+
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnTileAt({0, 0}, 2) != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+        // Mounted on an EMPTY slot far from the merge: chips keep reacting
+        // whether or not a tile sits on them.
+        Slot* corner = turn.board.slotAt({3, 3});
+        CHECK(corner != nullptr && corner->isEmpty());
+        corner->addEffect(std::make_unique<ReactorCard>(
+            [](const TurnEvent& e, EffectContext& ctx) {
+                if (e.type == TurnEvent::Type::TileMerged) {
+                    ctx.addCoins(1, ctx.ownerSlot());
+                }
+            }));
+
+        turn.log().clear();
+        turn.board.move(Direction::Left);
+        const int coins0 = run->getCoins();
+        run->flushReactors(turn);
+        CHECK(run->getCoins() == coins0 + 3);
+
+        // The board scope fires before the run scope (the pinned cross-scope
+        // order), so its +1 is logged before the card's +2...
+        int boardIdx = -1, cardIdx = -1;
+        const auto& evs = turn.log().events();
+        for (int i = 0; i < static_cast<int>(evs.size()); ++i) {
+            if (evs[i].type != TurnEvent::Type::CoinsGained) continue;
+            if (evs[i].valueA == 1) boardIdx = i;
+            if (evs[i].valueA == 2) cardIdx = i;
+        }
+        CHECK(boardIdx >= 0 && cardIdx > boardIdx);
+        // ...and only the CARD logs an activation (board reactions are
+        // attribution-free for now — pinned in GameRun::flushReactors).
+        CHECK(turn.log().countOf(TurnEvent::Type::CardTriggered) == 1);
+    }
+
+    // --- Board-scope reactors: the aggregate onTurnEnd pass, with identity ----
+    {
+        auto run = makeRun(53);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Tile* anchor = turn.board.spawnTileAt({0, 0}, 2);
+        CHECK(anchor != nullptr);
+        CHECK(turn.board.spawnTileAt({1, 0}, 2) != nullptr);
+
+        anchor->slot->addEffect(std::make_unique<ReactorCard>(
+            nullptr,
+            [](const TurnLog& log, EffectContext& ctx) {
+                if (log.mergeCount() >= 1 && ctx.ownerSlot()) {
+                    ctx.addCoins(2, ctx.ownerSlot());
+                }
+            }));
+        turn.log().clear();
+        turn.board.move(Direction::Left);
+
+        const int coins0 = run->getCoins();
+        run->dispatchTurnEnd(turn);
+        CHECK(run->getCoins() == coins0 + 2);
+    }
+
     std::cout << checks << " checks, " << failures << " failure(s)\n";
     return failures == 0 ? 0 : 1;
 }

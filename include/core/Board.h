@@ -52,6 +52,21 @@ public:
     // merge happened on).
     Slot* slotAt(Coord c) const;
 
+    // Every effect mounted on a board resident, in the pinned board-scope
+    // dispatch order: all tile effects (coord order), then all slot effects
+    // (coord order) — the reactor-pass slice of the cross-scope rule
+    // (tile → slot → board-owned → run, effect-engine doc §6). Effects on
+    // EMPTY slots are included: a chip keeps reacting whether or not a tile
+    // sits on it. Snapshot primitive for GameRun's dispatch legs.
+    std::vector<Effect*> collectBoardEffects() const;
+
+    // The slot a (possibly stale) effect pointer currently lives on — its own
+    // slot for slot effects, the carrying tile's CURRENT slot for tile effects
+    // — or nullptr if it is gone. The owner-lifetime re-validation primitive
+    // (boss-design §9.2): a dispatch snapshot can outlive an owner destroyed
+    // mid-pass, so the dispatcher re-asks before every hook call.
+    Slot* findOwnerSlot(const Effect* effect) const;
+
     void move(Direction dir);
     void clear();
 

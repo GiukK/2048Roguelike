@@ -242,6 +242,11 @@ For an interaction at slot `S` involving tiles `A`,`B`:
 `DECISION: dispatch order.` It is a balance lever (Balatro = left→right). Proposal:
 **by scope (tile → slot → board → run), then by board position (row-major) within a
 scope.** Alternative: insertion order. Must be deterministic and documented.
+**PINNED for the reactor pass (2026-06-12):** by scope (tile → slot → run;
+board-owned and Boss join as those owners land), coord-ordered within a scope
+— (x, then y), the slot map's natural order, chosen over row-major so the
+implementation has ONE ordering source. The modifier pipelines keep their
+existing site order (tile → slot at the interaction site).
 
 ---
 
@@ -330,6 +335,25 @@ a causal narrative; this flips steps 5/6 of the original sketch.
   ItemRegistry pattern) the future CardRegistry feeds; stateful cards subclass
   `Effect` directly. The debug dump in `Turn::endTurn` stays as an independent
   verification channel (it now also shows reactor-appended events).
+- **Board-scope dispatch (IMPLEMENTED 2026-06-12 — boss-design §9.2
+  prerequisite):** `flushReactors` and `dispatchTurnEnd` dispatch
+  BOARD-RESIDENT effects (tile- and slot-mounted, empty slots included) before
+  the run-scoped cards, per event, in the pinned cross-scope order (§6).
+  - **Owner identity is passed at dispatch** through
+    `EffectContext::ownerSlot()` — never bound into the effect at mount, so
+    board clones never rebind back-pointers. "Destroy a slot adjacent to ME"
+    reads it; null while cards dispatch (no position). The Boss joins with its
+    own owner accessor when the entity lands.
+  - **Owner lifetime is defended**: the dispatch list is snapshot up front
+    (`Board::collectBoardEffects`) and every owner re-validated on the LIVE
+    board before each hook (`Board::findOwnerSlot`, pointer identity — tiles
+    may have moved). An owner destroyed mid-flush ⇒ its effect is skipped; an
+    effect MOUNTED mid-flush joins the next flush (the no-cascade family).
+    Accepted corner: free-then-mount within one flush can reuse the freed
+    effect's address, dispatching the newcomer early — benign (it points at a
+    live effect that would legitimately see later events anyway).
+  - Board reactions are **attribution-free** (no `CardTriggered`); revisit
+    with boss content if "the boss's malus fired" must be a readable event.
 - A card that is *also* a modifier (e.g. "all merges +1 coin") is included in the
   run scope of the merge dispatch (section 6), so it participates live.
 

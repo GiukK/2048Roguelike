@@ -1,7 +1,8 @@
 # Boss & Enemy System — Design
 
-Status: **design pinned (2026-06-12); slice 1 (defeat check) landed 2026-06-12,
-slices 2+ pre-implementation.** Companion to
+Status: **design pinned (2026-06-12); slices 1 (defeat check) and 2
+(board-scope reactor dispatch) landed 2026-06-12, slices 3+ (Boss entity
+onward) pre-implementation.** Companion to
 `docs/effect-engine-design.md` (the engine this builds on); read that first.
 All major decisions below are RESOLVED from the 2026-06-12 design session;
 the few still open are marked `DECISION:`. See the memory note
@@ -250,8 +251,8 @@ Two real gaps, both identified against the current code:
 1. **Cell occupancy in movement resolution** (§3): the fourth answer in
    `resolveNextTileMove` + the `IncomingResolution`/`AttackContext` plumbing.
    Localized to `Board`; the merge path is untouched.
-2. **Board-scope reactor dispatch.** `GameRun::flushReactors` /
-   `dispatchTurnEnd` iterate ONLY the run-scoped cards today. Boss reactors
+2. **Board-scope reactor dispatch.** ~~`GameRun::flushReactors` /
+   `dispatchTurnEnd` iterate ONLY the run-scoped cards today.~~ Boss reactors
    (Sleeper's turn counter, the slot-destroyer malus) are board-resident.
    Extending dispatch to board-scoped owners must solve two wrinkles cards
    never had:
@@ -263,6 +264,14 @@ Two real gaps, both identified against the current code:
      know where it lives. Cards never needed this; the board-scope dispatch
      must pass the owner (or bind it at mount). Decide the interface here,
      once, not per boss.
+
+   **CLOSED (2026-06-12, slice 2):** both legs now dispatch board-resident
+   effects before the cards. Owner identity = `EffectContext::ownerSlot()`,
+   passed at dispatch, never bound at mount (no clone rebinding). Owner
+   lifetime = snapshot (`Board::collectBoardEffects`) + per-hook live
+   re-validation (`Board::findOwnerSlot`); mid-flush mounts wait for the next
+   flush. Full semantics in the engine doc §9. The Boss entity (slice 3) will
+   extend the same enumeration/validation pair with its own owner accessor.
 
 Smaller follow-ons, already anticipated elsewhere: `MergeContext::
 destroyResult` (planned for destroy-on-merge chips; bosses don't need it but
@@ -298,6 +307,12 @@ three `TurnEvent` types (§3).
    boundary rule. Fixtures + shop-valve + latch tests in invariants.cpp.
 2. **Board-scope reactor dispatch** (§9.2) — the load-bearing engine
    extension; ship with a test-only board reactor before any boss uses it.
+   **DONE (2026-06-12):** see §9.2's CLOSED note. The test-only board
+   reactors are `ReactorCard`s mounted on slots/tiles in invariants.cpp —
+   deliberately the SAME substrate as the cards (proves "same pipelines, not
+   a parallel engine"). Covered: owner identity, owner destroyed mid-flush,
+   mid-flush mounting deferred, board-before-cards order, attribution-free
+   board reactions, the aggregate onTurnEnd leg, chips on empty slots.
 3. **Minimal Boss vertical slice** — 1x1 Brute: entity + clone + occupancy +
    `resolveIncoming` default + `AttackContext` + `BossDamaged`/`BossDefeated`
    events + HP banner + death (default `onDefeat`). Spawned by debug key, no
@@ -314,4 +329,4 @@ three `TurnEvent` types (§3).
    per-ante difficulty scaling.
 
 Extend `tests/invariants.cpp` with every slice (the suite is the project's
-regression net — 246 checks as of 2026-06-12, slice 1 included).
+regression net — 267 checks as of 2026-06-12, slices 1–2 included).

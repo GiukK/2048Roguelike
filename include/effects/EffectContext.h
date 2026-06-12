@@ -37,6 +37,16 @@ public:
     const TurnLog& log() const { return log_; }
     Board& board() { return board_; }
 
+    // The board-resident owner of the effect CURRENTLY being dispatched: the
+    // slot it is mounted on (slot effects) or under (a tile effect's current
+    // slot). Null while run-scoped cards dispatch — cards have no position.
+    // THE owner-identity interface (boss-design §9.2), decided once: the
+    // dispatcher passes the owner through the context at dispatch time, it is
+    // never bound into the effect at mount — so board clones never rebind
+    // back-pointers. "Destroy a slot adjacent to ME" reads this; the Boss
+    // will join with its own owner accessor when the entity lands.
+    Slot* ownerSlot() const { return ownerSlot_; }
+
     // --- mutations (each routes through the existing guarded entry point) ---
     // Coin gains run the coin pipeline (chips on `source` scale them) and are
     // logged; the reactor pass does NOT re-dispatch the events this appends.
@@ -56,6 +66,10 @@ public:
     void beginCardDispatch(const std::string& cardId);
     void endCardDispatch();
 
+    // Dispatcher-only: sets the owner for the board-scope legs (nullptr when
+    // moving on to the run scope). See ownerSlot().
+    void setDispatchOwner(Slot* owner) { ownerSlot_ = owner; }
+
 private:
     // Logs the CardTriggered activation on a card's first mutation (see above).
     // Called BEFORE the mutation executes, so cause precedes consequence in
@@ -68,4 +82,5 @@ private:
 
     const std::string* activeCardId = nullptr;
     bool activationLogged = false;
+    Slot* ownerSlot_ = nullptr;
 };

@@ -357,6 +357,42 @@ std::vector<Tile*> Board::getAllTiles() const {
     return result;
 }
 
+std::vector<Effect*> Board::collectBoardEffects() const {
+    // Scope-major (all tile effects, then all slot effects), coord-ordered
+    // within each scope — see the declaration for the dispatch-order contract.
+    std::vector<Effect*> result;
+    for (const auto& [_, slot] : slots) {
+        if (!slot->isEmpty()) {
+            for (const auto& effect : slot->tile->effects) {
+                result.push_back(effect.get());
+            }
+        }
+    }
+    for (const auto& [_, slot] : slots) {
+        for (const auto& effect : slot->effects) {
+            result.push_back(effect.get());
+        }
+    }
+    return result;
+}
+
+Slot* Board::findOwnerSlot(const Effect* effect) const {
+    // Pointer-identity scan over the LIVE board (never trusting the snapshot's
+    // idea of where the effect was): tiles move mid-flush (a reactor may swap
+    // them), so the owner is wherever the effect lives NOW.
+    for (const auto& [_, slot] : slots) {
+        if (!slot->isEmpty()) {
+            for (const auto& e : slot->tile->effects) {
+                if (e.get() == effect) return slot.get();
+            }
+        }
+        for (const auto& e : slot->effects) {
+            if (e.get() == effect) return slot.get();
+        }
+    }
+    return nullptr;
+}
+
 // --- Shop mechanics ---
 
 int Board::getMaxTileValue() const {
