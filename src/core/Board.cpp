@@ -1,6 +1,9 @@
 #include "core/Board.h"
+#include "core/Boss.h"
 #include "core/Turn.h"
 #include "core/GameRun.h"
+#include "effects/AttackContext.h"
+#include "effects/EffectContext.h"
 #include "effects/ShopEffect.h"
 #include "rendering/RenderSystem.h"
 #include "rendering/Animation.h"
@@ -30,6 +33,7 @@ Board::Board(Board&& other) noexcept
     : turn(other.turn),
       renderer(other.renderer),
       slots(std::move(other.slots)),
+      boss(std::move(other.boss)),
       movementQueue(std::move(other.movementQueue)),
       moveValidFlag(other.moveValidFlag),
       animationCallback(std::move(other.animationCallback)),
@@ -48,6 +52,10 @@ void Board::copyStateFrom(const Board& other) {
 
     moveValidFlag = false;
     hoveredTile = nullptr;
+
+    // Boss state is board state (boss-design §7): the body — HP included —
+    // clones with the turn, so undo rewinds boss damage like any world change.
+    boss = other.boss ? std::make_unique<Boss>(*other.boss) : nullptr;
 
     slots.clear();
     for (const auto& [coord, slotPtr] : other.slots) {
@@ -293,6 +301,27 @@ void Board::render(RenderSystem& renderer) {
     for (const auto& [_, slot] : slots) {
         slot->render(renderer);
     }
+
+    // The boss body: per-def texture over the footprint, drawn in the board
+    // layer AFTER the slots so it overlays them (boss-design §10). The visual
+    // lives entirely in this render pass — the Boss entity itself is headless
+    // (core boundary rule) — so the sprite is built from the texture each
+    // frame; one sprite per fight is cheap and keeps the entity clone-pure.
+    if (boss) {
+        auto it = slots.find(boss->getFootprint().front());
+        if (it != slots.end()) {
+            sf::Sprite body(renderer.getTextureManager().get(boss->getTextureId()));
+            body.setOrigin(body.getLocalBounds().getCenter());
+
+            const sf::FloatRect cell = it->second->getSlotSprite().getGlobalBounds();
+            const sf::FloatRect raw = body.getLocalBounds();
+            const float scale = std::min(cell.size.x / raw.size.x,
+                                         cell.size.y / raw.size.y);
+            body.setScale({scale, scale});
+            body.setPosition(it->second->getSlotSprite().getPosition());
+            renderer.draw(body);
+        }
+    }
 }
 
 void Board::update(float deltaTime) {
@@ -307,8 +336,11 @@ void Board::update(float deltaTime) {
 
 void Board::spawnTileInRandomEmptySlot() {
     std::vector<Slot*> empty;
-    for (const auto& [_, slot] : slots) {
-        if (slot->isEmpty()) {
+    for (const auto& [coord, slot] : slots) {
+        // Boss-occupied cells hold no tile but are NOT free: excluded here (not
+        // just refused in spawnTileAt) so a fight never silently eats the
+        // turn's spawn by drawing an unusable cell.
+        if (slot->isEmpty() && !isBossAt(coord)) {
             empty.push_back(slot.get());
         }
     }
@@ -332,6 +364,8 @@ Tile* Board::spawnTileAt(Coord c, int value) {
 
     auto it = slots.find(c);
     if (it == slots.end() || !it->second->isEmpty()) return nullptr;
+    // A boss-occupied cell is taken even though it holds no tile.
+    if (isBossAt(c)) return nullptr;
 
     Slot* slot = it->second.get();
     slot->setTile(std::make_unique<Tile>(renderer, slot, value));
@@ -486,6 +520,95 @@ int Board::removeConsumedShops() {
     return static_cast<int>(toRemove.size());
 }
 
+// --- Boss occupancy & the attack interaction (boss-design §2/§3/§4) ---
+
+bool Board::isBossAt(Coord c) const {
+    return boss && boss->occupies(c);
+}
+
+Boss* Board::spawnBoss(const BossDef& def, Coord c) {
+    // Spawn-primitive contract (cf. spawnTileAt): refuse instead of crash —
+    // one boss at a time, anchored on an existing, tile-empty, unprotected
+    // slot (a boss squatting the shop would deadlock the spawn countdown).
+    if (boss) return nullptr;
+    auto it = slots.find(c);
+    if (it == slots.end() || !it->second->isEmpty() || it->second->isProtected()) {
+        return nullptr;
+    }
+
+    boss = std::make_unique<Boss>(def, c);
+    if (turn) turn->log().push(TurnEvent::bossSpawned(boss->getMaxHp(), c));
+    return boss.get();
+}
+
+Boss* Board::spawnBossInRandomEmptySlot(const BossDef& def) {
+    std::vector<Coord> candidates;
+    for (const auto& [coord, slot] : slots) {
+        if (slot->isEmpty() && !slot->isProtected()) {
+            candidates.push_back(coord);
+        }
+    }
+    if (candidates.empty()) return nullptr;
+
+    int idx = getRandomInt(0, static_cast<int>(candidates.size()) - 1);
+    return spawnBoss(def, candidates[idx]);
+}
+
+void Board::resolveBossAttack(Tile* attacker, Coord at) {
+    // Mirror the merge's step-out gate: a tile locked into its slot can no
+    // more initiate an attack than a merge. (Immobilized attackers never get
+    // here — resolveNextTileMove returned already.)
+    if (!attacker->slot->canTileStepOut) return;
+
+    const IncomingResolution incoming = boss->resolveIncoming(*attacker);
+    if (incoming.kind == IncomingResolution::Kind::Block) return;  // a wall: the tile stays
+
+    // The attack pipeline, mirroring the merge's (build → modify → apply →
+    // log): in-scope modifiers act on the mutable outcome before anything
+    // lands. Scope today: the attacker's tile effects, then the run cards
+    // (boss-design §3); slot scopes join with the chip mounting layer.
+    AttackContext attack{boss.get(), attacker, incoming.proposedDamage};
+    for (auto& effect : attacker->effects) {
+        effect->onAttackResolving(attack);
+    }
+    if (turn && turn->gameRun) {
+        turn->gameRun->resolveAttackRunScope(attack);
+    }
+
+    const int damage = std::max(0, attack.damage);
+    boss->takeDamage(damage);
+
+    if (attack.consumeAttacker) {
+        // Consumption is attack SEMANTICS, not a destruction effect: no
+        // TileDestroyed is logged (bomb-reactive cards must not fire on an
+        // attack) — BossDamaged below carries the whole interaction. Same
+        // hover guard as destroyTile: the consumed tile must not dangle.
+        if (attacker == hoveredTile) hoveredTile = nullptr;
+        attacker->slot->removeTile();
+    }
+    moveValidFlag = true;
+
+    if (turn) turn->log().push(TurnEvent::bossDamaged(damage, boss->getHp(), at));
+
+    if (boss->getHp() <= 0) {
+        resolveBossDefeat();
+    }
+}
+
+void Board::resolveBossDefeat() {
+    // Death order (boss-design §4): log the defeat FIRST (cause), then run the
+    // def's death effect — its consequences (loot spawns, scar removals) land
+    // after BossDefeated in the log — then free the body. The default death
+    // adds nothing: removal alone frees the footprint cells intact.
+    if (turn) turn->log().push(TurnEvent::bossDefeated(boss->getFootprint().front()));
+
+    if (turn && turn->gameRun) {
+        EffectContext ctx(*turn->gameRun, *this, turn->log());
+        boss->runDefeat(ctx);
+    }
+    boss.reset();
+}
+
 // --- Movement ---
 
 void Board::move(Direction dir) {
@@ -595,6 +718,8 @@ void Board::resolveNextTileMove(Direction dir) {
     while (true) {
         Coord next = getNextCoord(current, dir);
         if (!slots.count(next)) break;
+        // A boss-occupied cell holds no tile but is not free to slide into.
+        if (isBossAt(next)) break;
 
         Slot* target = slots[next].get();
         if (!target->isEmpty()) break;
@@ -609,6 +734,14 @@ void Board::resolveNextTileMove(Direction dir) {
 
     Coord mergeCoord = getNextCoord(current, dir);
     if (!slots.count(mergeCoord)) return;
+
+    // The FOURTH answer (boss-design §3): a boss-occupied next cell resolves
+    // through the occupant — Block (a wall) or Hit (tile consumed, boss
+    // damaged) — never through the merge rules below.
+    if (isBossAt(mergeCoord)) {
+        resolveBossAttack(tile, mergeCoord);
+        return;
+    }
 
     Slot* neighbor = slots[mergeCoord].get();
     if (neighbor->isEmpty()) return;
@@ -659,8 +792,21 @@ bool Board::hasLegalMove() const {
         if (!slot->canTileStepOut) continue;
 
         for (Direction dir : dirs) {
-            auto it = slots.find(getNextCoord(coord, dir));
+            const Coord next = getNextCoord(coord, dir);
+            auto it = slots.find(next);
             if (it == slots.end()) continue;  // no slot: board edge or a hole
+
+            // The fourth answer (§3/§8): attacking the boss IS a legal move —
+            // exactly when the occupant answers Hit. A Block is a wall and
+            // unlocks nothing. Checked before the empty test: a boss cell
+            // holds no tile but is not slidable-into.
+            if (isBossAt(next)) {
+                if (boss->resolveIncoming(*tile).kind ==
+                    IncomingResolution::Kind::Hit) {
+                    return true;
+                }
+                continue;
+            }
 
             const Slot* target = it->second.get();
             if (target->isEmpty()) {

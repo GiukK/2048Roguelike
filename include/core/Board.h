@@ -8,6 +8,9 @@
 #include "core/utils/Direction.h"
 #include "core/utils/MovementQueue.h"
 #include "core/Slot.h"
+// Complete type required (not just forward-declared): the unique_ptr<Boss>
+// member means every TU that destroys a Board must see Boss's destructor.
+#include "core/Boss.h"
 
 #include <SFML/Graphics.hpp>
 
@@ -70,14 +73,31 @@ public:
     void move(Direction dir);
     void clear();
 
-    // The defeat predicate (docs/boss-design.md §8): does ANY tile have a slide
-    // or a merge available in some direction? Pure const — it mirrors
-    // resolveNextTileMove's decision logic (immobilized tiles, step-in/step-out
-    // locks, holes, the value cap) without mutating anything. Items are
-    // deliberately NOT consulted: a full board with a bomb in the inventory is
-    // still a loss. Boss occupancy will add its "attack" answer here when the
-    // attack interaction lands (attacking a boss IS a legal move).
+    // The defeat predicate (docs/boss-design.md §8): does ANY tile have a
+    // slide, a merge, or a boss attack available in some direction? Pure const
+    // — it mirrors resolveNextTileMove's decision logic (immobilized tiles,
+    // step-in/step-out locks, holes, occupancy, the value cap) without
+    // mutating anything. Items are deliberately NOT consulted: a full board
+    // with a bomb in the inventory is still a loss. Attacking the boss IS a
+    // legal move (exactly when it answers Hit) — feeding it tiles is the
+    // escape valve on a packed board.
     bool hasLegalMove() const;
+
+    // --- Boss occupancy (boss-design §2/§3) ---------------------------------
+    // One boss at a time (the ante's final objective). The body lives on the
+    // board, so it clones with the turn: HP rewinds with the world (§7).
+
+    Boss* getBoss() const { return boss.get(); }
+    bool isBossAt(Coord c) const;
+
+    // Places a boss with its anchor on `c`: requires an existing, tile-empty,
+    // unprotected slot and no boss already present — returns nullptr otherwise
+    // (the spawn-primitive contract, like spawnTileAt). Emits BossSpawned.
+    Boss* spawnBoss(const BossDef& def, Coord c);
+
+    // Random-placement convenience for the debug key today, the ante machine
+    // (slice 4) tomorrow. Returns nullptr if no valid cell exists.
+    Boss* spawnBossInRandomEmptySlot(const BossDef& def);
 
     // --- Shop mechanics ---------------------------------------------------
     // A "shop" is a Slot carrying a ShopEffect. It is spawned outside the base
@@ -166,6 +186,15 @@ private:
 
     void initializeMovementQueue(Direction dir);
     void resolveNextTileMove(Direction dir);
+
+    // The attack interaction (boss-design §3): asks the boss how the incoming
+    // tile resolves, threads a Hit through the AttackContext modifier pipeline
+    // (attacker's tile effects + run cards), applies the final outcome, logs
+    // BossDamaged, and resolves the defeat (BossDefeated + onDefeat + removal)
+    // when HP runs out. Called by resolveNextTileMove at the interaction site
+    // — the sweep stays atomic; reactors see the events at the next safe point.
+    void resolveBossAttack(Tile* attacker, Coord at);
+    void resolveBossDefeat();
     // Pure coordinate math (static): shared by the movement sweep and the
     // const hasLegalMove predicate.
     static Coord getNextCoord(Coord from, Direction dir);
@@ -180,6 +209,9 @@ private:
     RenderSystem& renderer;
 
     std::map<Coord, std::unique_ptr<Slot>> slots;
+    // The boss body (nullptr = no fight). unique_ptr so the entity itself
+    // stays headless and value-clonable (copyStateFrom deep-copies it).
+    std::unique_ptr<Boss> boss;
     MovementQueue movementQueue;
 
     bool moveValidFlag = false;

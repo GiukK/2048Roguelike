@@ -28,7 +28,10 @@ struct TurnEvent {
         ShopSpawned,    // a new shop slot appeared.        valueA = phantom tile value, coord = shop cell
         CoinsGained,    // coins were awarded (post-modifier). valueA = final amount, valueB = base amount, flag = sourced at a slot (then coord = that cell)
         CardTriggered,  // a card's onEvent reaction mutated the world (one per card per dispatched event). itemId = card id (empty for engine-level cards)
-        ItemUsed        // an inventory item was consumed.  itemId set
+        ItemUsed,       // an inventory item was consumed.  itemId set
+        BossSpawned,    // a boss body appeared.            valueA = max HP, coord = anchor cell
+        BossDamaged,    // a tile hit the boss.             valueA = final (post-modifier) damage, valueB = HP after, coord = attacked cell
+        BossDefeated    // the boss died (follows its killing BossDamaged). coord = anchor cell
     };
 
     Type type;
@@ -72,5 +75,14 @@ struct TurnEvent {
         TurnEvent e{Type::ItemUsed};
         e.itemId = std::move(id);
         return e;
+    }
+    static TurnEvent bossSpawned(int maxHp, Coord at) {
+        return {Type::BossSpawned, maxHp, 0, at};
+    }
+    static TurnEvent bossDamaged(int damage, int hpAfter, Coord at) {
+        return {Type::BossDamaged, damage, hpAfter, at};
+    }
+    static TurnEvent bossDefeated(Coord at) {
+        return {Type::BossDefeated, 0, 0, at};
     }
 };

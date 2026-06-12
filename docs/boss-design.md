@@ -1,8 +1,8 @@
 # Boss & Enemy System — Design
 
-Status: **design pinned (2026-06-12); slices 1 (defeat check) and 2
-(board-scope reactor dispatch) landed 2026-06-12, slices 3+ (Boss entity
-onward) pre-implementation.** Companion to
+Status: **design pinned (2026-06-12); slices 1 (defeat check), 2 (board-scope
+reactor dispatch) and 3 (minimal Boss vertical slice) landed 2026-06-12/13;
+slices 4+ (ante machine onward) pre-implementation.** Companion to
 `docs/effect-engine-design.md` (the engine this builds on); read that first.
 All major decisions below are RESOLVED from the 2026-06-12 design session;
 the few still open are marked `DECISION:`. See the memory note
@@ -251,6 +251,10 @@ Two real gaps, both identified against the current code:
 1. **Cell occupancy in movement resolution** (§3): the fourth answer in
    `resolveNextTileMove` + the `IncomingResolution`/`AttackContext` plumbing.
    Localized to `Board`; the merge path is untouched.
+   **CLOSED (2026-06-13, slice 3):** as designed — the slide loop treats a
+   boss cell as unenterable, the interaction site routes through
+   `Board::resolveBossAttack`. Spawn primitives treat boss cells as taken
+   (`spawnTileAt` refuses, the random spawn excludes them up front).
 2. **Board-scope reactor dispatch.** ~~`GameRun::flushReactors` /
    `dispatchTurnEnd` iterate ONLY the run-scoped cards today.~~ Boss reactors
    (Sleeper's turn counter, the slot-destroyer malus) are board-resident.
@@ -318,6 +322,18 @@ three `TurnEvent` types (§3).
    events + HP banner + death (default `onDefeat`). Spawned by debug key, no
    ante yet. Invariants: boss clones with HP, attack exactly-once per sweep,
    defeat emits + frees footprint, undo rewinds damage.
+   **DONE (2026-06-13):** `core/Boss.h` (headless entity: footprint/HP/def
+   lambdas copied out of `BossDef`, no registry back-pointer), `BossRegistry`
+   (CardRegistry mirror; the Brute in BaseContent, all-default hooks, monstro
+   texture, placeholder 64 HP), the fourth answer in `resolveNextTileMove` +
+   `Board::resolveBossAttack` (pipeline: attacker tile effects →
+   `GameRun::resolveAttackRunScope` cards leg), the three events, banner in
+   PlayUI, body drawn by `Board::render` (entity stays headless). Consumption
+   is NOT TileDestroyed (bomb reactors stay quiet); `hasLegalMove` counts a
+   Hit answer as a move, Block as a wall. Debug key **V** spawns the Brute.
+   NOTE for content: `onDefeat` runs BEFORE removal — loot can't spawn ON the
+   footprint cells; spawn beside, or defer to a follow-up mechanism if a boss
+   needs corpse-cell drops.
 4. **Ante machine** (§6, §7) — phases, double-door stack cuts (+ run-level
    turn counter), shop budget as fight trigger, shop freeze during fights,
    reward phase. Invariants: stack depth across the doors, countdown frozen
@@ -329,4 +345,4 @@ three `TurnEvent` types (§3).
    per-ante difficulty scaling.
 
 Extend `tests/invariants.cpp` with every slice (the suite is the project's
-regression net — 267 checks as of 2026-06-12, slices 1–2 included).
+regression net — 327 checks as of 2026-06-13, slices 1–3 included).

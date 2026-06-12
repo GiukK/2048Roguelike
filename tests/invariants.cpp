@@ -7,10 +7,12 @@
 // e.g. via `ctest -C Debug` which sets the working directory).
 
 #include "core/Board.h"
+#include "core/Boss.h"
 #include "core/GameRun.h"
 #include "core/Slot.h"
 #include "core/Tile.h"
 #include "core/Turn.h"
+#include "effects/AttackContext.h"
 #include "effects/Cards.h"
 #include "effects/CoinChips.h"
 #include "effects/EffectContext.h"
@@ -69,6 +71,37 @@ public:
 private:
     int v;
 };
+
+// Test-only attack modifier: scales the resolving attack's damage and may
+// preserve the attacker ("ghost strike"), exercising both AttackContext knobs
+// from either the tile scope (mounted on the attacker) or the run scope
+// (added as a card).
+class AttackModifier : public Effect {
+public:
+    explicit AttackModifier(int multiply, bool keepAttacker = false)
+        : multiply(multiply), keepAttacker(keepAttacker) {}
+    void onAttackResolving(AttackContext& attack) override {
+        attack.damage *= multiply;
+        if (keepAttacker) attack.consumeAttacker = false;
+    }
+    std::unique_ptr<Effect> clone() const override {
+        return std::make_unique<AttackModifier>(*this);
+    }
+private:
+    int multiply;
+    bool keepAttacker;
+};
+
+// Minimal boss content for the fixtures: all-default behavior (the Brute
+// shape) at a chosen HP; tests that need Block/onDefeat set the lambdas.
+BossDef makeTestBoss(int hp) {
+    BossDef def;
+    def.id = "test_boss";
+    def.name = "Test Boss";
+    def.textureId = "monstro";
+    def.baseHp = hp;
+    return def;
+}
 
 } // namespace
 
@@ -1251,6 +1284,229 @@ int main() {
         const int coins0 = run->getCoins();
         run->dispatchTurnEnd(turn);
         CHECK(run->getCoins() == coins0 + 2);
+    }
+
+    // --- Boss: spawn, default Hit, attacker consumed, exactly-once per sweep --
+    {
+        auto run = makeRun(60);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        turn.log().clear();
+        Boss* boss = turn.board.spawnBoss(makeTestBoss(10), {3, 0});
+        CHECK(boss != nullptr);
+        CHECK(turn.log().countOf(TurnEvent::Type::BossSpawned) == 1);
+        CHECK(turn.board.getBoss() == boss);
+        CHECK(turn.board.isBossAt({3, 0}) && !turn.board.isBossAt({2, 0}));
+
+        // One boss at a time (spawn-primitive contract: refused, not crashed).
+        CHECK(turn.board.spawnBoss(makeTestBoss(5), {0, 0}) == nullptr);
+
+        // A tile sweeping toward the body slides up to it and hits: damage =
+        // its own value (the pinned default), the attacker is consumed, and
+        // consumption is NOT a TileDestroyed (bomb-reactive cards stay quiet).
+        CHECK(turn.board.spawnTileAt({0, 0}, 4) != nullptr);
+        turn.board.move(Direction::Right);
+        CHECK(boss->getHp() == 6);
+        CHECK(turn.board.getAllTiles().empty());
+        CHECK(turn.board.moveWasValid());
+        CHECK(turn.log().countOf(TurnEvent::Type::BossDamaged) == 1);
+        CHECK(turn.log().countOf(TurnEvent::Type::TileDestroyed) == 0);
+
+        // Event payload: valueA = final damage, valueB = HP after, coord = cell.
+        bool payloadOk = false;
+        for (const auto& e : turn.log().events()) {
+            if (e.type == TurnEvent::Type::BossDamaged) {
+                payloadOk = e.valueA == 4 && e.valueB == 6 && e.coord == (Coord{3, 0});
+            }
+        }
+        CHECK(payloadOk);
+
+        // Re-running the sweep changes nothing — the attack happened exactly
+        // once (the attacker is gone), same fixpoint contract as merges.
+        turn.board.move(Direction::Right);
+        CHECK(boss->getHp() == 6);
+        CHECK(turn.log().countOf(TurnEvent::Type::BossDamaged) == 1);
+    }
+
+    // --- Boss: the body clones with the turn; undo rewinds damage (§7) -------
+    {
+        auto run = makeRun(61);
+        Board& board = run->currentBoard();
+        board.clear();
+        Boss* boss = run->currentBoard().spawnBoss(makeTestBoss(10), {3, 0});
+        CHECK(boss != nullptr);
+        CHECK(board.spawnTileAt({0, 0}, 4) != nullptr);
+
+        run->newTurn(board);
+        Boss* cloned = run->currentBoard().getBoss();
+        CHECK(cloned != nullptr && cloned != boss);     // a real copy
+        CHECK(cloned->getHp() == 10);
+        CHECK(cloned->occupies({3, 0}));
+
+        // Damage the clone's turn...
+        run->currentBoard().move(Direction::Right);
+        CHECK(cloned->getHp() == 6);
+
+        // ...then rewind: boss state is board state — HP and the consumed
+        // attacker both come back ("the world rewinds").
+        CHECK(run->goBack());
+        Boss* rewound = run->currentBoard().getBoss();
+        CHECK(rewound != nullptr && rewound->getHp() == 10);
+        CHECK(run->currentBoard().getAllTiles().size() == 1);
+    }
+
+    // --- Boss: the AttackContext pipeline (tile scope + run scope, ghost) ----
+    {
+        auto run = makeRun(62);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        Boss* boss = turn.board.spawnBoss(makeTestBoss(100), {3, 0});
+        CHECK(boss != nullptr);
+
+        // Attacker tile effect ×2, run card ×3: 4 × 2 × 3 = 24 damage — the
+        // §3 composition point ("+50% damage" chips/cards) exercised end to end.
+        Tile* attacker = turn.board.spawnTileAt({0, 0}, 4);
+        CHECK(attacker != nullptr);
+        attacker->addEffect(std::make_unique<AttackModifier>(2));
+        run->addCard(std::make_unique<AttackModifier>(3));
+
+        turn.board.move(Direction::Right);
+        CHECK(boss->getHp() == 100 - 24);
+        CHECK(turn.board.getAllTiles().empty());
+
+        // Ghost strike: consumeAttacker = false — damage lands, the tile
+        // survives, parked flush against the body.
+        Tile* ghost = turn.board.spawnTileAt({0, 0}, 8);
+        CHECK(ghost != nullptr);
+        ghost->addEffect(std::make_unique<AttackModifier>(1, /*keepAttacker=*/true));
+        turn.board.move(Direction::Right);
+        CHECK(boss->getHp() == 100 - 24 - 24);   // 8 × 1 × 3 (the card still triples)
+        CHECK(tileAt(turn.board, {2, 0}) == ghost);
+    }
+
+    // --- Boss: a Block answer is a wall — nothing moves, nothing lands -------
+    {
+        auto run = makeRun(63);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        BossDef blocker = makeTestBoss(10);
+        blocker.resolveIncoming = [](const Boss&, const Tile&) {
+            return IncomingResolution{IncomingResolution::Kind::Block, 0};
+        };
+        Boss* boss = turn.board.spawnBoss(blocker, {1, 0});
+        CHECK(boss != nullptr);
+
+        CHECK(turn.board.spawnTileAt({0, 0}, 4) != nullptr);
+        turn.log().clear();
+        turn.board.move(Direction::Right);   // flush against the blocker
+        CHECK(!turn.board.moveWasValid());   // a wall: the move is invalid
+        CHECK(boss->getHp() == 10);
+        CHECK(turn.board.getAllTiles().size() == 1);
+        CHECK(turn.log().countOf(TurnEvent::Type::BossDamaged) == 0);
+    }
+
+    // --- Boss × defeat check: Hit unlocks a packed board, Block doesn't (§8) --
+    {
+        auto run = makeRun(64);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        BossDef blocker = makeTestBoss(10);
+        blocker.resolveIncoming = [](const Boss&, const Tile&) {
+            return IncomingResolution{IncomingResolution::Kind::Block, 0};
+        };
+        CHECK(turn.board.spawnBoss(blocker, {1, 1}) != nullptr);
+        fillGrid(turn.board, LockedGrid);    // the body's cell refuses its tile
+        CHECK(turn.board.getAllTiles().size() == 15);
+        CHECK(!turn.board.hasLegalMove());   // Block = a wall: still locked
+    }
+    {
+        auto run = makeRun(65);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnBoss(makeTestBoss(10), {1, 1}) != nullptr);  // default: Hit
+        fillGrid(turn.board, LockedGrid);
+        CHECK(turn.board.getAllTiles().size() == 15);
+        CHECK(turn.board.hasLegalMove());    // feeding the boss is the escape valve
+
+        // ...and the defeat signal agrees: a board packed solid against an
+        // attackable boss is NOT a loss.
+        int defeats = 0;
+        run->setDefeatCallback([&defeats](GameRun*) { ++defeats; });
+        run->newTurn(turn.board);
+        CHECK(!run->isDefeated() && defeats == 0);
+    }
+
+    // --- Boss death: kill order, onDefeat hook, footprint freed intact (§4) --
+    {
+        auto run = makeRun(66);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        BossDef weakling = makeTestBoss(4);
+        // Death effect: pay out, sourced at the corpse's cell (the body is
+        // still on the board while onDefeat runs — removal comes after).
+        weakling.onDefeat = [](Boss& b, EffectContext& ctx) {
+            ctx.addCoins(7, ctx.board().slotAt(b.getFootprint().front()));
+        };
+        CHECK(turn.board.spawnBoss(weakling, {3, 0}) != nullptr);
+        CHECK(turn.board.spawnTileAt({0, 0}, 4) != nullptr);
+        turn.log().clear();
+
+        const int coins0 = run->getCoins();
+        turn.board.move(Direction::Right);   // 4 damage: the exact kill
+
+        CHECK(turn.board.getBoss() == nullptr);   // body removed
+        CHECK(run->getCoins() == coins0 + 7);     // the death effect ran
+        CHECK(turn.log().countOf(TurnEvent::Type::BossDamaged) == 1);
+        CHECK(turn.log().countOf(TurnEvent::Type::BossDefeated) == 1);
+
+        // Cause before consequence: the killing BossDamaged, then BossDefeated,
+        // then the death effect's CoinsGained.
+        int dmgIdx = -1, defIdx = -1, coinIdx = -1;
+        const auto& evs = turn.log().events();
+        for (int i = 0; i < static_cast<int>(evs.size()); ++i) {
+            if (evs[i].type == TurnEvent::Type::BossDamaged)  dmgIdx = i;
+            if (evs[i].type == TurnEvent::Type::BossDefeated) defIdx = i;
+            if (evs[i].type == TurnEvent::Type::CoinsGained)  coinIdx = i;
+        }
+        CHECK(dmgIdx >= 0 && defIdx > dmgIdx && coinIdx > defIdx);
+
+        // The footprint cell is freed INTACT: spawnable again (§4 default).
+        CHECK(turn.board.spawnTileAt({3, 0}, 2) != nullptr);
+    }
+
+    // --- Boss occupancy: spawn exclusions on both sides -----------------------
+    {
+        auto run = makeRun(67);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnBoss(makeTestBoss(10), {1, 1}) != nullptr);
+
+        // The occupied cell is taken for tile spawns despite holding no tile...
+        CHECK(turn.board.spawnTileAt({1, 1}, 2) == nullptr);
+
+        // ...and the random spawn never draws it: with only the body's cell
+        // left, the spawn is a no-op instead of a wasted (or crashing) pick.
+        fillGrid(turn.board, LockedGrid);
+        CHECK(turn.board.getAllTiles().size() == 15);
+        turn.board.spawnTileInRandomEmptySlot();
+        CHECK(turn.board.getAllTiles().size() == 15);
+    }
+    {
+        auto run = makeRun(68);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnShop(4));
+        Tile* phantom = nullptr;
+        for (Tile* t : turn.board.getAllTiles()) {
+            if (t->slot && t->slot->isProtected()) phantom = t;
+        }
+        CHECK(phantom != nullptr);
+
+        // The body refuses protected slots (a squatted shop would freeze the
+        // spawn countdown forever), missing slots, and taken cells.
+        CHECK(turn.board.spawnBoss(makeTestBoss(10), phantom->slot->getCoord()) == nullptr);
+        CHECK(turn.board.spawnBoss(makeTestBoss(10), {99, 99}) == nullptr);
+        CHECK(turn.board.spawnBoss(makeTestBoss(10), {0, 0}) != nullptr);
     }
 
     std::cout << checks << " checks, " << failures << " failure(s)\n";

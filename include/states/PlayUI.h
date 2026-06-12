@@ -6,6 +6,7 @@
 
 class RenderSystem;
 class GameRun;
+class Boss;
 
 // The play-screen UI layer: full-screen backdrop, HUD counters, and the two
 // side columns — consumable items on the RIGHT, owned cards on the LEFT — each
@@ -38,6 +39,10 @@ private:
     void rebuildCardActionButtons();
     // Themed frame + title behind each side column (drawn before its buttons).
     void drawColumnPanel(RenderSystem& r, float centerX, const char* title);
+    // Boss-fight banner (boss-design §10): name + HP bar, top-center, drawn
+    // while a boss is on the acting board (read through GameRun, like the
+    // countdown).
+    void drawBossBanner(RenderSystem& r, const Boss& boss);
     // Tooltips for the item/card under the cursor (if any).
     void renderInventoryTooltip(RenderSystem& r);
     void renderCardsTooltip(RenderSystem& r);

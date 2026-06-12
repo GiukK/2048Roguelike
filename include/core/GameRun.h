@@ -14,8 +14,10 @@
 #include "core/Turn.h"
 #include "core/ItemRegistry.h"
 #include "core/CardRegistry.h"
+#include "core/BossRegistry.h"
 
 class RenderSystem;
+struct AttackContext;
 
 class GameRun {
 public:
@@ -190,6 +192,17 @@ public:
     // Turn::endTurn after the final flush, BEFORE the board is cloned into the
     // next turn — so reactor mutations to the board carry forward.
     void dispatchTurnEnd(Turn& turn);
+
+    // The run-scope leg of the attack pipeline (boss-design §3): cards that
+    // modify attacks ("+50% boss damage") hook onAttackResolving here.
+    // Modifiers, not reactors — no attribution, no events; the BossDamaged
+    // event is logged by the apply site after this returns. Called by Board's
+    // attack resolution, mirroring how merge modifiers reach the run scope.
+    void resolveAttackRunScope(AttackContext& attack);
+
+    // The boss on the acting board, or nullptr. PlayUI reads the fight banner
+    // through this (the countdown-display pattern: UI reads, never holds).
+    const Boss* getCurrentBoss() const;
     // Toggle which inventory item is held/selected (clicking the same one clears).
     void toggleSelectedItem(int index);
 
@@ -234,6 +247,7 @@ public:
 
     ItemRegistry& getItemRegistry() { return itemRegistry; }
     CardRegistry& getCardRegistry() { return cardRegistry; }
+    BossRegistry& getBossRegistry() { return bossRegistry; }
 
     bool shopOpen = false;
 
@@ -274,6 +288,7 @@ private:
 
     ItemRegistry itemRegistry;
     CardRegistry cardRegistry;
+    BossRegistry bossRegistry;
 
     int coins = 100;
     unsigned int maxInventorySize = 3;

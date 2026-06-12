@@ -4,6 +4,7 @@
 
 struct MergeContext;
 struct CoinContext;
+struct AttackContext;
 struct TurnEvent;
 class TurnLog;
 class EffectContext;
@@ -57,6 +58,13 @@ public:
     // rule: mutate the context, never award coins from inside the hook — that
     // would recurse the pipeline. Dispatched by GameRun::addCoins.
     virtual void onCoinsResolving(CoinContext& /*coin*/) {}
+
+    // MODIFIER hook: runs on a resolving tile-vs-boss attack (AttackContext)
+    // before it is applied and the BossDamaged event logged. In-scope today:
+    // the attacker's tile effects + the run cards (boss-design §3); slot
+    // scopes join with the chip mounting layer. Dispatched by Board's attack
+    // resolution.
+    virtual void onAttackResolving(AttackContext& /*attack*/) {}
 
     // --- REACTOR hooks (cards): observe a COMPLETED turn, act via ctx --------
     // Dispatched by GameRun::dispatchReactors at end of turn, over the turn's

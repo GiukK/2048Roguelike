@@ -42,6 +42,16 @@ std::string describe(const TurnEvent& e) {
                        : "");
     case TurnEvent::Type::ItemUsed:
         return "ItemUsed " + e.itemId;
+    case TurnEvent::Type::BossSpawned:
+        return "BossSpawned maxHp " + std::to_string(e.valueA) + " at (" +
+               std::to_string(e.coord.x) + "," + std::to_string(e.coord.y) + ")";
+    case TurnEvent::Type::BossDamaged:
+        return "BossDamaged " + std::to_string(e.valueA) + " -> hp " +
+               std::to_string(e.valueB) + " at (" + std::to_string(e.coord.x) +
+               "," + std::to_string(e.coord.y) + ")";
+    case TurnEvent::Type::BossDefeated:
+        return "BossDefeated at (" + std::to_string(e.coord.x) + "," +
+               std::to_string(e.coord.y) + ")";
     default:
         return "Unknown";
     }
@@ -242,6 +252,13 @@ void Turn::handleBeginInput(sf::Event& event) {
         // DEFERRED via requestGoBack: a synchronous goBack() here would pop —
         // and destroy — this very Turn while this method is still executing.
         if (debug::Enabled) gameRun->requestGoBack();
+        break;
+    case sf::Keyboard::Scancode::V:
+        // Debug-only: drop the Brute on a random empty slot. The manual fight
+        // trigger for slice 3 — the ante machine (slice 4) takes over spawning.
+        if (debug::Enabled && gameRun->getBossRegistry().has("brute")) {
+            board.spawnBossInRandomEmptySlot(gameRun->getBossRegistry().get("brute"));
+        }
         break;
     default:
         break;

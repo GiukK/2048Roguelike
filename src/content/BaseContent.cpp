@@ -1,5 +1,6 @@
 #include "content/BaseContent.h"
 
+#include "core/BossRegistry.h"
 #include "core/CardRegistry.h"
 #include "core/GameRun.h"
 #include "core/ItemRegistry.h"
@@ -258,6 +259,21 @@ void registerBaseCards(CardRegistry& cards) {
                 });
         }
     });
+}
+
+void registerBaseBosses(BossRegistry& bosses) {
+    // The Brute (boss-design §5, catalogue slot 1): high HP, every nullable
+    // hook left null — it IS the pinned defaults. resolveIncoming: Hit for the
+    // attacker's own value (damaged by everything); onDefeat: footprint freed
+    // intact. The vertical-slice boss: exercises entity, attack, HP UI, death
+    // with zero bespoke logic. baseHp is a placeholder balance value until the
+    // ante machine (slice 4) brings per-ante scaling.
+    BossDef brute;
+    brute.id = "brute";
+    brute.name = "Brute";
+    brute.textureId = "monstro";
+    brute.baseHp = 64;
+    bosses.registerBoss(std::move(brute));
 }
 
 } // namespace content

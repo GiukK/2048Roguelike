@@ -1,5 +1,6 @@
 #include "states/PlayUI.h"
 #include "states/ItemTooltip.h"
+#include "core/Boss.h"
 #include "core/GameRun.h"
 #include "core/ItemRegistry.h"
 #include "core/CardRegistry.h"
@@ -34,6 +35,10 @@ constexpr float CardActionX        = 330.f;   // discard button, board-side of t
 constexpr float PanelHalfW         = 120.f;
 constexpr float PanelTop           = 245.f;
 constexpr float PanelHeight        = 630.f;
+// Boss-fight banner: top-center, clear of the corner counters.
+constexpr float BossBannerW        = 520.f;
+constexpr float BossBannerH        = 96.f;
+constexpr float BossBannerY        = 16.f;
 } // namespace
 
 PlayUI::PlayUI(RenderSystem& renderer, GameRun& run)
@@ -191,9 +196,49 @@ void PlayUI::drawColumnPanel(RenderSystem& r, float centerX, const char* title) 
                theme.titleSize, theme.accent);
 }
 
+void PlayUI::drawBossBanner(RenderSystem& r, const Boss& boss) {
+    const ui::Theme& theme = ui::defaultTheme();
+    const auto ws = r.getWindowSize();
+    const float x = (static_cast<float>(ws.x) - BossBannerW) / 2.f;
+
+    r.drawPixelRoundedRect({{x, BossBannerY}, {BossBannerW, BossBannerH}},
+                           theme.radius, theme.panelFill,
+                           sf::Color(231, 76, 60), theme.borderThickness);
+    r.drawText(boss.getName(), {x + 24.f, BossBannerY + 8.f}, 30, sf::Color::White);
+
+    // HP bar: trough + filled proportion + the visible number (hidden boss
+    // health is explicitly rejected — boss-design §1). Clamped both ways so a
+    // dying boss never draws a negative bar nor an over-full one.
+    const float barX = x + 24.f;
+    const float barY = BossBannerY + 56.f;
+    const float barW = BossBannerW - 48.f;
+    const float barH = 24.f;
+    r.drawPixelRoundedRect({{barX, barY}, {barW, barH}}, 6.f, sf::Color(58, 58, 70));
+    const float ratio = boss.getMaxHp() > 0
+        ? std::clamp(static_cast<float>(boss.getHp()) /
+                     static_cast<float>(boss.getMaxHp()), 0.f, 1.f)
+        : 0.f;
+    if (ratio > 0.f) {
+        r.drawPixelRoundedRect({{barX, barY}, {barW * ratio, barH}}, 6.f,
+                               sf::Color(231, 76, 60));
+    }
+
+    const std::string hp = std::to_string(std::max(0, boss.getHp())) + " / " +
+                           std::to_string(boss.getMaxHp());
+    const sf::Vector2f size = r.measureText(hp, 20);
+    r.drawText(hp, {x + BossBannerW / 2.f - size.x / 2.f, barY + 1.f}, 20,
+               sf::Color::White);
+}
+
 void PlayUI::renderForeground(RenderSystem& r) {
     drawDigitCounter(r, static_cast<unsigned int>(run.getTurnCount()), TurnCounterX);
     drawDigitCounter(r, static_cast<unsigned int>(run.getCoins()), CoinsCounterX);
+
+    // Boss-fight banner while a body is on the board. Until the ante machine
+    // brings AntePhase::BossFight, boss-on-board IS the fight condition.
+    if (const Boss* boss = run.getCurrentBoss()) {
+        drawBossBanner(r, *boss);
+    }
 
     // Shop spawn countdown: stacked just below the turn counter (top-left),
     // smaller so it reads as a sub-counter and stays clear of the board and the

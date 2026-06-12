@@ -24,6 +24,7 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
     // registries (mechanism), the catalogue fills them (policy).
     content::registerBaseItems(itemRegistry);
     content::registerBaseCards(cardRegistry);
+    content::registerBaseBosses(bossRegistry);
 
     // Default shop-tile criterion: a copy of the board's current largest tile,
     // so activating the shop costs the player a rebuilt copy of their best tile.
@@ -438,6 +439,16 @@ void GameRun::dispatchTurnEnd(Turn& turn) {
     for (auto& card : cards) {
         card.effect->onTurnEnd(turn.log(), ctx);
     }
+}
+
+void GameRun::resolveAttackRunScope(AttackContext& attack) {
+    for (auto& card : cards) {
+        card.effect->onAttackResolving(attack);
+    }
+}
+
+const Boss* GameRun::getCurrentBoss() const {
+    return turns.empty() ? nullptr : turns.top()->board.getBoss();
 }
 
 const TurnLog& GameRun::currentTurnLog() const {
