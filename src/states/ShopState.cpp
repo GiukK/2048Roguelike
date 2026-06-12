@@ -233,8 +233,9 @@ void ShopState::render(RenderSystem& renderer) {
     renderer.useUIView();
     renderer.draw(shopSprite);
 
-    // Draw shop items and their prices
-    for (size_t i = 0; i < shopButtons.size(); ++i) {
+    // Draw shop items and their prices. Bounded by BOTH lists (they are rebuilt
+    // together, but a desync must degrade to a missing price, not an OOB read).
+    for (size_t i = 0; i < shopButtons.size() && i < shopItemIds.size(); ++i) {
         renderer.draw(shopButtons[i].getSprite());
 
         // Price tag: centered below the item sprite
@@ -247,7 +248,7 @@ void ShopState::render(RenderSystem& renderer) {
     }
 
     // Card stock below the items, same presentation: sprite + price tag.
-    for (size_t i = 0; i < cardButtons.size(); ++i) {
+    for (size_t i = 0; i < cardButtons.size() && i < shopCardIds.size(); ++i) {
         renderer.draw(cardButtons[i].getSprite());
 
         const auto& def = gameRun->getCardRegistry().get(shopCardIds[i]);
@@ -266,8 +267,8 @@ void ShopState::render(RenderSystem& renderer) {
 }
 
 void ShopState::renderHoveredTooltip(RenderSystem& renderer) {
-    const sf::Vector2i mp = sf::Mouse::getPosition(renderer.getWindow());
-    const sf::Vector2f mouse(mp);
+    const sf::Vector2f mouse =
+        renderer.mapPixelToUI(sf::Mouse::getPosition(renderer.getWindow()));
 
     for (std::size_t i = 0; i < shopButtons.size() && i < shopItemIds.size(); ++i) {
         if (!shopButtons[i].contains(mouse)) continue;

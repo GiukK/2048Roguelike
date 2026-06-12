@@ -9,7 +9,20 @@ RenderSystem::RenderSystem(sf::RenderWindow& window)
 {}
 
 void RenderSystem::initialize(const sf::Vector2u& size) {
-    windowSize = size;
+    // `size` is the REAL window size; it only shapes the letterbox viewport.
+    // Everything else (scaling rules, layout, hit tests) lives in VirtualSize,
+    // so the game renders identically on any monitor / in the test window.
+    windowSize = VirtualSize;
+
+    const float scale = std::min(
+        static_cast<float>(size.x) / static_cast<float>(VirtualSize.x),
+        static_cast<float>(size.y) / static_cast<float>(VirtualSize.y));
+    const sf::Vector2f fraction{
+        static_cast<float>(VirtualSize.x) * scale / static_cast<float>(size.x),
+        static_cast<float>(VirtualSize.y) * scale / static_cast<float>(size.y)};
+    letterbox = sf::FloatRect({(1.f - fraction.x) / 2.f, (1.f - fraction.y) / 2.f},
+                              fraction);
+
     textureManager.initialize();
 
     // Real font for the data-driven UI: Pixelify Sans (SIL OFL 1.1, license kept in
@@ -84,18 +97,36 @@ void RenderSystem::resizeSprite(const std::string& id, sf::Sprite& sprite) {
     sprite.setScale({sx, sy});
 }
 
+sf::View RenderSystem::uiView() const {
+    // Fixed virtual screen: same world rect everywhere, letterboxed onto the
+    // real window. UI code never sees the real resolution.
+    sf::View view(sf::FloatRect({0.f, 0.f},
+                                {static_cast<float>(VirtualSize.x),
+                                 static_cast<float>(VirtualSize.y)}));
+    view.setViewport(letterbox);
+    return view;
+}
+
+sf::View RenderSystem::boardView() const {
+    sf::View view = boardCamera.getView(windowSize);
+    view.setViewport(letterbox);
+    return view;
+}
+
 void RenderSystem::useBoardView() {
-    window.setView(boardCamera.getView(windowSize));
+    window.setView(boardView());
 }
 
 void RenderSystem::useUIView() {
-    // The default view is the 1:1 window-sized view, so HUD/buttons keep using
-    // plain screen coordinates.
-    window.setView(window.getDefaultView());
+    window.setView(uiView());
 }
 
 sf::Vector2f RenderSystem::mapPixelToBoard(sf::Vector2i pixel) const {
-    return window.mapPixelToCoords(pixel, boardCamera.getView(windowSize));
+    return window.mapPixelToCoords(pixel, boardView());
+}
+
+sf::Vector2f RenderSystem::mapPixelToUI(sf::Vector2i pixel) const {
+    return window.mapPixelToCoords(pixel, uiView());
 }
 
 void RenderSystem::zoomBoardTowardPixel(sf::Vector2i pixel, float factor) {
@@ -103,25 +134,21 @@ void RenderSystem::zoomBoardTowardPixel(sf::Vector2i pixel, float factor) {
     const sf::Vector2f worldBefore = mapPixelToBoard(pixel);
 
     boardCamera.setZoomLevel(boardCamera.getZoomLevel() * factor);
-    const float zoom = boardCamera.getZoomLevel();  // actual value after clamping
 
-    // The view maps a pixel to world as:
-    //   world = center + (pixel - windowSize/2) / zoom
-    // Solve for the center that keeps worldBefore under the same pixel. If the
-    // zoom clamped (unchanged), this reproduces the current center exactly.
-    const sf::Vector2f half{ static_cast<float>(windowSize.x) / 2.f,
-                             static_cast<float>(windowSize.y) / 2.f };
-    const sf::Vector2f offset{ (static_cast<float>(pixel.x) - half.x) / zoom,
-                               (static_cast<float>(pixel.y) - half.y) / zoom };
-    boardCamera.setCenter(worldBefore - offset);
+    // Re-map the same pixel under the new zoom and shift the center by the
+    // drift, so the point stays pinned under the cursor. Mapping through the
+    // real view (instead of solving the projection by hand) keeps this correct
+    // for ANY viewport/letterbox. If the zoom clamped, the drift is zero.
+    const sf::Vector2f worldAfter = mapPixelToBoard(pixel);
+    boardCamera.setCenter(boardCamera.getCenter() + (worldBefore - worldAfter));
 }
 
 void RenderSystem::panBoardByPixels(sf::Vector2i pixelDelta) {
-    // Moving the cursor right by N px should slide the board right by N px, which
-    // means shifting the view center LEFT by N/zoom world units (hence minus).
-    const float zoom = boardCamera.getZoomLevel();
-    const sf::Vector2f worldDelta{ static_cast<float>(pixelDelta.x) / zoom,
-                                   static_cast<float>(pixelDelta.y) / zoom };
+    // Convert the pixel delta to world units through the actual view (zoom AND
+    // letterbox scale), so content tracks the cursor 1:1 on any window. Moving
+    // the cursor right slides the board right = center moves left (hence minus).
+    const sf::Vector2f worldDelta =
+        mapPixelToBoard(pixelDelta) - mapPixelToBoard({0, 0});
     boardCamera.setCenter(boardCamera.getCenter() - worldDelta);
 }
 

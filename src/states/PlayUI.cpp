@@ -240,8 +240,7 @@ void PlayUI::renderForeground(RenderSystem& r) {
 
 void PlayUI::renderInventoryTooltip(RenderSystem& r) {
     const auto& items = run.getInventoryItems();
-    const sf::Vector2i mp = sf::Mouse::getPosition(r.getWindow());
-    const sf::Vector2f mouse(mp);
+    const sf::Vector2f mouse = r.mapPixelToUI(sf::Mouse::getPosition(r.getWindow()));
 
     for (std::size_t i = 0; i < inventoryButtons.size() && i < items.size(); ++i) {
         if (!inventoryButtons[i].contains(mouse)) continue;
@@ -266,8 +265,7 @@ void PlayUI::renderInventoryTooltip(RenderSystem& r) {
 }
 
 void PlayUI::renderCardsTooltip(RenderSystem& r) {
-    const sf::Vector2i mp = sf::Mouse::getPosition(r.getWindow());
-    const sf::Vector2f mouse(mp);
+    const sf::Vector2f mouse = r.mapPixelToUI(sf::Mouse::getPosition(r.getWindow()));
 
     const auto& owned = run.getOwnedCards();
     for (std::size_t i = 0; i < cardButtons.size(); ++i) {

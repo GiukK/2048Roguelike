@@ -23,8 +23,10 @@ sf::Sprite& UI_Button::getSprite() {
 }
 
 void UI_Button::update(float dt) {
+    // Map through the UI view: button geometry lives in virtual-screen space,
+    // raw pixels only match it when the window is exactly VirtualSize.
     sf::Vector2i mousePixel = sf::Mouse::getPosition(renderer->getWindow());
-    sf::Vector2f mousePos = static_cast<sf::Vector2f>(mousePixel);
+    sf::Vector2f mousePos = renderer->mapPixelToUI(mousePixel);
     bool hovering = sprite.getGlobalBounds().contains(mousePos);
     bool mouseDown = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
     // Rising edge: pressed THIS frame. Only a press that begins on the button

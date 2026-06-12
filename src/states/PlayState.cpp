@@ -132,7 +132,8 @@ void PlayState::handleInput(sf::Event& event) {
 }
 
 bool PlayState::isPointOverUI(sf::Vector2i pixel) const {
-    sf::Vector2f point(pixel);
+    // UI geometry lives in virtual-screen space; event positions are real pixels.
+    sf::Vector2f point = renderer.mapPixelToUI(pixel);
     for (const auto& btn : buttons) {
         if (btn.contains(point)) return true;
     }

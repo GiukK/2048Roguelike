@@ -9,12 +9,20 @@
 
 class RenderSystem {
 public:
+    // The canonical design resolution. ALL game/UI code lays out, scales and
+    // hit-tests in this fixed virtual space; the real window maps onto it via a
+    // letterboxed viewport (computed in initialize). This is what makes every
+    // pixel constant in the codebase valid on any monitor — the window size is
+    // a presentation concern only, never a layout input.
+    static constexpr sf::Vector2u VirtualSize{1920u, 1080u};
+
     RenderSystem(sf::RenderWindow& window);
 
     void initialize(const sf::Vector2u& windowSize);
     void resizeSprite(const std::string& id, sf::Sprite& sprite);
 
     const TextureManager& getTextureManager() const;
+    // The VIRTUAL size (VirtualSize) — what layout code should measure against.
     const sf::Vector2u& getWindowSize() const;
     sf::RenderWindow& getWindow();
 
@@ -31,6 +39,11 @@ public:
     // Maps a window pixel to board-space through the current board camera. Board
     // input (hover/selection) must use this so picking follows the camera.
     sf::Vector2f mapPixelToBoard(sf::Vector2i pixel) const;
+
+    // Maps a window pixel to UI (virtual-screen) coordinates. EVERY mouse read
+    // compared against UI-space geometry must go through this — raw pixels are
+    // only equal to UI coords when the window happens to be exactly VirtualSize.
+    sf::Vector2f mapPixelToUI(sf::Vector2i pixel) const;
 
     // Zooms the board camera by `factor` (multiplicative) while keeping the board
     // point currently under `pixel` fixed under the cursor (zoom-toward-cursor).
@@ -81,12 +94,22 @@ private:
     // drawPixelRoundedRect, called once or twice for the border).
     void fillRoundedRect(sf::FloatRect rect, float radius, sf::Color color);
 
+    // The two views the public layer methods install: the fixed virtual UI view
+    // and the camera's board view, both letterboxed onto the real window.
+    sf::View uiView() const;
+    sf::View boardView() const;
+
     // Size (in screen px) of one staircase step on rounded corners — tune for
     // chunkier/finer pixel corners.
     static constexpr float RoundedRectPixelStep = 4.f;
 
     sf::RenderWindow& window;
+    // Always VirtualSize after initialize(); kept as a member so existing layout
+    // call sites keep reading getWindowSize() unchanged.
     sf::Vector2u windowSize;
+    // Aspect-preserving viewport mapping the virtual space onto the real window
+    // (black bars on the off-axis when aspects differ).
+    sf::FloatRect letterbox{{0.f, 0.f}, {1.f, 1.f}};
     TextureManager textureManager;
     std::unordered_map<std::string, ScaleRule> scalingRules;
     sf::Font font;
