@@ -50,6 +50,11 @@ public:
     // docs/effect-engine-design.md §6 for the cross-scope order).
     void resolveMerge(MergeContext& merge);
 
+    // The post-apply leg: notifies this slot's effects that the merge outcome has
+    // been applied and logged (Effect::onMergeApplied — read-only, side effects
+    // emit AFTER the TileMerged event). Dispatched by Tile::mergeIntoSlot.
+    void notifyMergeApplied(const MergeContext& merge);
+
     // The coin-pipeline twin of resolveMerge: runs this slot's effects over a
     // resolving coin gain so each may scale/alter the amount before it's applied.
     // Dispatched by GameRun::addCoins for gains sourced at this slot.

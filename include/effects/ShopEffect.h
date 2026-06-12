@@ -4,7 +4,10 @@
 
 class ShopEffect : public Effect {
 public:
-    void onMergeResolving(MergeContext& merge) override;
+    // Post-apply on purpose: the shop never alters the merge outcome, it reacts
+    // to it — and reacting after the apply puts its ShopTriggered event AFTER
+    // the TileMerged that caused it in the log (cause before consequence).
+    void onMergeApplied(const MergeContext& merge) override;
     std::unique_ptr<Effect> clone() const override;
 
     // A slot carrying a shop looks like one.

@@ -268,6 +268,19 @@ int main() {
         CHECK(turn.log().countOf(TurnEvent::Type::ShopTriggered) == 1);
         CHECK(turn.board.countActiveShops() == 0);  // triggered, awaiting removal
 
+        // Causal log order: the trigger is a CONSEQUENCE of the merge, so it
+        // must follow it (ShopEffect reacts post-apply via onMergeApplied; a
+        // regression to the pre-apply hook would log them inverted).
+        {
+            int mergedAt = -1, triggeredAt = -1;
+            const auto& events = turn.log().events();
+            for (size_t i = 0; i < events.size(); ++i) {
+                if (events[i].type == TurnEvent::Type::TileMerged)    mergedAt = static_cast<int>(i);
+                if (events[i].type == TurnEvent::Type::ShopTriggered) triggeredAt = static_cast<int>(i);
+            }
+            CHECK(mergedAt >= 0 && triggeredAt >= 0 && mergedAt < triggeredAt);
+        }
+
         // The triggered flag is effect state: it must survive the board clone
         // (Slot's copy-ctor clones effects), so the NEXT turn removes the shop.
         Board next = Board::cloneFrom(turn.board, &turn);

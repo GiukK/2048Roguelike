@@ -22,7 +22,9 @@ Unify, under a single model, every "thing that changes how the game plays":
   two 2s, gain XYZ").
 - **Tile tags** — per-tile state/modifiers (today: `bricked`; future: golden, locked…).
 
-Out of scope for now (explicit): score, defeat conditions.
+Out of scope here: score. Defeat conditions, enemies and bosses are designed in
+`docs/boss-design.md` (2026-06-12), which builds on this engine and extends §13's
+undo semantics to boss fights.
 
 ---
 
@@ -82,6 +84,13 @@ public:
     virtual void onCoinsResolving(CoinContext&) {}
     virtual void onSpawnResolving(SpawnContext&) {}
 
+    // --- Post-apply notify (ADDED 2026-06-12): fires AFTER the outcome has
+    // been applied and its event logged; context is const. Site side effects
+    // that EMIT events belong here, so their events follow their cause in the
+    // log. Future interaction pipelines (AttackContext) mirror this
+    // pre-apply-modify / post-apply-notify shape.
+    virtual void onMergeApplied(const MergeContext&) {}
+
     // --- Reactor hooks: observe; act via ctx; cannot alter the past. ---
     virtual void onEvent(const TurnEvent&, EffectContext&) {}
     virtual void onTurnEnd(const TurnLog&, EffectContext&) {}
@@ -89,8 +98,14 @@ public:
 ```
 
 `SlotEffect`/`ShopEffect` collapse into this: `ShopEffect` becomes an `Effect`
-whose `onMergeResolving` sets `triggered` + requests the shop (it doesn't alter the
+whose merge hook sets `triggered` + requests the shop (it doesn't alter the
 outcome — it's a side-effecting reactor that happens to fire at merge time).
+SINCE 2026-06-12 it lives on `onMergeApplied`, not `onMergeResolving`: firing
+post-apply puts its `ShopTriggered` event AFTER the `TileMerged` that caused it
+(cause before consequence; pinned by an ordering test in the suite). Dispatch:
+`Slot::resolveMerge` runs the pre-apply leg, `Slot::notifyMergeApplied` the
+post-apply leg (called from `Tile::mergeIntoSlot` after the event push, before
+the coin-reward routing).
 
 `DECISION:` one fat base (above) vs. small capability interfaces
 (`IMergeModifier`, `IReactor`, …) the dispatcher keeps as typed lists.

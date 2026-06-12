@@ -39,9 +39,18 @@ public:
     // the merge's MUTABLE outcome, and may change it (today: the merged value;
     // future knobs — coin reward, destroy-on-merge — join MergeContext with their
     // slices). Default no-op, so an effect that doesn't touch merges costs nothing.
-    // A side-effecting effect (e.g. ShopEffect) may also use it to fire at merge
-    // time without altering the outcome. Dispatched by Slot::resolveMerge.
+    // Pre-apply: nothing has been logged yet, so side effects that must FOLLOW
+    // the TileMerged event in the log belong in onMergeApplied below.
+    // Dispatched by Slot::resolveMerge.
     virtual void onMergeResolving(MergeContext& /*merge*/) {}
+
+    // Post-apply notify: runs AFTER the (modifier-shaped) outcome has been
+    // applied to the board and the TileMerged event logged. The context is
+    // const — this hook reacts at the interaction site, it cannot rewrite the
+    // outcome. Site side effects live here (ShopEffect opening the shop) so
+    // whatever they emit lands AFTER the TileMerged that caused it — the log's
+    // cause-before-consequence rule. Dispatched by Slot::notifyMergeApplied.
+    virtual void onMergeApplied(const MergeContext& /*merge*/) {}
 
     // MODIFIER hook: runs on every coin GAIN resolving in this effect's scope and
     // may change the amount (e.g. a "×2 coins over this slot" chip). Re-entrancy

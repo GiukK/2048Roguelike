@@ -100,6 +100,12 @@ void Slot::resolveMerge(MergeContext& merge) {
     }
 }
 
+void Slot::notifyMergeApplied(const MergeContext& merge) {
+    for (auto& effect : effects) {
+        effect->onMergeApplied(merge);
+    }
+}
+
 void Slot::resolveCoins(CoinContext& coin) {
     for (auto& effect : effects) {
         effect->onCoinsResolving(coin);

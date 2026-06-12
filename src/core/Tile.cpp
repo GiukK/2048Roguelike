@@ -233,6 +233,11 @@ void Tile::mergeIntoSlot(Slot* target) {
             TurnEvent::tileMerged(merge.resultValue, sourceValue, target->getCoord(), targetWasBricked));
     }
 
+    // Post-apply notify: the outcome is on the board and TileMerged is in the
+    // log, so site side effects (the shop) now fire and their events FOLLOW the
+    // merge that caused them — the log's cause-before-consequence rule.
+    target->notifyMergeApplied(merge);
+
     // Coin reward accumulated by the merge modifiers, routed through the coin
     // pipeline AFTER the merge applied and logged (cause before consequence in
     // the log) — so coin chips on this slot scale what merge chips granted.
