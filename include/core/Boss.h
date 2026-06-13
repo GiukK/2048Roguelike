@@ -1,10 +1,15 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "core/utils/Coord.h"
+// Complete type: the boss OWNS its effects (vector<unique_ptr<Effect>>), so
+// every TU that destroys a Boss needs Effect's destructor, and findEffect's
+// dynamic_cast needs the full type.
+#include "effects/Effect.h"
 
 class Tile;
 class Boss;
@@ -51,6 +56,13 @@ struct BossDef {
     // the defeat in the log. Null = default: nothing extra; the footprint
     // cells are freed intact by the removal itself.
     std::function<void(Boss&, EffectContext&)> onDefeat;
+
+    // Effects mounted on the boss at spawn — the boss as effect OWNER
+    // (boss-design §2). Each factory builds one Effect carrying per-boss STATE
+    // (the Sleeper's phase counter); the boss instantiates them in its ctor and
+    // deep-clones them on the turn clone, so the state rewinds with the body.
+    // Empty = a stateless boss (the Brute). Behavior reads this via findEffect.
+    std::vector<std::function<std::unique_ptr<Effect>()>> effects;
 };
 
 // The boss BODY: a first-class board-resident entity (boss-design §2) — a
@@ -68,6 +80,12 @@ struct BossDef {
 class Boss {
 public:
     Boss(const BossDef& def, Coord anchor);  // 1x1 footprint; shapes are content (slice 6)
+
+    // Deep-copy clone — the boss owns unique_ptr effects, so the implicit copy
+    // ctor is gone; this one clones each effect via Effect::clone (mirroring
+    // Slot's copy ctor) so per-boss STATE rewinds with the board (boss-design
+    // §7). Used by Board::copyStateFrom on every turn clone.
+    Boss(const Boss& other);
 
     bool occupies(Coord c) const;
 
@@ -97,6 +115,23 @@ public:
     int getMaxHp() const { return maxHp; }
     const std::vector<Coord>& getFootprint() const { return footprint; }
 
+    // First mounted effect of concrete type E, or nullptr — the boss's own
+    // typed lookup (mirrors Slot::findEffect). The boss's def lambdas read
+    // their state through this (the Sleeper's resolveIncoming asks its
+    // SleeperState whether it is vulnerable). Const: deciding is not mutating.
+    template <typename E>
+    E* findEffect() const {
+        for (const auto& effect : effects) {
+            if (auto* typed = dynamic_cast<E*>(effect.get())) return typed;
+        }
+        return nullptr;
+    }
+
+    // The one-line phase status for the fight banner — the first non-empty
+    // statusText among the mounted effects, or "" (the Brute shows nothing).
+    // PlayUI reads it through GameRun (the countdown-display pattern).
+    std::string statusText() const;
+
 private:
     std::string defId;
     std::string name;
@@ -108,4 +143,8 @@ private:
     std::function<IncomingResolution(const Boss&, const Tile&)> resolveIncomingFn;
     std::function<void(Boss&, EffectContext&)> onTurnActionFn;
     std::function<void(Boss&, EffectContext&)> onDefeatFn;
+
+    // Effects mounted on the boss (boss-design §2): per-boss state that clones
+    // and rewinds with the body. Populated from BossDef::effects in the ctor.
+    std::vector<std::unique_ptr<Effect>> effects;
 };

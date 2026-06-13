@@ -4,6 +4,7 @@
 #include "core/CardRegistry.h"
 #include "core/GameRun.h"
 #include "core/ItemRegistry.h"
+#include "effects/BossEffects.h"
 #include "effects/Cards.h"
 #include "effects/EffectContext.h"
 
@@ -274,6 +275,54 @@ void registerBaseBosses(BossRegistry& bosses) {
     brute.textureId = "monstro";
     brute.baseHp = 64;
     bosses.registerBoss(std::move(brute));
+
+    // The Sleeper (boss-design §5, catalogue slot 4) — the first STATEFUL boss,
+    // the proof that the entity carries real behavior as content: a mounted
+    // SleeperState holds the phase (clones + rewinds with the body), and the
+    // two lambdas read/advance it. Invincible for SleeperState::InvincibleTurns
+    // fight turns (resolveIncoming answers Block — a wall), then awake; each
+    // turn awake it takes damage equal to the SUM of its orthogonally adjacent
+    // tiles' values. Zero new control flow in Board/GameRun.
+    BossDef sleeper;
+    sleeper.id = "sleeper";
+    sleeper.name = "Sleeper";
+    sleeper.textureId = "monstro";  // placeholder art, shared with the Brute (slice-6 visuals)
+    sleeper.baseHp = 32;
+    sleeper.effects.push_back([] { return std::make_unique<SleeperState>(); });
+
+    sleeper.resolveIncoming =
+        [](const Boss& self, const Tile& attacker) -> IncomingResolution {
+        const SleeperState* state = self.findEffect<SleeperState>();
+        if (state && !state->isVulnerable()) {
+            return {IncomingResolution::Kind::Block, 0};  // asleep: a wall, no damage
+        }
+        return {IncomingResolution::Kind::Hit, attacker.getValue()};  // awake: hit for its value
+    };
+
+    sleeper.onTurnAction = [](Boss& self, EffectContext& ctx) {
+        SleeperState* state = self.findEffect<SleeperState>();
+        if (!state) return;
+        if (state->isVulnerable()) {
+            // Awake: self-inflict the sum of orthogonally adjacent tile values.
+            // Raw takeDamage (NOT a logged BossDamaged — that is the slice-5c
+            // damageBoss primitive); the HP banner reads getHp() live, and a
+            // lethal sum is reaped by resolveBossAction's resolveBossDefeatIfDead.
+            static constexpr Coord offsets[] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+            int sum = 0;
+            for (const Coord& cell : self.getFootprint()) {
+                for (const Coord& off : offsets) {
+                    const Coord n{cell.x + off.x, cell.y + off.y};
+                    if (self.occupies(n)) continue;  // never count the body itself (2x2-safe)
+                    const Slot* slot = ctx.board().slotAt(n);
+                    if (slot && !slot->isEmpty()) sum += slot->tile->getValue();
+                }
+            }
+            if (sum > 0) self.takeDamage(sum);
+        }
+        state->advance();  // one fight turn elapsed
+    };
+
+    bosses.registerBoss(std::move(sleeper));
 }
 
 } // namespace content

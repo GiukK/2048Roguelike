@@ -257,6 +257,18 @@ void PlayUI::drawBossBanner(RenderSystem& r, const Boss& boss) {
     const sf::Vector2f size = r.measureText(hp, 20);
     r.drawText(hp, {x + BossBannerW / 2.f - size.x / 2.f, barY + 1.f}, 20,
                sf::Color::White);
+
+    // Phase line under the banner: a scrappy "what to expect" indicator
+    // (the Sleeper's asleep/awake countdown), empty for a stateless boss like
+    // the Brute. The boss aggregates it from its effects (Boss::statusText);
+    // this whole strip is scrapped with the real fight UI.
+    const std::string status = boss.statusText();
+    if (!status.empty()) {
+        const sf::Vector2f ssize = r.measureText(status, 18);
+        r.drawText(status,
+                   {x + BossBannerW / 2.f - ssize.x / 2.f, BossBannerY + BossBannerH + 6.f},
+                   18, sf::Color(210, 210, 220));
+    }
 }
 
 void PlayUI::renderForeground(RenderSystem& r) {

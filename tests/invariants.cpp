@@ -13,6 +13,7 @@
 #include "core/Tile.h"
 #include "core/Turn.h"
 #include "effects/AttackContext.h"
+#include "effects/BossEffects.h"
 #include "effects/Cards.h"
 #include "effects/CoinChips.h"
 #include "effects/EffectContext.h"
@@ -1583,6 +1584,109 @@ int main() {
         run->advanceAnteState(scratch.board);
         CHECK(run->getAntePhase() == GameRun::AntePhase::Reward);
         CHECK(run->getCoins() == coins0 + 50);   // placeholder reward: 50 × ante (ante 1)
+    }
+
+    // --- Boss as effect owner: the Sleeper (stateful boss, slice 5a) ----------
+    // Invincible for SleeperState::InvincibleTurns fight turns (resolveIncoming
+    // answers Block — a wall), then awake and damaged by everything; each awake
+    // turn it self-inflicts the SUM of its orthogonally adjacent tiles. The
+    // phase lives in a mounted SleeperState effect (clones + rewinds with the
+    // body) — the entity carrying real behavior as CONTENT, zero core changes.
+    {
+        auto run = makeRun(81);
+        Turn scratch(renderer, run.get());
+        scratch.board.clear();
+        Boss* boss = scratch.board.spawnBoss(run->getBossRegistry().get("sleeper"), {3, 0});
+        CHECK(boss != nullptr);
+        CHECK(boss->findEffect<SleeperState>() != nullptr);          // state mounted
+        CHECK(!boss->findEffect<SleeperState>()->isVulnerable());    // asleep at spawn
+
+        run->advanceAnteState(scratch.board);   // adopt → BossFight (action can fire)
+        CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
+
+        // Asleep = a wall: a sweeping tile is Blocked, no damage, attacker parks.
+        CHECK(scratch.board.spawnTileAt({0, 0}, 4) != nullptr);
+        scratch.board.move(Direction::Right);
+        CHECK(boss->getHp() == 32);                          // invulnerable
+        CHECK(tileAt(scratch.board, {2, 0}) != nullptr);     // parked against the wall
+        CHECK(boss->statusText().rfind("ASLEEP", 0) == 0);   // phase line for the banner
+
+        // Advance through the invincible turns; none deal self-damage (asleep).
+        for (int i = 0; i < SleeperState::InvincibleTurns; ++i) {
+            CHECK(!boss->findEffect<SleeperState>()->isVulnerable());
+            run->resolveBossAction(scratch.board);
+        }
+        CHECK(boss->findEffect<SleeperState>()->isVulnerable());   // awake now
+        CHECK(boss->statusText() == "AWAKE - vulnerable");
+        CHECK(boss->getHp() == 32);                                // unhurt while asleep
+
+        // Awake + the parked 4 still adjacent → self-inflicts the sum at turn end.
+        run->resolveBossAction(scratch.board);
+        CHECK(boss->getHp() == 32 - 4);
+
+        // Awake = damaged by everything: a sweeping tile now lands a Hit.
+        scratch.board.clear();
+        CHECK(scratch.board.spawnTileAt({0, 0}, 8) != nullptr);
+        scratch.board.move(Direction::Right);
+        CHECK(boss->getHp() == 28 - 8);
+        CHECK(scratch.board.getAllTiles().empty());   // attacker consumed (Hit)
+    }
+
+    // --- Sleeper: the phase clones and rewinds WITHIN the fight (§7) ----------
+    // Boss state is board state: a mid-fight rewind undoes the phase like any
+    // world change. Also the in-fight rewind SUCCESS path — goBack works ABOVE
+    // the fight floor (door one only blocks rewinding OUT of the fight).
+    {
+        auto run = makeRun(82);
+        Board& board = run->currentBoard();
+        board.clear();
+        CHECK(board.spawnBoss(run->getBossRegistry().get("sleeper"), {3, 0}) != nullptr);
+        CHECK(board.spawnTileAt({0, 0}, 2) != nullptr);   // a legal move exists (no defeat latch)
+        run->advanceAnteState(board);   // FreePlay→BossFight (arms door one)
+        run->newTurn(board);            // applies the cut: this turn is the fight floor
+
+        run->resolveBossAction(run->currentBoard());    // one fight turn elapses
+        const int wake1 = run->currentBoard().getBoss()
+                              ->findEffect<SleeperState>()->turnsUntilWake();
+        run->newTurn(run->currentBoard());              // no transition → no cut; stack grows
+
+        Boss* cloned = run->currentBoard().getBoss();
+        CHECK(cloned != nullptr);
+        CHECK(cloned->findEffect<SleeperState>()->turnsUntilWake() == wake1);  // phase cloned
+        run->resolveBossAction(run->currentBoard());    // advance the clone
+        CHECK(run->currentBoard().getBoss()->findEffect<SleeperState>()
+                  ->turnsUntilWake() == wake1 - 1);
+
+        CHECK(run->goBack());   // in-fight rewind SUCCEEDS (above the floor)
+        CHECK(run->currentBoard().getBoss()->findEffect<SleeperState>()
+                  ->turnsUntilWake() == wake1);   // phase rewound with the world
+    }
+
+    // --- Sleeper: lethal awake adjacency self-damage is reaped (content path) -
+    // The real-content version of the self-damage reap: once awake, a heavy
+    // surround sums past its HP; resolveBossAction reaps it inline (the
+    // non-sweep death path) and logs exactly one BossDefeated.
+    {
+        auto run = makeRun(83);
+        Turn scratch(renderer, run.get());
+        scratch.board.clear();
+        Boss* boss = scratch.board.spawnBoss(run->getBossRegistry().get("sleeper"), {1, 1});
+        CHECK(boss != nullptr);
+        run->advanceAnteState(scratch.board);   // BossFight
+        // Surround it: four 16s = 64 adjacent, past its 32 HP.
+        CHECK(scratch.board.spawnTileAt({0, 1}, 16) != nullptr);
+        CHECK(scratch.board.spawnTileAt({2, 1}, 16) != nullptr);
+        CHECK(scratch.board.spawnTileAt({1, 0}, 16) != nullptr);
+        CHECK(scratch.board.spawnTileAt({1, 2}, 16) != nullptr);
+
+        for (int i = 0; i < SleeperState::InvincibleTurns; ++i) {
+            run->resolveBossAction(scratch.board);   // asleep: advance only, no damage
+        }
+        CHECK(scratch.board.getBoss() != nullptr);   // survived the sleep
+        scratch.log().clear();
+        run->resolveBossAction(scratch.board);       // awake: 64 self-damage → dead
+        CHECK(scratch.board.getBoss() == nullptr);   // reaped inline (non-sweep path)
+        CHECK(scratch.log().countOf(TurnEvent::Type::BossDefeated) == 1);
     }
 
     // --- Boss occupancy: spawn exclusions on both sides -----------------------

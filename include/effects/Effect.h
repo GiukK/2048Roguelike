@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 struct MergeContext;
 struct CoinContext;
@@ -124,4 +125,11 @@ public:
     // tile while this effect is present (nullptr = none). Brick/frozen show the
     // brick marker; future tags (golden, locked...) bring their own.
     virtual const char* overlayTextureId() const { return nullptr; }
+
+    // Optional one-line status surfaced in the boss-fight banner while this
+    // effect is mounted (empty = nothing to show). The boss aggregates it
+    // (Boss::statusText) so a phase mechanic can explain itself — today the
+    // Sleeper's asleep/awake countdown. Data only (a string, no render types),
+    // so it honors the headless boundary like the texture-id hints above.
+    virtual std::string statusText() const { return {}; }
 };

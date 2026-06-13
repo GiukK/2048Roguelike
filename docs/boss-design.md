@@ -366,5 +366,42 @@ three `TurnEvent` types (§3).
    board-scope reactors), 2x2 footprints, malus effects, `onDefeat` variety,
    per-ante difficulty scaling.
 
+**Slice 5a DONE (2026-06-13, 439 checks):** the boss as effect OWNER — pulled
+forward from slice 6 because it is THE scalability axis (state-carrying bosses
+were otherwise lambdas-with-captures, the dirty path). `Boss` now owns
+`vector<unique_ptr<Effect>>`: `BossDef::effects` is a list of factories, the
+ctor instantiates them, and a hand-written copy ctor deep-clones them via
+`Effect::clone()` (mirror of `Slot`) so per-boss STATE rewinds with the body.
+`Boss::findEffect<E>()` lets the def lambdas read their state; `Effect::
+statusText()` + `Boss::statusText()` feed a scrappy phase line under the HP
+banner (PlayUI, scrapped with the real fight UI). Validator: the **Sleeper**
+(content, zero core control flow) — `SleeperState` holds the phase, the def's
+`resolveIncoming` answers `Block` while asleep (the first 3 fight turns) and
+`Hit` once awake, `onTurnAction` self-inflicts the sum of orthogonally adjacent
+tiles each awake turn via `takeDamage` (reaped by the slice-5-prework non-sweep
+path `resolveBossDefeatIfDead`). Proves the entity carries real, stateful,
+clone/rewind-correct behavior as pure content.
+
+What 5a deliberately did NOT do (each its own focused slice, no inert interface):
+- **5b — `Effect::onAttackApplied`** (boss-scope post-hit site dispatch, gemello
+  of `onMergeApplied`): the home for the **Shifter**'s "re-roll target after
+  every hit". Build with the Shifter.
+- **5c — boss as full REACTOR owner**: boss effects in `flushReactors`/
+  `dispatchTurnEnd` + owner-identity generalization (`ownerSlot()` → add
+  `ownerBoss()`, re-validation `findOwnerBoss`; cross-scope order
+  tile→slot→**boss**→run) + `EffectContext::damageBoss` (with a non-tile
+  `BossDamaged` source convention) + a slot-destruction primitive. For the
+  slot-destroyer malus and a card that damages the boss.
+- **Moving boss (DECIDED 2026-06-13, pending its own slice):** the boss BODY
+  slides with the tiles during a move, not fixed. Collision = "drifting wall":
+  it slides until it meets a tile / a hole / the edge, then STOPS; attacks stay
+  tile-initiated (the body deals no damage by moving). A core movement change
+  (`initializeMovementQueue`/`resolveNextTileMove`/`hasLegalMove`/spawn
+  exclusions/body animation) — deliberately NOT folded into 5a's clean
+  architectural commit. Slot order vs the tiles in one sweep is the open
+  question to pin when built.
+- **2x2 footprints** and **per-ante difficulty / `bossForAnte` strategy hook**
+  remain as in slice 6.
+
 Extend `tests/invariants.cpp` with every slice (the suite is the project's
-regression net — 360 checks as of 2026-06-13, slices 1–4 included).
+regression net — 439 checks as of 2026-06-13, slices 1–5a included).
