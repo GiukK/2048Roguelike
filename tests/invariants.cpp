@@ -1501,6 +1501,27 @@ int main() {
         CHECK(turn.log().countOf(TurnEvent::Type::BossDefeated) == 1);
     }
 
+    // --- Boss death: overkill sweep — only one BossDefeated per kill ----------
+    // Two tiles on adjacent cells both reach the boss in one move. The first
+    // kills it; the second must NOT attack the dead body (no extra BossDamaged,
+    // no duplicate BossDefeated). Rightward sweep processes right-to-left, so
+    // (2,0) reaches the boss first, (1,0) follows into the same cell.
+    {
+        auto run = makeRun(78);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        CHECK(turn.board.spawnBoss(makeTestBoss(2), {3, 0}) != nullptr);
+        CHECK(turn.board.spawnTileAt({2, 0}, 2) != nullptr);   // processed first: kills
+        CHECK(turn.board.spawnTileAt({1, 0}, 4) != nullptr);   // processed second: must not hit
+        turn.log().clear();
+
+        turn.board.move(Direction::Right);
+
+        CHECK(turn.board.getBoss() == nullptr);
+        CHECK(turn.log().countOf(TurnEvent::Type::BossDamaged) == 1);
+        CHECK(turn.log().countOf(TurnEvent::Type::BossDefeated) == 1);
+    }
+
     // --- Boss action hook: onTurnAction fires during BossFight ---------------
     {
         auto run = makeRun(77);

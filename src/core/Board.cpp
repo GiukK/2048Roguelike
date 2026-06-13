@@ -557,6 +557,8 @@ Boss* Board::spawnBossInRandomEmptySlot(const BossDef& def) {
 }
 
 void Board::resolveBossAttack(Tile* attacker, Coord at) {
+    if (defeatPending) return;  // already dead this sweep — no extra hits
+
     // Mirror the merge's step-out gate: a tile locked into its slot can no
     // more initiate an attack than a merge. (Immobilized attackers never get
     // here — resolveNextTileMove returned already.)
@@ -640,10 +642,6 @@ void Board::move(Direction dir) {
         resolveNextTileMove(dir);
     }
 
-    if (defeatPending) {
-        resolveBossDefeat();
-    }
-
     // One TileSlid per surviving tile whose CELL changed — "a tile moved",
     // regardless of distance (Red Light's counting unit). The mover of a merge
     // counts (its cell changed); the stationary merge target was destroyed and
@@ -656,6 +654,14 @@ void Board::move(Direction dir) {
                 turn->log().push(TurnEvent::tileSlid(t->getValue(), t->slot->getCoord()));
             }
         }
+    }
+
+    // Boss death consequences run AFTER the TileSlid emission: onDefeat may
+    // spawn tiles, and the allocator can reuse a merge-victim's address —
+    // cellBefore would match the new tile to the dead tile's old position,
+    // producing a phantom TileSlid. Safe here: cellBefore is consumed.
+    if (defeatPending) {
+        resolveBossDefeat();
     }
 }
 
