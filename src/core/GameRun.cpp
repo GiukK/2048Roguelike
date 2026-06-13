@@ -287,8 +287,10 @@ int GameRun::getCoins() const {
 }
 
 int GameRun::getEffectiveCost(const ItemDef& item) const {
-    // Debug: everything is free so items can be grabbed and tested instantly.
-    if (debug::Enabled) return 0;
+    // Debug mode: everything is free so items can be grabbed and tested
+    // instantly. Runtime-gated (debug::active) so the DEBUG toggle can switch
+    // to the real economy without a rebuild.
+    if (debug::active()) return 0;
 
     int cost = item.cost;
     // Future: apply passive modifiers, shop discount abilities, etc.
@@ -296,7 +298,7 @@ int GameRun::getEffectiveCost(const ItemDef& item) const {
 }
 
 int GameRun::getEffectiveCost(const CardDef& card) const {
-    if (debug::Enabled) return 0;
+    if (debug::active()) return 0;
 
     int cost = card.cost;
     // Future: card-specific discounts/markups hook in here.

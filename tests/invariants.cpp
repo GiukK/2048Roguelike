@@ -18,6 +18,7 @@
 #include "effects/EffectContext.h"
 #include "effects/MergeContext.h"
 #include "rendering/RenderSystem.h"
+#include "Debug.h"
 
 #include <SFML/Graphics.hpp>
 #include <iostream>
@@ -1629,6 +1630,20 @@ int main() {
         run->advanceAnteState(scratch.board);        // the freed cell hosts it
         CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
         CHECK(scratch.board.getBoss() != nullptr);
+    }
+
+    // --- Debug toggle: runtime switch between admin mode and the real economy -
+    // (The tests run in a debug build, where active() starts true and the
+    // toggle is live; in release both fold to constant false.)
+    {
+        auto run = makeRun(80);
+        const ItemDef& bag = run->getItemRegistry().get("coin_bag");
+        CHECK(debug::active());                         // debug builds start ON
+        CHECK(run->getEffectiveCost(bag) == 0);         // admin mode: free
+        debug::setActive(false);
+        CHECK(run->getEffectiveCost(bag) == bag.cost);  // the real economy
+        debug::setActive(true);                         // restore for any later block
+        CHECK(run->getEffectiveCost(bag) == 0);
     }
 
     std::cout << checks << " checks, " << failures << " failure(s)\n";

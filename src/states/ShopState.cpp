@@ -52,7 +52,7 @@ void ShopState::generateShop() {
     shopItemIds.clear();
     shopButtons.clear();
 
-    if (debug::Enabled) {
+    if (debug::active()) {
         // Debug shop: stock every registered item so they can all be tested at
         // once. Count comes from the registry, never hardcoded.
         for (const auto* def : gameRun->getItemRegistry().getAll()) {
@@ -75,7 +75,7 @@ void ShopState::generateShop() {
     // stacking; offering duplicates is a shop-design decision for later).
     shopCardIds.clear();
     for (const auto* def : gameRun->getCardRegistry().getAll()) {
-        if (debug::Enabled || !gameRun->ownsCard(def->id)) {
+        if (debug::active() || !gameRun->ownsCard(def->id)) {
             shopCardIds.push_back(def->id);
         }
     }
@@ -168,7 +168,7 @@ void ShopState::buyItem(size_t index) {
 
     // Debug shop stays fully stocked so every item can be grabbed repeatedly;
     // normally a purchased item is removed from the shop.
-    if (!debug::Enabled) {
+    if (!debug::active()) {
         shopItemIds.erase(shopItemIds.begin() + static_cast<ptrdiff_t>(index));
         rebuildShopButtons();
     }
@@ -188,7 +188,7 @@ void ShopState::buyCard(size_t index) {
 
     // Debug shop stays fully stocked (infinite copies, for synergy testing);
     // normally a bought card leaves this shop's stock.
-    if (!debug::Enabled) {
+    if (!debug::active()) {
         shopCardIds.erase(shopCardIds.begin() + static_cast<ptrdiff_t>(index));
         rebuildCardButtons();
     }

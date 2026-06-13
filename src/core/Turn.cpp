@@ -244,13 +244,16 @@ void Turn::handleBeginInput(sf::Event& event) {
     case sf::Keyboard::Scancode::D: currentMove = Direction::Right; inputReceived = true; break;
     case sf::Keyboard::Scancode::W: currentMove = Direction::Up;    inputReceived = true; break;
     case sf::Keyboard::Scancode::S: currentMove = Direction::Down;  inputReceived = true; break;
+    // The debug keys below are gameplay-affecting, so they follow the RUNTIME
+    // toggle (debug::active, the play screen's DEBUG button) — switched off,
+    // the binary behaves like the real game without a rebuild.
     case sf::Keyboard::Scancode::X:
         // Debug-only: free spawn to set up board states quickly.
-        if (debug::Enabled) board.spawnTileInRandomEmptySlot();
+        if (debug::active()) board.spawnTileInRandomEmptySlot();
         break;
     case sf::Keyboard::Scancode::Delete:
         // Debug-only: wipe the board back to a single fresh tile.
-        if (debug::Enabled) {
+        if (debug::active()) {
             board.clear();
             board.spawnTileInRandomEmptySlot();
         }
@@ -259,12 +262,12 @@ void Turn::handleBeginInput(sf::Event& event) {
         // Debug-only shortcut (the Hourglass is the only rewind in normal play).
         // DEFERRED via requestGoBack: a synchronous goBack() here would pop —
         // and destroy — this very Turn while this method is still executing.
-        if (debug::Enabled) gameRun->requestGoBack();
+        if (debug::active()) gameRun->requestGoBack();
         break;
     case sf::Keyboard::Scancode::V:
         // Debug-only: drop the Brute on a random empty slot. The manual fight
         // trigger for slice 3 — the ante machine (slice 4) takes over spawning.
-        if (debug::Enabled && gameRun->getBossRegistry().has("brute")) {
+        if (debug::active() && gameRun->getBossRegistry().has("brute")) {
             board.spawnBossInRandomEmptySlot(gameRun->getBossRegistry().get("brute"));
         }
         break;

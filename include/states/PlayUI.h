@@ -71,6 +71,15 @@ private:
     int pendingCardSelect = -1;        // model index (via cardModelIndex)
     bool pendingCardDiscard = false;
 
+    // Debug-mode toggle (debug builds only — never shown in release): flips
+    // debug::active() so the real game/shop can be play-tested without a
+    // rebuild, and back. A plain rect + text rather than a UI_Button because
+    // it is label-drawn, not texture-backed; click semantics mirror
+    // UI_Button's (fires on release only if the press started on it).
+    sf::FloatRect debugToggleRect;
+    bool debugTogglePressStarted = false;
+    bool debugMouseWasDown = false;
+
     // Last observed model state, to detect when a rebuild is needed. Content
     // is tracked through GameRun's version counters — NOT by list size, which
     // misses a same-size replacement (an item consumed while a reactor grants

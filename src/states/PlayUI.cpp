@@ -6,6 +6,7 @@
 #include "core/CardRegistry.h"
 #include "rendering/RenderSystem.h"
 #include "ui/UI.h"
+#include "Debug.h"
 
 #include <algorithm>
 #include <string>
@@ -40,12 +41,18 @@ constexpr float PanelHeight        = 630.f;
 constexpr float BossBannerW        = 520.f;
 constexpr float BossBannerH        = 96.f;
 constexpr float BossBannerY        = 16.f;
+// Debug toggle: bottom-left corner, below the cards panel's band.
+constexpr float DebugToggleX       = 40.f;
+constexpr float DebugToggleY       = 1000.f;
+constexpr float DebugToggleW       = 190.f;
+constexpr float DebugToggleH       = 48.f;
 } // namespace
 
 PlayUI::PlayUI(RenderSystem& renderer, GameRun& run)
     : renderer(renderer),
       run(run),
-      backUI(renderer.getTextureManager().get("backUI"))
+      backUI(renderer.getTextureManager().get("backUI")),
+      debugToggleRect({DebugToggleX, DebugToggleY}, {DebugToggleW, DebugToggleH})
 {
     renderer.resizeSprite("backUI", backUI);
 }
@@ -55,6 +62,27 @@ void PlayUI::update(float dt) {
     for (auto& btn : actionButtons) btn.update(dt);
     for (auto& btn : cardButtons) btn.update(dt);
     for (auto& btn : cardActionButtons) btn.update(dt);
+
+    // Debug-mode toggle: polled like UI_Button does (press must START on the
+    // widget, fire on release over it) so a board pan dragged across it can
+    // never flip the mode. Compiled out of release builds with debug::Enabled.
+    if (debug::Enabled) {
+        const bool down = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
+        const sf::Vector2f p = renderer.mapPixelToUI(
+            sf::Mouse::getPosition(renderer.getWindow()));
+        const bool over = debugToggleRect.contains(p);
+
+        if (down && !debugMouseWasDown) {
+            debugTogglePressStarted = over;
+        }
+        if (!down && debugMouseWasDown) {
+            if (debugTogglePressStarted && over) {
+                debug::setActive(!debug::active());
+            }
+            debugTogglePressStarted = false;
+        }
+        debugMouseWasDown = down;
+    }
 
     // Deferred selection toggle (set by an inventory button click).
     if (pendingSelectIndex >= 0) {
@@ -291,6 +319,24 @@ void PlayUI::renderForeground(RenderSystem& r) {
 
     renderInventoryTooltip(r);
     renderCardsTooltip(r);
+
+    // Debug-mode toggle, debug builds only: green = admin features on,
+    // gray = the real game (prices, stock, no debug keys). Click to flip.
+    if (debug::Enabled) {
+        const bool on = debug::active();
+        r.drawPixelRoundedRect(debugToggleRect, 8.f,
+                               on ? sf::Color(36, 90, 48) : sf::Color(58, 58, 64),
+                               on ? sf::Color(80, 200, 110) : sf::Color(120, 120, 128),
+                               3.f);
+        const std::string label = on ? "DEBUG: ON" : "DEBUG: OFF";
+        const sf::Vector2f size = r.measureText(label, 24);
+        r.drawText(label,
+                   {debugToggleRect.position.x +
+                        (debugToggleRect.size.x - size.x) / 2.f,
+                    debugToggleRect.position.y +
+                        (debugToggleRect.size.y - size.y) / 2.f},
+                   24, sf::Color::White);
+    }
 }
 
 void PlayUI::renderInventoryTooltip(RenderSystem& r) {
@@ -346,6 +392,10 @@ void PlayUI::renderCardsTooltip(RenderSystem& r) {
 }
 
 bool PlayUI::isPointOverUI(sf::Vector2f screenPoint) const {
+    // The debug toggle owns its rect (debug builds): no pan may start there
+    // and no right-click selection may fall through it.
+    if (debug::Enabled && debugToggleRect.contains(screenPoint)) return true;
+
     for (const auto& btn : inventoryButtons) {
         if (btn.contains(screenPoint)) return true;
     }
