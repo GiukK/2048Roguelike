@@ -40,6 +40,12 @@ struct BossDef {
     // bosses RESTRICT from there (target values, vulnerability windows).
     std::function<IncomingResolution(const Boss&, const Tile&)> resolveIncoming;
 
+    // Per-turn boss action, run at the end of each turn during BossFight
+    // (after the player's move resolves, before the kill check). Null =
+    // passive (the Brute default). Routed through EffectContext so every
+    // mutation is interceptable and logged.
+    std::function<void(Boss&, EffectContext&)> onTurnAction;
+
     // Death effect (boss-design §4), run after BossDefeated is logged and
     // before the body is removed — its consequences (loot, scars) land after
     // the defeat in the log. Null = default: nothing extra; the footprint
@@ -76,6 +82,10 @@ public:
     // never call with the raw proposal. HP may go below zero; display clamps.
     void takeDamage(int amount) { hp -= amount; }
 
+    // Runs the def's per-turn action (or no-op if passive). Called by
+    // GameRun at end of turn during BossFight, before the kill check.
+    void runTurnAction(EffectContext& ctx);
+
     // Runs the def's death effect (or the default no-op). Called by Board's
     // defeat resolution after BossDefeated is logged, before removal.
     void runDefeat(EffectContext& ctx);
@@ -96,5 +106,6 @@ private:
     std::vector<Coord> footprint;
 
     std::function<IncomingResolution(const Boss&, const Tile&)> resolveIncomingFn;
+    std::function<void(Boss&, EffectContext&)> onTurnActionFn;
     std::function<void(Boss&, EffectContext&)> onDefeatFn;
 };

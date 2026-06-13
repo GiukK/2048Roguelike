@@ -190,10 +190,12 @@ private:
     // The attack interaction (boss-design §3): asks the boss how the incoming
     // tile resolves, threads a Hit through the AttackContext modifier pipeline
     // (attacker's tile effects + run cards), applies the final outcome, logs
-    // BossDamaged, and resolves the defeat (BossDefeated + onDefeat + removal)
-    // when HP runs out. Called by resolveNextTileMove at the interaction site
-    // — the sweep stays atomic; reactors see the events at the next safe point.
+    // BossDamaged. When HP runs out, logs BossDefeated and sets defeatPending
+    // — the actual death effect and body removal are DEFERRED to after the
+    // sweep (see move()), so onDefeat can safely mutate the board.
     void resolveBossAttack(Tile* attacker, Coord at);
+    // Runs the deferred death effect + removes the body. Called by move()
+    // after the sweep is fully drained.
     void resolveBossDefeat();
     // Pure coordinate math (static): shared by the movement sweep and the
     // const hasLegalMove predicate.
@@ -212,6 +214,7 @@ private:
     // The boss body (nullptr = no fight). unique_ptr so the entity itself
     // stays headless and value-clonable (copyStateFrom deep-copies it).
     std::unique_ptr<Boss> boss;
+    bool defeatPending = false;
     MovementQueue movementQueue;
 
     bool moveValidFlag = false;

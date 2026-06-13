@@ -100,6 +100,12 @@ public:
     // reactors ("when the fight starts ..." content needs no new plumbing).
     void advanceAnteState(Board& board);
 
+    // Runs the boss's per-turn action during BossFight (no-op otherwise).
+    // Called by Turn::endTurn BEFORE advanceAnteState, so the action's
+    // consequences (tile destruction, etc.) are on the board when the kill
+    // check runs — a boss that suicides via its own action is detected.
+    void resolveBossAction(Board& board);
+
     int getAnte() const { return ante; }
     AntePhase getAntePhase() const { return antePhase; }
     // Stable display names for the phases (debug dumps, future fight UI).

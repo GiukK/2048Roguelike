@@ -118,6 +118,11 @@ void Turn::endTurn() {
     // — so the undo history stays consistent and no shop pointer dangles.
     gameRun->advanceShopState(board);
 
+    // Boss action: during a fight, the boss acts on the finished board before
+    // the ante clock checks for the kill — so consequences like tile destruction
+    // are visible to the kill check and to the reactors.
+    gameRun->resolveBossAction(board);
+
     // Then the ante clock, on the same finished board: a fight start spawns
     // the boss here (inherited by the clone), a kill detected here grants the
     // reward into THIS turn's log — both ahead of the flushes below, so the

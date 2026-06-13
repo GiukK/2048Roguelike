@@ -9,6 +9,7 @@ Boss::Boss(const BossDef& def, Coord anchor)
       maxHp(def.baseHp),
       footprint{anchor},
       resolveIncomingFn(def.resolveIncoming),
+      onTurnActionFn(def.onTurnAction),
       onDefeatFn(def.onDefeat)
 {}
 
@@ -27,6 +28,12 @@ IncomingResolution Boss::resolveIncoming(const Tile& attacker) const {
     // for the attacker's own value. Content RESTRICTS from here; the engine
     // never needs to know how.
     return {IncomingResolution::Kind::Hit, attacker.getValue()};
+}
+
+void Boss::runTurnAction(EffectContext& ctx) {
+    if (onTurnActionFn) {
+        onTurnActionFn(*this, ctx);
+    }
 }
 
 void Boss::runDefeat(EffectContext& ctx) {

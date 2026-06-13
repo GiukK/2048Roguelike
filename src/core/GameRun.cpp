@@ -167,6 +167,16 @@ void GameRun::logAnteTransition(Board& board) {
     }
 }
 
+void GameRun::resolveBossAction(Board& board) {
+    if (antePhase != AntePhase::BossFight) return;
+    Boss* boss = board.getBoss();
+    if (!boss) return;
+    if (board.turn) {
+        EffectContext ctx(*this, board, board.turn->log());
+        boss->runTurnAction(ctx);
+    }
+}
+
 void GameRun::advanceAnteState(Board& board) {
     switch (antePhase) {
     case AntePhase::FreePlay: {

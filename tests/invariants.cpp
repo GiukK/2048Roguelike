@@ -1475,6 +1475,60 @@ int main() {
         CHECK(turn.board.spawnTileAt({3, 0}, 2) != nullptr);
     }
 
+    // --- Boss death: onDefeat can safely spawn tiles (deferred from sweep) ---
+    // Previously, resolveBossDefeat ran mid-sweep — an onDefeat that spawned a
+    // tile could reuse a freed Tile* address, corrupting the cellBefore map
+    // that produces TileSlid events. Now onDefeat is deferred to after the
+    // sweep, so tile spawns are safe.
+    {
+        auto run = makeRun(76);
+        Turn turn(renderer, run.get());
+        turn.board.clear();
+        BossDef spawner = makeTestBoss(2);
+        spawner.onDefeat = [](Boss& b, EffectContext& ctx) {
+            ctx.spawnTile({0, 0}, 2);
+        };
+        CHECK(turn.board.spawnBoss(spawner, {3, 0}) != nullptr);
+        CHECK(turn.board.spawnTileAt({2, 0}, 2) != nullptr);
+        turn.log().clear();
+
+        turn.board.move(Direction::Right);
+
+        CHECK(turn.board.getBoss() == nullptr);
+        Tile* loot = tileAt(turn.board, {0, 0});
+        CHECK(loot != nullptr);                            // the loot spawned safely
+        CHECK(loot->getValue() == 2);
+        CHECK(turn.log().countOf(TurnEvent::Type::BossDefeated) == 1);
+    }
+
+    // --- Boss action hook: onTurnAction fires during BossFight ---------------
+    {
+        auto run = makeRun(77);
+        run->setAnteFreePlayTurns(2);
+        Turn scratch(renderer, run.get());
+        scratch.board.clear();
+
+        int actionCount = 0;
+        BossDef actor = makeTestBoss(100);
+        actor.onTurnAction = [&actionCount](Boss&, EffectContext& ctx) {
+            ++actionCount;
+            ctx.addCoins(1);
+        };
+        CHECK(scratch.board.spawnBoss(actor, {0, 0}) != nullptr);
+
+        // During FreePlay the action does NOT fire.
+        run->resolveBossAction(scratch.board);
+        CHECK(actionCount == 0);
+
+        // Promote to BossFight — now it fires.
+        run->advanceAnteState(scratch.board);
+        CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
+        const int coins0 = run->getCoins();
+        run->resolveBossAction(scratch.board);
+        CHECK(actionCount == 1);
+        CHECK(run->getCoins() == coins0 + 1);
+    }
+
     // --- Boss occupancy: spawn exclusions on both sides -----------------------
     {
         auto run = makeRun(67);

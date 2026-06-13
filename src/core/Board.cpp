@@ -34,6 +34,7 @@ Board::Board(Board&& other) noexcept
       renderer(other.renderer),
       slots(std::move(other.slots)),
       boss(std::move(other.boss)),
+      defeatPending(other.defeatPending),
       movementQueue(std::move(other.movementQueue)),
       moveValidFlag(other.moveValidFlag),
       animationCallback(std::move(other.animationCallback)),
@@ -51,6 +52,7 @@ void Board::copyStateFrom(const Board& other) {
     clear();
 
     moveValidFlag = false;
+    defeatPending = false;
     hoveredTile = nullptr;
 
     // Boss state is board state (boss-design §7): the body — HP included —
@@ -591,22 +593,23 @@ void Board::resolveBossAttack(Tile* attacker, Coord at) {
     if (turn) turn->log().push(TurnEvent::bossDamaged(damage, boss->getHp(), at));
 
     if (boss->getHp() <= 0) {
-        resolveBossDefeat();
+        if (turn) turn->log().push(TurnEvent::bossDefeated(boss->getFootprint().front()));
+        defeatPending = true;
     }
 }
 
 void Board::resolveBossDefeat() {
-    // Death order (boss-design §4): log the defeat FIRST (cause), then run the
-    // def's death effect — its consequences (loot spawns, scar removals) land
-    // after BossDefeated in the log — then free the body. The default death
-    // adds nothing: removal alone frees the footprint cells intact.
-    if (turn) turn->log().push(TurnEvent::bossDefeated(boss->getFootprint().front()));
-
+    // DEFERRED from the sweep: BossDefeated was logged at detection time (in
+    // resolveBossAttack), so the event sits in the log at the moment the kill
+    // happened. The death effect and body removal run HERE, after the sweep is
+    // fully drained — safe to spawn tiles, destroy slots, or do any board
+    // mutation without corrupting the sweep's cellBefore map or movementQueue.
     if (turn && turn->gameRun) {
         EffectContext ctx(*turn->gameRun, *this, turn->log());
         boss->runDefeat(ctx);
     }
     boss.reset();
+    defeatPending = false;
 }
 
 // --- Movement ---
@@ -635,6 +638,10 @@ void Board::move(Direction dir) {
     initializeMovementQueue(dir);
     while (!movementQueue.empty()) {
         resolveNextTileMove(dir);
+    }
+
+    if (defeatPending) {
+        resolveBossDefeat();
     }
 
     // One TileSlid per surviving tile whose CELL changed — "a tile moved",
