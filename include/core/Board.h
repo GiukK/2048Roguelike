@@ -99,6 +99,14 @@ public:
     // (slice 4) tomorrow. Returns nullptr if no valid cell exists.
     Boss* spawnBossInRandomEmptySlot(const BossDef& def);
 
+    // The non-sweep death reconciliation: if the boss's HP has been driven to
+    // <= 0 by something OTHER than a movement-sweep hit (a self-damaging boss
+    // action today; a future EffectContext::damageBoss), run the full death
+    // sequence inline (BossDefeated + onDefeat + body removal). Safe to call at
+    // any end-of-turn safe point — never mid-sweep, where the deferred
+    // defeatPending path applies instead. No-op when no boss, or HP > 0.
+    void resolveBossDefeatIfDead();
+
     // --- Shop mechanics ---------------------------------------------------
     // A "shop" is a Slot carrying a ShopEffect. It is spawned outside the base
     // playfield (orthogonally adjacent to an existing slot, on an otherwise
@@ -190,12 +198,14 @@ private:
     // The attack interaction (boss-design §3): asks the boss how the incoming
     // tile resolves, threads a Hit through the AttackContext modifier pipeline
     // (attacker's tile effects + run cards), applies the final outcome, logs
-    // BossDamaged. When HP runs out, logs BossDefeated and sets defeatPending
-    // — the actual death effect and body removal are DEFERRED to after the
-    // sweep (see move()), so onDefeat can safely mutate the board.
+    // BossDamaged. When HP runs out it only SETS defeatPending (detection); the
+    // whole death sequence — BossDefeated log, onDefeat, body removal — is
+    // DEFERRED to resolveBossDefeat() after the sweep (see move()), so onDefeat
+    // can safely mutate the board.
     void resolveBossAttack(Tile* attacker, Coord at);
-    // Runs the deferred death effect + removes the body. Called by move()
-    // after the sweep is fully drained.
+    // The single death sequence (BossDefeated + onDefeat + body removal).
+    // Called by move() after the sweep drains (the deferred sweep kill) and by
+    // resolveBossDefeatIfDead() for non-sweep kills. Precondition: boss != null.
     void resolveBossDefeat();
     // Pure coordinate math (static): shared by the movement sweep and the
     // const hasLegalMove predicate.

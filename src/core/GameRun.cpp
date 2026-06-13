@@ -174,6 +174,13 @@ void GameRun::resolveBossAction(Board& board) {
     if (board.turn) {
         EffectContext ctx(*this, board, board.turn->log());
         boss->runTurnAction(ctx);
+        // An action that drove the boss's HP to <= 0 (self-damage; later a
+        // damageBoss primitive) kills it HERE — the non-sweep death path. We
+        // are at end of turn, not mid-sweep, so the death resolves inline and
+        // safely. Without this a self-damaging boss would be an unreaped 0-HP
+        // zombie the kill check below never sees (it reads the BossDefeated
+        // event, which only resolveBossDefeat emits).
+        board.resolveBossDefeatIfDead();
     }
 }
 
@@ -219,10 +226,20 @@ void GameRun::advanceAnteState(Board& board) {
     }
 
     case AntePhase::BossFight:
-        if (!board.getBoss()) {
-            // The kill happened this turn. The reward is run-scoped (the
-            // player keeps it through any rewind) and lands in the finishing
-            // turn's log, where the reactors still see it.
+        // The kill is read from the LOG, not from body-absence. A BossDefeated
+        // event means the ante's boss DIED this turn (one boss at a time; the
+        // log is per-turn and cleared at endTurn, so no stale kill leaks in).
+        // Polling !getBoss() would conflate "killed" with "body gone for any
+        // reason": a future flee / banish / transform mechanic removes the body
+        // WITHOUT a kill and must not pay the reward. The event is the meaning;
+        // the body removal is merely its mechanism. Both sweep and self-damage
+        // kills route their BossDefeated through Board::resolveBossDefeat, so
+        // this one check covers every death path.
+        if (board.turn &&
+            board.turn->log().countOf(TurnEvent::Type::BossDefeated) > 0) {
+            // The reward is run-scoped (the player keeps it through any rewind)
+            // and lands in the finishing turn's log, where the reactors still
+            // see it.
             addCoins(anteReward());
             antePhase = AntePhase::Reward;
             stackCutPending = true;  // door two: no rewinding past the blow

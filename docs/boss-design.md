@@ -214,14 +214,22 @@ rejected (RESOLVED) — pinned rationale:
   with Back to Back, zero boss-structure change. A boss WEAK to repetition is
   the same idea as a gimmick.
 
-**Double doors (RESOLVED):** the turn stack CUTS at fight START **and** fight
-END (Isaac boss-room doors).
+**Triple doors (RESOLVED — extended from the original "double doors" during
+slice-4 hardening, commit a0c012b):** the turn stack CUTS at EVERY ante phase
+transition — fight START, fight END, and Reward→next-ante (Isaac boss-room
+doors). Every transition is a door; no exceptions.
 
-- Start: no rewinding out of the fight once entered.
-- End: the reward is run-scoped (player ⇒ persists); rewinding past the
-  killing blow would resurrect the boss with the reward already pocketed and
-  desync the run-scoped ante phase from the board. Cut both sides; within the
-  fight everything rewinds together — zero special cases.
+- Start (FreePlay→BossFight): no rewinding out of the fight once entered.
+- End (BossFight→Reward): the reward is run-scoped (player ⇒ persists);
+  rewinding past the killing blow would resurrect the boss with the reward
+  already pocketed and desync the run-scoped ante phase from the board.
+- Next ante (Reward→FreePlay) — the third door, not in the original sketch:
+  without it an Hourglass on the first turn of a new ante rewinds into the
+  spent ante's Reward turn (where `anteCountdown` was 0 throughout the
+  fight/reward); the replayed Reward→FreePlay branch then spawns the next boss
+  immediately, eating all the new ante's free-play turns. The door fell
+  straight out of the rewind semantics — hence "every transition is a door".
+- Within the fight everything rewinds together — zero special cases.
 - The cuts also bound the previously-unbounded turn stack (watch item:
   retired by this design). NOTE: `getTurnCount()` derives from stack size
   today — add a run-level turn counter when the cuts land. *(Done with slice
@@ -335,10 +343,10 @@ three `TurnEvent` types (§3).
    NOTE for content: `onDefeat` runs BEFORE removal — loot can't spawn ON the
    footprint cells; spawn beside, or defer to a follow-up mechanism if a boss
    needs corpse-cell drops.
-4. **Ante machine** (§6, §7) — phases, double-door stack cuts (+ run-level
-   turn counter), shop budget as fight trigger, shop freeze during fights,
-   reward phase. Invariants: stack depth across the doors, countdown frozen
-   in-fight, reward survives further play.
+4. **Ante machine** (§6, §7) — phases, per-transition stack cuts (the doors,
+   §7; + run-level turn counter), shop budget as fight trigger, shop freeze
+   during fights, reward phase. Invariants: stack depth across the doors,
+   countdown frozen in-fight, reward survives further play.
    **DONE (2026-06-13):** `GameRun::advanceAnteState` (called by endTurn after
    the shop pass): FreePlay ticks `anteCountdown` (per-turn snapshot rewinds
    it like the shop clock); at 0 the boss arrives (DECISION resolved: per-ante

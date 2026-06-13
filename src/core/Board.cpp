@@ -595,23 +595,45 @@ void Board::resolveBossAttack(Tile* attacker, Coord at) {
     if (turn) turn->log().push(TurnEvent::bossDamaged(damage, boss->getHp(), at));
 
     if (boss->getHp() <= 0) {
-        if (turn) turn->log().push(TurnEvent::bossDefeated(boss->getFootprint().front()));
+        // Detection ONLY. The sweep cannot run the death sequence inline: an
+        // onDefeat that mutates the board (spawn/destroy) would corrupt the
+        // cellBefore snapshot or the movementQueue still in flight. Defer the
+        // WHOLE sequence — BossDefeated log included — to resolveBossDefeat(),
+        // run after the sweep drains (see move()). defeatPending also blocks
+        // any further hit on the now-dead body this same sweep (guard above).
         defeatPending = true;
     }
 }
 
 void Board::resolveBossDefeat() {
-    // DEFERRED from the sweep: BossDefeated was logged at detection time (in
-    // resolveBossAttack), so the event sits in the log at the moment the kill
-    // happened. The death effect and body removal run HERE, after the sweep is
-    // fully drained — safe to spawn tiles, destroy slots, or do any board
-    // mutation without corrupting the sweep's cellBefore map or movementQueue.
-    if (turn && turn->gameRun) {
-        EffectContext ctx(*turn->gameRun, *this, turn->log());
-        boss->runDefeat(ctx);
+    // THE single death sequence: log BossDefeated, run the death effect, remove
+    // the body — in that order, so cause precedes consequence (the killing
+    // BossDamaged already sits earlier in the log; onDefeat's events follow the
+    // defeat). Logging HERE rather than at sweep-detection time is what lets
+    // EVERY death path share one code path: the sweep kill (deferred via
+    // defeatPending), a self-damaging boss action, and any future damageBoss
+    // primitive all emit exactly one BossDefeated through this method.
+    //
+    // Precondition: boss != nullptr, called at a SAFE point (never mid-sweep).
+    if (turn) {
+        turn->log().push(TurnEvent::bossDefeated(boss->getFootprint().front()));
+        if (turn->gameRun) {
+            EffectContext ctx(*turn->gameRun, *this, turn->log());
+            boss->runDefeat(ctx);
+        }
     }
     boss.reset();
     defeatPending = false;
+}
+
+void Board::resolveBossDefeatIfDead() {
+    // The non-sweep death path. A boss whose HP a turn-action (or, later, a
+    // damageBoss primitive / reactor-inflicted damage) drove to <= 0 is reaped
+    // HERE, inline — safe because these callers run at end-of-turn safe points,
+    // not mid-sweep, so there is no in-flight movement to corrupt. The sweep
+    // deliberately does NOT use this: it must defer through defeatPending (see
+    // resolveBossAttack), which is the very hazard this inline path avoids.
+    if (boss && boss->getHp() <= 0) resolveBossDefeat();
 }
 
 // --- Movement ---

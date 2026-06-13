@@ -1550,6 +1550,41 @@ int main() {
         CHECK(run->getCoins() == coins0 + 1);
     }
 
+    // --- Boss action self-damage: the non-sweep death path reaps the body ----
+    // A boss action that drives HP to <= 0 must be DETECTED. Before the reap
+    // such a boss was an unreaped 0-HP zombie: the only death path was the
+    // movement sweep, and the kill check reads the BossDefeated event that only
+    // resolveBossDefeat emits. resolveBossAction now reaps inline (it runs at an
+    // end-of-turn safe point, not mid-sweep), so the whole death sequence —
+    // BossDefeated, onDefeat, body removal — fires through the one shared path.
+    {
+        auto run = makeRun(79);
+        Turn scratch(renderer, run.get());
+        scratch.board.clear();
+
+        int defeatLoot = 0;
+        BossDef suicide = makeTestBoss(50);
+        suicide.onTurnAction = [](Boss& b, EffectContext&) { b.takeDamage(999); };
+        suicide.onDefeat = [&defeatLoot](Boss&, EffectContext&) { ++defeatLoot; };
+        CHECK(scratch.board.spawnBoss(suicide, {0, 0}) != nullptr);
+
+        run->advanceAnteState(scratch.board);    // → BossFight
+        CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
+        scratch.log().clear();
+
+        run->resolveBossAction(scratch.board);   // the action's self-damage kills it
+        CHECK(scratch.board.getBoss() == nullptr);                        // body reaped inline
+        CHECK(defeatLoot == 1);                                           // onDefeat ran
+        CHECK(scratch.log().countOf(TurnEvent::Type::BossDefeated) == 1); // exactly one
+
+        // ...and the kill check (which now reads the event, not body-absence)
+        // grants the reward, exactly as a sweep kill would.
+        const int coins0 = run->getCoins();
+        run->advanceAnteState(scratch.board);
+        CHECK(run->getAntePhase() == GameRun::AntePhase::Reward);
+        CHECK(run->getCoins() == coins0 + 50);   // placeholder reward: 50 × ante (ante 1)
+    }
+
     // --- Boss occupancy: spawn exclusions on both sides -----------------------
     {
         auto run = makeRun(67);

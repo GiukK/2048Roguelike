@@ -100,10 +100,13 @@ public:
     // reactors ("when the fight starts ..." content needs no new plumbing).
     void advanceAnteState(Board& board);
 
-    // Runs the boss's per-turn action during BossFight (no-op otherwise).
-    // Called by Turn::endTurn BEFORE advanceAnteState, so the action's
-    // consequences (tile destruction, etc.) are on the board when the kill
-    // check runs — a boss that suicides via its own action is detected.
+    // Runs the boss's per-turn action during BossFight (no-op otherwise), then
+    // reaps the boss if that action drove its HP to <= 0
+    // (Board::resolveBossDefeatIfDead — the non-sweep death path). Called by
+    // Turn::endTurn BEFORE advanceAnteState, so BOTH the action's board
+    // consequences (tile destruction, etc.) AND a self-kill's BossDefeated
+    // event are present when the kill check runs — a boss that suicides via its
+    // own action is genuinely detected, not left as a 0-HP zombie.
     void resolveBossAction(Board& board);
 
     int getAnte() const { return ante; }
