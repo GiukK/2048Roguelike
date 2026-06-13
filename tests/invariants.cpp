@@ -1509,6 +1509,128 @@ int main() {
         CHECK(turn.board.spawnBoss(makeTestBoss(10), {0, 0}) != nullptr);
     }
 
+    // --- Ante machine: countdown → fight → kill → reward → next ante ---------
+    {
+        auto run = makeRun(70);
+        run->setAnteFreePlayTurns(2);
+        CHECK(run->getAntePhase() == GameRun::AntePhase::FreePlay);
+        CHECK(run->getAnte() == 1);
+
+        Turn scratch(renderer, run.get());
+        scratch.board.clear();
+        scratch.board.spawnTileInRandomEmptySlot();  // keeps the board alive
+
+        run->advanceAnteState(scratch.board);        // 2 -> 1
+        CHECK(run->getAnteCountdown() == 1);
+        CHECK(scratch.board.getBoss() == nullptr);
+
+        run->advanceAnteState(scratch.board);        // 1 -> 0: the Brute arrives
+        Boss* boss = scratch.board.getBoss();
+        CHECK(boss != nullptr);
+        CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
+        CHECK(boss->getMaxHp() == 64);               // ante 1: unscaled base
+
+        // Door one: the next turn push cuts the stack — no rewinding out of
+        // the fight — while the run-level turn number keeps counting.
+        run->newTurn(scratch.board);
+        CHECK(!run->goBack());
+        CHECK(run->getTurnCount() == 2);
+
+        // Shop machinery frozen during the fight.
+        const int sc = run->getShopCountdown();
+        run->advanceShopState(run->currentBoard());
+        CHECK(run->getShopCountdown() == sc);
+
+        // Kill the boss: feed it a 64 from an adjacent cell.
+        Board& fight = run->currentBoard();
+        CHECK(fight.getBoss() != nullptr);
+        const Coord bc = fight.getBoss()->getFootprint().front();
+        struct Probe { Coord off; Direction dir; };
+        const Probe probes[] = {{{-1, 0}, Direction::Right},
+                                {{1, 0}, Direction::Left},
+                                {{0, -1}, Direction::Down},
+                                {{0, 1}, Direction::Up}};
+        Direction dir = Direction::None;
+        for (const Probe& p : probes) {
+            if (fight.spawnTileAt({bc.x + p.off.x, bc.y + p.off.y}, 64)) {
+                dir = p.dir;
+                break;
+            }
+        }
+        CHECK(dir != Direction::None);
+        fight.move(dir);
+        CHECK(fight.getBoss() == nullptr);
+
+        // The kill is detected at the turn end: reward granted (run-scoped),
+        // phase moves to Reward.
+        const int coins0 = run->getCoins();
+        run->advanceAnteState(fight);
+        CHECK(run->getAntePhase() == GameRun::AntePhase::Reward);
+        CHECK(run->getCoins() == coins0 + 50);       // placeholder: 50 × ante
+
+        // Door two at the next push: no rewinding past the killing blow —
+        // and the pocketed reward survives the further play (it is run-scoped).
+        run->newTurn(fight);
+        CHECK(!run->goBack());
+        CHECK(run->getCoins() == coins0 + 50);
+
+        // The reward turn ends: the next ante begins, clock reset, and its
+        // boss arrives harder (placeholder linear HP scaling).
+        run->advanceAnteState(run->currentBoard());
+        CHECK(run->getAntePhase() == GameRun::AntePhase::FreePlay);
+        CHECK(run->getAnte() == 2);
+        CHECK(run->getAnteCountdown() == 2);
+
+        run->advanceAnteState(run->currentBoard()); // 2 -> 1
+        run->advanceAnteState(run->currentBoard()); // 1 -> 0: ante-2 boss
+        Boss* boss2 = run->currentBoard().getBoss();
+        CHECK(boss2 != nullptr && boss2->getMaxHp() == 128);
+    }
+
+    // --- Ante machine: goBack restores the resumed turn's ante countdown -----
+    {
+        auto run = makeRun(71);
+        Turn scratch(renderer, run.get());
+        const int a0 = run->getAnteCountdown();
+        run->advanceAnteState(scratch.board);
+        CHECK(run->getAnteCountdown() == a0 - 1);
+        run->newTurn(scratch.board);                 // the new top captured a0 - 1
+        run->advanceAnteState(scratch.board);
+        CHECK(run->getAnteCountdown() == a0 - 2);
+        CHECK(run->goBack());                        // resume the FIRST turn...
+        CHECK(run->getAnteCountdown() == a0);        // ...which started at a0
+    }
+
+    // --- Ante machine: a debug-spawned body is adopted, not replaced ---------
+    {
+        auto run = makeRun(72);
+        run->setAnteFreePlayTurns(1);
+        Turn scratch(renderer, run.get());
+        scratch.board.clear();
+        CHECK(scratch.board.spawnBoss(makeTestBoss(10), {0, 0}) != nullptr);
+        run->advanceAnteState(scratch.board);        // budget out: adopt the squatter
+        CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
+        CHECK(scratch.board.getBoss() != nullptr);
+        CHECK(scratch.board.getBoss()->getMaxHp() == 10);
+    }
+
+    // --- Ante machine: a full board delays the fight, the retry lands it -----
+    {
+        auto run = makeRun(73);
+        run->setAnteFreePlayTurns(1);
+        Turn scratch(renderer, run.get());
+        scratch.board.clear();
+        fillGrid(scratch.board, LockedGrid);         // 16/16: nowhere to spawn
+        run->advanceAnteState(scratch.board);
+        CHECK(run->getAntePhase() == GameRun::AntePhase::FreePlay);
+        CHECK(scratch.board.getBoss() == nullptr);
+
+        scratch.board.destroyTile(tileAt(scratch.board, {1, 1}));
+        run->advanceAnteState(scratch.board);        // the freed cell hosts it
+        CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
+        CHECK(scratch.board.getBoss() != nullptr);
+    }
+
     std::cout << checks << " checks, " << failures << " failure(s)\n";
     return failures == 0 ? 0 : 1;
 }

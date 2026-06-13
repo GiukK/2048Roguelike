@@ -20,6 +20,7 @@ constexpr float CoinsCounterX      = 1380.f;  // top-right coin count
 constexpr float ShopCountdownX     = 350.f;   // below the turn count
 constexpr float ShopCountdownY     = 100.f;
 constexpr float ShopCountdownScale = 7.f;
+constexpr float AnteCountdownY     = 170.f;   // below the shop countdown: the boss clock
 constexpr float InventoryX         = 1500.f;  // right-side inventory column
 constexpr float InventoryTopY      = 350.f;   // first item's Y
 constexpr float InventorySpacingY  = 200.f;   // vertical gap between items
@@ -246,6 +247,15 @@ void PlayUI::renderForeground(RenderSystem& r) {
     // interval once the shop is consumed.
     drawDigitCounter(r, static_cast<unsigned int>(run.getShopCountdown()),
                      ShopCountdownX, ShopCountdownY, ShopCountdownScale);
+
+    // The boss clock: free-play turns left before the ante's fight. Frozen
+    // (and reading 0) during the fight and the reward turn — the banner is
+    // the fight indicator then. Proper fight UI is slice 5; this keeps the
+    // doom visible meanwhile.
+    if (run.getAntePhase() == GameRun::AntePhase::FreePlay) {
+        drawDigitCounter(r, static_cast<unsigned int>(run.getAnteCountdown()),
+                         ShopCountdownX, AnteCountdownY, ShopCountdownScale);
+    }
 
     // Column frames first, so every widget draws on top of them.
     drawColumnPanel(r, InventoryX, "Items");

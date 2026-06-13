@@ -1,8 +1,8 @@
 # Boss & Enemy System — Design
 
-Status: **design pinned (2026-06-12); slices 1 (defeat check), 2 (board-scope
-reactor dispatch) and 3 (minimal Boss vertical slice) landed 2026-06-12/13;
-slices 4+ (ante machine onward) pre-implementation.** Companion to
+Status: **design pinned (2026-06-12); slices 1–4 landed 2026-06-12/13 (defeat
+check, board-scope dispatch, minimal Boss, ante machine); slices 5+ (fight
+presentation onward) pre-implementation.** Companion to
 `docs/effect-engine-design.md` (the engine this builds on); read that first.
 All major decisions below are RESOLVED from the 2026-06-12 design session;
 the few still open are marked `DECISION:`. See the memory note
@@ -224,7 +224,8 @@ END (Isaac boss-room doors).
   fight everything rewinds together — zero special cases.
 - The cuts also bound the previously-unbounded turn stack (watch item:
   retired by this design). NOTE: `getTurnCount()` derives from stack size
-  today — add a run-level turn counter when the cuts land.
+  today — add a run-level turn counter when the cuts land. *(Done with slice
+  4: `GameRun::turnNumber`.)*
 
 ---
 
@@ -338,6 +339,19 @@ three `TurnEvent` types (§3).
    turn counter), shop budget as fight trigger, shop freeze during fights,
    reward phase. Invariants: stack depth across the doors, countdown frozen
    in-fight, reward survives further play.
+   **DONE (2026-06-13):** `GameRun::advanceAnteState` (called by endTurn after
+   the shop pass): FreePlay ticks `anteCountdown` (per-turn snapshot rewinds
+   it like the shop clock); at 0 the boss arrives (DECISION resolved: per-ante
+   TURN countdown, default 30 — time-triggered, ignoring shops can't stall
+   it; a full board retries next turn end; a debug-V body is adopted). Kill
+   detection → run-scoped reward (placeholder 50×ante) → Reward phase for
+   exactly one turn → next ante (placeholder HP scaling baseHp×ante via a def
+   copy). Each door arms `stackCutPending`, consumed by newTurn →
+   `cutTurnStack` (top becomes the floor; goBack's depth-1 refusal enforces
+   the door). `getTurnCount()` now reads the run-level `turnNumber` (++ on
+   newTurn, -- on goBack, untouched by cuts). `advanceShopState` returns
+   early outside FreePlay (consumed shops still removed). HUD shows the boss
+   clock under the shop countdown during FreePlay.
 5. **First real boss + fight UI polish** — Brute promoted to ante content;
    banner, spawn/death presentation.
 6. **Catalogue growth** — Shifter, Purist, Sleeper (first consumer of
@@ -345,4 +359,4 @@ three `TurnEvent` types (§3).
    per-ante difficulty scaling.
 
 Extend `tests/invariants.cpp` with every slice (the suite is the project's
-regression net — 327 checks as of 2026-06-13, slices 1–3 included).
+regression net — 360 checks as of 2026-06-13, slices 1–4 included).

@@ -43,6 +43,17 @@ void GameRun::exit() {}
 
 void GameRun::newTurn(const Board& currentBoard) {
     turns.push(std::make_unique<Turn>(renderer, this, currentBoard));
+    ++turnNumber;
+
+    // The double doors (boss-design §7), applied where the new top turn
+    // becomes the stack FLOOR: armed by the ante transitions (fight start,
+    // fight end), so there is no rewinding out of a fight once entered and
+    // none past the killing blow once won. The cuts also bound the turn
+    // stack; getTurnCount() lives on the run-level counter above.
+    if (stackCutPending) {
+        cutTurnStack();
+        stackCutPending = false;
+    }
 
     // The defeat check (docs/boss-design.md §8), at its safe point: a turn that
     // BEGINS with no legal move is the lost position. Checking the freshly
@@ -61,12 +72,24 @@ void GameRun::newTurn(const Board& currentBoard) {
 bool GameRun::goBack() {
     if (turns.size() <= 1) return false;
     turns.pop();
+    --turnNumber;
     // "The world rewinds, the player persists" (docs/effect-engine-design.md §13):
-    // the resumed turn replays with the shop countdown it originally started with
-    // (board/log rewind was already in place). Coins and inventory deliberately
+    // the resumed turn replays with the shop AND ante countdowns it originally
+    // started with (board/log rewind was already in place) — a replayed turn
+    // must not tick either clock twice. Coins and inventory deliberately
     // survive the rewind — purchases stay bought, spent coins stay spent.
     shopCountdown = turns.top()->shopCountdownAtStart;
+    anteCountdown = turns.top()->anteCountdownAtStart;
     return true;
+}
+
+void GameRun::cutTurnStack() {
+    if (turns.size() <= 1) return;
+    std::unique_ptr<Turn> top = std::move(turns.top());
+    while (!turns.empty()) {
+        turns.pop();
+    }
+    turns.push(std::move(top));
 }
 
 void GameRun::openShop() {
@@ -85,6 +108,13 @@ void GameRun::advanceShopState(Board& board) {
 
     // 1. A shop merged during this turn disappears from the next board.
     int consumed = board.removeConsumedShops();
+
+    // Frozen outside FreePlay (boss-design §6): consumed shops still vanish
+    // (above — a merged shop may not haunt the board), but the countdown holds
+    // and nothing new spawns during a fight or the reward turn. A consumption
+    // mid-fight therefore skips the usual countdown restart: the clock simply
+    // resumes from its frozen value next ante — accepted, the fight froze it.
+    if (antePhase != AntePhase::FreePlay) return;
 
     // 2. Count shops still awaiting a merge after that removal.
     int activeShops = board.countActiveShops();
@@ -106,6 +136,69 @@ void GameRun::advanceShopState(Board& board) {
         int tileValue = shopTileValueStrategy ? shopTileValueStrategy(board)
                                               : std::max(2, board.getMaxTileValue());
         board.spawnShop(tileValue);
+    }
+}
+
+const std::string& GameRun::bossIdForAnte() const {
+    // Every ante fights the Brute until the catalogue grows (slice 6) — then
+    // this becomes a registry pick keyed off the ante number.
+    static const std::string brute = "brute";
+    return brute;
+}
+
+void GameRun::advanceAnteState(Board& board) {
+    switch (antePhase) {
+    case AntePhase::FreePlay: {
+        if (anteCountdown > 0) --anteCountdown;
+        if (anteCountdown > 0) return;
+
+        // Budget exhausted: the boss arrives. Adopt a body already on the
+        // board (the debug key); otherwise place the ante's boss, HP scaled —
+        // a full board leaves the countdown at 0 and simply retries here next
+        // turn end.
+        Boss* boss = board.getBoss();
+        if (!boss) {
+            BossDef scaled = bossRegistry.get(bossIdForAnte());
+            scaled.baseHp *= ante;
+            boss = board.spawnBossInRandomEmptySlot(scaled);
+        }
+        if (boss) {
+            antePhase = AntePhase::BossFight;
+            stackCutPending = true;  // door one: no rewinding out of the fight
+            if (debug::Enabled) {
+                std::cout << "[ante " << ante << "] boss fight: "
+                          << boss->getName() << " (" << boss->getMaxHp()
+                          << " hp)\n";
+            }
+        }
+        break;
+    }
+
+    case AntePhase::BossFight:
+        if (!board.getBoss()) {
+            // The kill happened this turn. The reward is run-scoped (the
+            // player keeps it through any rewind) and lands in the finishing
+            // turn's log, where the reactors still see it.
+            addCoins(anteReward());
+            antePhase = AntePhase::Reward;
+            stackCutPending = true;  // door two: no rewinding past the blow
+            if (debug::Enabled) {
+                std::cout << "[ante " << ante << "] boss down: +"
+                          << anteReward() << " coins\n";
+            }
+        }
+        break;
+
+    case AntePhase::Reward:
+        // The reward turn is over: the next ante begins, harder.
+        ++ante;
+        anteCountdown = anteFreePlayTurns;
+        antePhase = AntePhase::FreePlay;
+        if (debug::Enabled) {
+            std::cout << "[ante " << ante << "] free play, boss in "
+                      << anteCountdown << " turns\n";
+        }
+        break;
     }
 }
 

@@ -63,7 +63,8 @@ Turn::Turn(RenderSystem& renderer, GameRun* gameRun)
       gameRun(gameRun),
       board(renderer, this),
       boardSnapshot(Board::cloneFrom(board, this)),
-      shopCountdownAtStart(gameRun->getShopCountdown())
+      shopCountdownAtStart(gameRun->getShopCountdown()),
+      anteCountdownAtStart(gameRun->getAnteCountdown())
 {
     board.setAnimationCallback(gameRun->getAnimationCallback());
 }
@@ -73,7 +74,8 @@ Turn::Turn(RenderSystem& renderer, GameRun* gameRun, const Board& initialBoard)
       gameRun(gameRun),
       board(Board::cloneFrom(initialBoard, this)),
       boardSnapshot(Board::cloneFrom(initialBoard, this)),
-      shopCountdownAtStart(gameRun->getShopCountdown())
+      shopCountdownAtStart(gameRun->getShopCountdown()),
+      anteCountdownAtStart(gameRun->getAnteCountdown())
 {
     board.setAnimationCallback(gameRun->getAnimationCallback());
 }
@@ -111,6 +113,12 @@ void Turn::endTurn() {
     // this turn's board is immediately reset to its own pre-shop snapshot below
     // — so the undo history stays consistent and no shop pointer dangles.
     gameRun->advanceShopState(board);
+
+    // Then the ante clock, on the same finished board: a fight start spawns
+    // the boss here (inherited by the clone), a kill detected here grants the
+    // reward into THIS turn's log — both ahead of the flushes below, so the
+    // reactors see BossSpawned / the reward CoinsGained the turn they happen.
+    gameRun->advanceAnteState(board);
 
     // Final flush (catches end-of-turn events like ShopSpawned) + the aggregate
     // onTurnEnd pass over the full log. Before newTurn, so reactor mutations to

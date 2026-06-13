@@ -69,7 +69,43 @@ public:
     // next turn — so any spawn/removal it performs is inherited by the next
     // turn. Decrements the countdown, freezes it while shops are present,
     // removes consumed shops, and spawns a new shop when the countdown elapses.
+    // Frozen entirely outside FreePlay (boss-design §6): consumed shops still
+    // vanish, but the countdown holds and nothing new spawns mid-fight.
     void advanceShopState(Board& board);
+
+    // --- The ante machine (boss-design §6/§7) -------------------------------
+    // Per ante: free play → shop(s) → BOSS FIGHT → reward → next ante. Ante
+    // state is RUN-scoped (it survives undo; the double doors below make the
+    // fight boundaries unrewindable anyway).
+
+    enum class AntePhase { FreePlay, BossFight, Reward };
+
+    // Drives one completed turn of the ante clock. Called by Turn::endTurn
+    // right after advanceShopState, on the same finished board:
+    //  - FreePlay: ticks the countdown; at 0 the ante's boss arrives on the
+    //    board (time-triggered, not player-chosen — ignoring shops cannot
+    //    stall it). A full board simply retries next turn end. A boss already
+    //    present (debug key V) is adopted as the fight instead.
+    //  - BossFight: detects the kill (no body left), grants the run-scoped
+    //    reward, moves to Reward.
+    //  - Reward: lasts exactly one turn (presentation hooks live there), then
+    //    the next ante begins: ante+1, countdown reset, back to FreePlay.
+    // Entering BossFight and entering Reward each arm a stack CUT (the double
+    // doors, §7), applied by the next newTurn: no rewinding out of a fight,
+    // none past the killing blow.
+    void advanceAnteState(Board& board);
+
+    int getAnte() const { return ante; }
+    AntePhase getAntePhase() const { return antePhase; }
+    int getAnteCountdown() const { return anteCountdown; }
+    // Tunes the free-play budget; also re-clamps the live countdown while in
+    // FreePlay so the new pacing applies to the current ante too.
+    void setAnteFreePlayTurns(int turns) {
+        anteFreePlayTurns = std::max(1, turns);
+        if (antePhase == AntePhase::FreePlay) {
+            anteCountdown = std::min(anteCountdown, anteFreePlayTurns);
+        }
+    }
 
     // --- Modular shop tuning (safe to call at runtime, e.g. from abilities) ---
     void setShopSpawnInterval(int turns) { shopSpawnInterval = std::max(0, turns); }
@@ -114,7 +150,11 @@ public:
     // --- Inventory queries / commands for the UI layer (PlayUI) ---
     const std::vector<std::string>& getInventoryItems() const { return inventoryItems; }
     int getSelectedIndex() const { return selectedIndex; }
-    size_t getTurnCount() const { return turns.size(); }
+    // The run-level turn number — NOT the stack size: the double-door cuts
+    // drop history without rewinding time (boss-design §7's noted follow-on).
+    // newTurn increments it, goBack decrements it (a rewound turn is replayed
+    // under its original number), cuts leave it alone.
+    size_t getTurnCount() const { return turnNumber; }
 
     // Monotonic content-change counters for the UI's change detection: bumped
     // on EVERY mutation of the respective list, not just size changes — a
@@ -256,6 +296,17 @@ private:
     void discardItem(size_t index);
     void clearSelection();
 
+    // One door of §7: drops every turn below the current top, making it the
+    // new stack floor (goBack already refuses at depth 1). Applied by newTurn
+    // when an ante transition armed stackCutPending.
+    void cutTurnStack();
+
+    // Placeholder reward/scaling formulas until balance work: linear in the
+    // ante number, routed through the normal hooks (addCoins; a def copy with
+    // scaled baseHp) so replacing them later touches only these lines.
+    int anteReward() const { return 50 * ante; }
+    const std::string& bossIdForAnte() const;
+
     RenderSystem& renderer;
     AnimationCallback animationCallback;
     ShopCallback shopCallback;
@@ -306,4 +357,19 @@ private:
     int shopCountdown = 10; // mirrors shopSpawnInterval at construction
     unsigned int maxShopsOnBoard = 1;
     ShopTileValueStrategy shopTileValueStrategy;
+
+    // --- Ante state (see the public section above) ---
+    // anteFreePlayTurns: the per-ante budget (the "~3 shop cycles").
+    // anteCountdown:     free-play turns left before the boss arrives; per-turn
+    //                    snapshots rewind it like the shop countdown.
+    // stackCutPending:   armed by the fight-start/fight-end transitions,
+    //                    consumed by the next newTurn (the double doors).
+    int ante = 1;
+    AntePhase antePhase = AntePhase::FreePlay;
+    int anteFreePlayTurns = 30;
+    int anteCountdown = 30; // mirrors anteFreePlayTurns at construction
+    bool stackCutPending = false;
+
+    // Run-level turn number (see getTurnCount).
+    size_t turnNumber = 1; // the genesis turn pushed by the constructor
 };
