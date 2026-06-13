@@ -65,7 +65,7 @@ void RenderSystem::initialize(const sf::Vector2u& size) {
     // Board & Slots
     scalingRules["slot"]      = {192 * 2, 108 * 2};
     scalingRules["shopslot"]  = {192, 108};
-    scalingRules["monstro"]   = {192 * 4, 108 * 4};
+    scalingRules["monstro"]   = {192, 108};
     scalingRules["bomb"]      = {192, 108};
     scalingRules["bomb_2"]     = {192, 108};
     scalingRules["bomb_3"]     = {192, 108};
