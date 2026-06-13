@@ -86,7 +86,12 @@ bool GameRun::goBack() {
 void GameRun::cutTurnStack() {
     if (turns.size() <= 1) return;
     std::unique_ptr<Turn> top = std::move(turns.top());
+    turns.pop();
     while (!turns.empty()) {
+        // Retire, don't destroy: Turn::endTurn — still on the call stack when
+        // newTurn applies this cut — belongs to one of these turns. They die
+        // at the next update(), where no Turn method is executing.
+        retiredTurns.push_back(std::move(turns.top()));
         turns.pop();
     }
     turns.push(std::move(top));
@@ -146,25 +151,54 @@ const std::string& GameRun::bossIdForAnte() const {
     return brute;
 }
 
+const char* GameRun::antePhaseName(AntePhase phase) {
+    switch (phase) {
+    case AntePhase::FreePlay:  return "FreePlay";
+    case AntePhase::BossFight: return "BossFight";
+    case AntePhase::Reward:    return "Reward";
+    }
+    return "Unknown";
+}
+
+void GameRun::logAnteTransition(Board& board) {
+    if (board.turn) {
+        board.turn->log().push(TurnEvent::antePhaseChanged(
+            static_cast<int>(antePhase), ante));
+    }
+}
+
 void GameRun::advanceAnteState(Board& board) {
     switch (antePhase) {
     case AntePhase::FreePlay: {
-        if (anteCountdown > 0) --anteCountdown;
-        if (anteCountdown > 0) return;
-
-        // Budget exhausted: the boss arrives. Adopt a body already on the
-        // board (the debug key); otherwise place the ante's boss, HP scaled —
-        // a full board leaves the countdown at 0 and simply retries here next
-        // turn end.
+        // A boss already on the board (debug key V today; future content that
+        // drops a body early) preempts the clock: it IS this ante's fight,
+        // starting now. Waiting out the countdown would leave a visible boss
+        // that is mechanically not a fight — no phase, no reward on the kill.
         Boss* boss = board.getBoss();
-        if (!boss) {
+        if (boss) {
+            if (debug::Enabled) {
+                std::cout << "[ante " << ante
+                          << "] boss already on the board - adopted as the fight\n";
+            }
+        } else {
+            if (anteCountdown > 0) --anteCountdown;
+            if (anteCountdown > 0) return;
+
+            // Budget exhausted: the ante's boss arrives, HP scaled — a full
+            // board leaves the countdown at 0 and simply retries here next
+            // turn end.
             BossDef scaled = bossRegistry.get(bossIdForAnte());
             scaled.baseHp *= ante;
             boss = board.spawnBossInRandomEmptySlot(scaled);
+            if (!boss && debug::Enabled) {
+                std::cout << "[ante " << ante
+                          << "] boss due, but no free slot - retrying next turn\n";
+            }
         }
         if (boss) {
             antePhase = AntePhase::BossFight;
             stackCutPending = true;  // door one: no rewinding out of the fight
+            logAnteTransition(board);
             if (debug::Enabled) {
                 std::cout << "[ante " << ante << "] boss fight: "
                           << boss->getName() << " (" << boss->getMaxHp()
@@ -182,6 +216,7 @@ void GameRun::advanceAnteState(Board& board) {
             addCoins(anteReward());
             antePhase = AntePhase::Reward;
             stackCutPending = true;  // door two: no rewinding past the blow
+            logAnteTransition(board);
             if (debug::Enabled) {
                 std::cout << "[ante " << ante << "] boss down: +"
                           << anteReward() << " coins\n";
@@ -194,6 +229,7 @@ void GameRun::advanceAnteState(Board& board) {
         ++ante;
         anteCountdown = anteFreePlayTurns;
         antePhase = AntePhase::FreePlay;
+        logAnteTransition(board);
         if (debug::Enabled) {
             std::cout << "[ante " << ante << "] free play, boss in "
                       << anteCountdown << " turns\n";
@@ -209,6 +245,11 @@ void GameRun::handleInput(sf::Event& event) {
 }
 
 void GameRun::update(float deltaTime) {
+    // Turns retired by a double-door cut die HERE, for the same reason the
+    // rewind below is deferred: no Turn method is on the call stack now, so
+    // destroying Turn objects is safe (see cutTurnStack).
+    retiredTurns.clear();
+
     // A rewind requested from inside the current turn (debug B) is processed
     // HERE, before entering Turn::update: at this point no Turn method is on
     // the call stack, so popping (destroying) the turn is safe.

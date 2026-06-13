@@ -52,6 +52,10 @@ std::string describe(const TurnEvent& e) {
     case TurnEvent::Type::BossDefeated:
         return "BossDefeated at (" + std::to_string(e.coord.x) + "," +
                std::to_string(e.coord.y) + ")";
+    case TurnEvent::Type::AntePhaseChanged:
+        return std::string("AntePhaseChanged -> ") +
+               GameRun::antePhaseName(static_cast<GameRun::AntePhase>(e.valueA)) +
+               " (ante " + std::to_string(e.valueB) + ")";
     default:
         return "Unknown";
     }
@@ -131,9 +135,17 @@ void Turn::endTurn() {
     // Debug: dump what happened this turn — including what the reactors just
     // appended. Before newTurn, so getTurnCount() still reports THIS finishing
     // turn. Independent verification channel; kept alongside the real consumers.
+    // The header carries the ante machine's state AFTER advanceAnteState, so
+    // every turn shows where the run stands (and the boss clock in FreePlay).
     if (debug::Enabled) {
+        const GameRun::AntePhase phase = gameRun->getAntePhase();
         std::cout << "[turn " << gameRun->getTurnCount() << "] "
-                  << eventLog.events().size() << " event(s)\n";
+                  << eventLog.events().size() << " event(s) | ante "
+                  << gameRun->getAnte() << ' ' << GameRun::antePhaseName(phase);
+        if (phase == GameRun::AntePhase::FreePlay) {
+            std::cout << ", boss in " << gameRun->getAnteCountdown();
+        }
+        std::cout << '\n';
         for (const auto& e : eventLog.events()) {
             std::cout << "    " << describe(e) << '\n';
         }

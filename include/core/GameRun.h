@@ -82,10 +82,12 @@ public:
 
     // Drives one completed turn of the ante clock. Called by Turn::endTurn
     // right after advanceShopState, on the same finished board:
-    //  - FreePlay: ticks the countdown; at 0 the ante's boss arrives on the
-    //    board (time-triggered, not player-chosen — ignoring shops cannot
-    //    stall it). A full board simply retries next turn end. A boss already
-    //    present (debug key V) is adopted as the fight instead.
+    //  - FreePlay: a boss already on the board (debug key V, future content)
+    //    is adopted as this ante's fight IMMEDIATELY — a visible boss that is
+    //    mechanically not a fight would be a lie. Otherwise ticks the
+    //    countdown; at 0 the ante's boss arrives on the board (time-triggered,
+    //    not player-chosen — ignoring shops cannot stall it). A full board
+    //    simply retries next turn end.
     //  - BossFight: detects the kill (no body left), grants the run-scoped
     //    reward, moves to Reward.
     //  - Reward: lasts exactly one turn (presentation hooks live there), then
@@ -93,10 +95,15 @@ public:
     // Entering BossFight and entering Reward each arm a stack CUT (the double
     // doors, §7), applied by the next newTurn: no rewinding out of a fight,
     // none past the killing blow.
+    // Every phase transition is logged as an AntePhaseChanged event in the
+    // finishing turn's log — observable in the debug turn dump and by the
+    // reactors ("when the fight starts ..." content needs no new plumbing).
     void advanceAnteState(Board& board);
 
     int getAnte() const { return ante; }
     AntePhase getAntePhase() const { return antePhase; }
+    // Stable display names for the phases (debug dumps, future fight UI).
+    static const char* antePhaseName(AntePhase phase);
     int getAnteCountdown() const { return anteCountdown; }
     // Tunes the free-play budget; also re-clamps the live countdown while in
     // FreePlay so the new pacing applies to the current ante too.
@@ -298,8 +305,17 @@ private:
 
     // One door of §7: drops every turn below the current top, making it the
     // new stack floor (goBack already refuses at depth 1). Applied by newTurn
-    // when an ante transition armed stackCutPending.
+    // when an ante transition armed stackCutPending. The dropped turns are
+    // RETIRED (moved to retiredTurns), not destroyed: newTurn's caller is
+    // Turn::endTurn — a member function of one of the dropped turns — so
+    // destroying them here would free the very Turn still executing (the same
+    // hazard requestGoBack defers around). update() empties the graveyard.
     void cutTurnStack();
+
+    // Logs the just-applied ante transition as an AntePhaseChanged event in
+    // the finishing turn's log (see advanceAnteState). Call AFTER mutating
+    // antePhase/ante so the event carries the new state.
+    void logAnteTransition(Board& board);
 
     // Placeholder reward/scaling formulas until balance work: linear in the
     // ante number, routed through the normal hooks (addCoins; a def copy with
@@ -318,6 +334,11 @@ private:
     unsigned int runSeed = 0;  // the seed rng was actually seeded with
 
     std::stack<std::unique_ptr<Turn>> turns;
+
+    // The double doors' graveyard: turns dropped by cutTurnStack, kept alive
+    // until the next update() because the cut fires while one of them is
+    // still executing endTurn (see cutTurnStack).
+    std::vector<std::unique_ptr<Turn>> retiredTurns;
 
     // Run-scoped reactors, in acquisition order — the deterministic dispatch
     // order for the run scope (no board position to sort by).

@@ -1602,17 +1602,21 @@ int main() {
         CHECK(run->getAnteCountdown() == a0);        // ...which started at a0
     }
 
-    // --- Ante machine: a debug-spawned body is adopted, not replaced ---------
+    // --- Ante machine: a debug-spawned body is adopted IMMEDIATELY -----------
+    // (not replaced, and not left waiting for the countdown: a visible boss
+    // that is mechanically not a fight would be a lie — the V-key regression).
     {
         auto run = makeRun(72);
-        run->setAnteFreePlayTurns(1);
         Turn scratch(renderer, run.get());
         scratch.board.clear();
         CHECK(scratch.board.spawnBoss(makeTestBoss(10), {0, 0}) != nullptr);
-        run->advanceAnteState(scratch.board);        // budget out: adopt the squatter
+        CHECK(run->getAnteCountdown() > 1);          // budget far from exhausted
+        run->advanceAnteState(scratch.board);        // adopt now, preempting the clock
         CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
         CHECK(scratch.board.getBoss() != nullptr);
         CHECK(scratch.board.getBoss()->getMaxHp() == 10);
+        // The transition is a first-class event in the finishing turn's log.
+        CHECK(scratch.log().countOf(TurnEvent::Type::AntePhaseChanged) == 1);
     }
 
     // --- Ante machine: a full board delays the fight, the retry lands it -----
@@ -1630,6 +1634,39 @@ int main() {
         run->advanceAnteState(scratch.board);        // the freed cell hosts it
         CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
         CHECK(scratch.board.getBoss() != nullptr);
+    }
+
+    // --- Ante machine × the real turn loop: the cut spares the cutting turn --
+    // The double-door cut fires inside Turn::endTurn (via newTurn). Without
+    // the retired-turns graveyard it destroyed the very Turn whose endTurn
+    // was still on the call stack — a use-after-free crash the direct-call
+    // tests above can't see, because they never reach the cut from endTurn.
+    {
+        auto run = makeRun(74);
+        run->setAnteFreePlayTurns(1);                // the fight starts this turn
+
+        Board& board = run->currentBoard();
+        board.clear();
+        CHECK(board.spawnTileAt({1, 0}, 2) != nullptr);
+        CHECK(board.spawnTileAt({2, 0}, 2) != nullptr);  // Left is a valid move
+
+        sf::Event::KeyReleased key;
+        key.scancode = sf::Keyboard::Scancode::A;        // move Left
+        sf::Event event(key);
+        run->handleInput(event);
+
+        // Drive the real loop until the turn cycles (movement, resolution,
+        // endTurn -> boss spawn -> newTurn applies the cut). Bounded so a
+        // regression that stalls the loop fails instead of hanging.
+        for (int i = 0; i < 200 && run->getTurnCount() == 1; ++i) {
+            run->update(0.5f);
+        }
+        CHECK(run->getTurnCount() == 2);
+        CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
+        CHECK(run->currentBoard().getBoss() != nullptr);
+        CHECK(!run->goBack());                       // door one: the new stack floor
+        run->update(0.f);                            // empties the graveyard safely
+        CHECK(run->currentBoard().getBoss() != nullptr);
     }
 
     // --- Debug toggle: runtime switch between admin mode and the real economy -
