@@ -229,6 +229,7 @@ void GameRun::advanceAnteState(Board& board) {
         ++ante;
         anteCountdown = anteFreePlayTurns;
         antePhase = AntePhase::FreePlay;
+        stackCutPending = true;  // door three: no rewinding into a spent ante
         logAnteTransition(board);
         if (debug::Enabled) {
             std::cout << "[ante " << ante << "] free play, boss in "

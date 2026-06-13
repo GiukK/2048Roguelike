@@ -92,9 +92,9 @@ public:
     //    reward, moves to Reward.
     //  - Reward: lasts exactly one turn (presentation hooks live there), then
     //    the next ante begins: ante+1, countdown reset, back to FreePlay.
-    // Entering BossFight and entering Reward each arm a stack CUT (the double
-    // doors, §7), applied by the next newTurn: no rewinding out of a fight,
-    // none past the killing blow.
+    // All three phase transitions arm a stack CUT (the triple doors, §7),
+    // applied by the next newTurn: no rewinding out of a fight, none past the
+    // killing blow, none back into a spent ante's reward turn.
     // Every phase transition is logged as an AntePhaseChanged event in the
     // finishing turn's log — observable in the debug turn dump and by the
     // reactors ("when the fight starts ..." content needs no new plumbing).

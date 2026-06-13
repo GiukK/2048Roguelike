@@ -1669,6 +1669,40 @@ int main() {
         CHECK(run->currentBoard().getBoss() != nullptr);
     }
 
+    // --- Ante machine: third door — Reward→FreePlay is unrewindable -----------
+    // Without door three, an Hourglass on the first turn of a new ante rewinds
+    // into the spent ante's Reward turn. anteCountdown restores to 0 (it was 0
+    // throughout the fight/reward), and the replayed Reward→FreePlay branch of
+    // advanceAnteState spawns the next boss immediately — the player loses all
+    // free-play turns of the new ante.
+    {
+        auto run = makeRun(75);
+        run->setAnteFreePlayTurns(2);
+        Turn scratch(renderer, run.get());
+        scratch.board.clear();
+
+        // Walk through one full ante: FreePlay → BossFight → kill → Reward → FreePlay.
+        // Uses a 4-tile feeding a 4-hp boss (the real sweep path, not raw takeDamage).
+        CHECK(scratch.board.spawnBoss(makeTestBoss(4), {1, 0}) != nullptr);
+        run->advanceAnteState(scratch.board);                // → BossFight (door 1)
+        CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
+
+        CHECK(scratch.board.spawnTileAt({0, 0}, 4) != nullptr);
+        scratch.board.move(Direction::Right);                // kill via the sweep
+        CHECK(scratch.board.getBoss() == nullptr);
+        run->advanceAnteState(scratch.board);                // → Reward (door 2)
+        CHECK(run->getAntePhase() == GameRun::AntePhase::Reward);
+
+        run->advanceAnteState(scratch.board);                // → FreePlay ante 2 (door 3)
+        CHECK(run->getAntePhase() == GameRun::AntePhase::FreePlay);
+        CHECK(run->getAnte() == 2);
+        CHECK(run->getAnteCountdown() == 2);
+
+        // The third door must have armed: goBack is refused.
+        run->newTurn(scratch.board);
+        CHECK(!run->goBack());
+    }
+
     // --- Debug toggle: runtime switch between admin mode and the real economy -
     // (The tests run in a debug build, where active() starts true and the
     // toggle is live; in release both fold to constant false.)
