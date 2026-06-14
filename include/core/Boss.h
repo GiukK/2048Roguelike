@@ -111,6 +111,13 @@ public:
     const std::string& getDefId() const { return defId; }
     const std::string& getName() const { return name; }
     const std::string& getTextureId() const { return textureId; }
+
+    // The body's CURRENT look: the first mounted effect that declares a body
+    // texture wins (the Sleeper's asleep/awake art), else the def's base
+    // texture. Visual twin of statusText() — Board::render draws this, so a
+    // phase mechanic changes the sprite from its own state with no render-side
+    // type-switching on concrete effects. Headless: returns an id, not a sprite.
+    std::string currentTextureId() const;
     int getHp() const { return hp; }
     int getMaxHp() const { return maxHp; }
     const std::vector<Coord>& getFootprint() const { return footprint; }

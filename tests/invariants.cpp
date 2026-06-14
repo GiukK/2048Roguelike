@@ -1579,11 +1579,11 @@ int main() {
         CHECK(scratch.log().countOf(TurnEvent::Type::BossDefeated) == 1); // exactly one
 
         // ...and the kill check (which now reads the event, not body-absence)
-        // grants the reward, exactly as a sweep kill would.
-        const int coins0 = run->getCoins();
+        // arms the interactive reward, exactly as a sweep kill would.
         run->advanceAnteState(scratch.board);
         CHECK(run->getAntePhase() == GameRun::AntePhase::Reward);
-        CHECK(run->getCoins() == coins0 + 50);   // placeholder reward: 50 × ante (ante 1)
+        CHECK(run->isRewardPending());
+        CHECK(!run->getRewardOffer().empty());
     }
 
     // --- Boss as effect owner: the Sleeper (stateful boss, slice 5a) ----------
@@ -1630,6 +1630,34 @@ int main() {
         scratch.board.move(Direction::Right);
         CHECK(boss->getHp() == 28 - 8);
         CHECK(scratch.board.getAllTiles().empty());   // attacker consumed (Hit)
+    }
+
+    // --- Sleeper: the body texture follows the phase (bodyTextureId hint) ------
+    // Presentation twin of statusText: SleeperState::bodyTextureId drives
+    // Boss::currentTextureId, so Board::render shows asleep vs awake art without
+    // type-switching on concrete effects. A boss with no such effect (the Brute)
+    // falls through to its def's base texture.
+    {
+        auto run = makeRun(84);
+        Turn scratch(renderer, run.get());
+        scratch.board.clear();
+        Boss* boss = scratch.board.spawnBoss(run->getBossRegistry().get("sleeper"), {1, 1});
+        CHECK(boss != nullptr);
+        CHECK(boss->currentTextureId() == "sleeper_asleep");   // asleep at spawn
+
+        run->advanceAnteState(scratch.board);                  // adopt → BossFight
+        for (int i = 0; i < SleeperState::InvincibleTurns; ++i) {
+            run->resolveBossAction(scratch.board);             // alone on board: no self-damage
+        }
+        CHECK(boss->findEffect<SleeperState>()->isVulnerable());
+        CHECK(boss->currentTextureId() == "sleeper_awake");    // awake art once vulnerable
+
+        // The Brute has no body-texture effect → its def's base texture.
+        Turn other(renderer, run.get());
+        other.board.clear();
+        Boss* brute = other.board.spawnBoss(run->getBossRegistry().get("brute"), {1, 1});
+        CHECK(brute != nullptr);
+        CHECK(brute->currentTextureId() == "monstro");
     }
 
     // --- Sleeper: the phase clones and rewinds WITHIN the fight (§7) ----------
@@ -1727,6 +1755,13 @@ int main() {
     // --- Ante machine: countdown → fight → kill → reward → next ante ---------
     {
         auto run = makeRun(70);
+        // Decouple the STATE-MACHINE test from boss content: inject a trivially
+        // killable test boss with known, ante-scaled HP. The real ante boss is
+        // the Sleeper, whose invulnerability window is its own fight's concern,
+        // not the machine's. This is exactly what the bossForAnte seam is for.
+        run->setBossForAnteStrategy([](const BossRegistry&, int ante) {
+            return makeTestBoss(64 * ante);
+        });
         run->setAnteFreePlayTurns(2);
         CHECK(run->getAntePhase() == GameRun::AntePhase::FreePlay);
         CHECK(run->getAnte() == 1);
@@ -1739,11 +1774,11 @@ int main() {
         CHECK(run->getAnteCountdown() == 1);
         CHECK(scratch.board.getBoss() == nullptr);
 
-        run->advanceAnteState(scratch.board);        // 1 -> 0: the Brute arrives
+        run->advanceAnteState(scratch.board);        // 1 -> 0: the ante boss arrives
         Boss* boss = scratch.board.getBoss();
         CHECK(boss != nullptr);
         CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
-        CHECK(boss->getMaxHp() == 64);               // ante 1: unscaled base
+        CHECK(boss->getMaxHp() == 64);               // ante 1: 64 × 1 (injected strategy)
 
         // Door one: the next turn push cuts the stack — no rewinding out of
         // the fight — while the run-level turn number keeps counting.
@@ -1776,18 +1811,28 @@ int main() {
         fight.move(dir);
         CHECK(fight.getBoss() == nullptr);
 
-        // The kill is detected at the turn end: reward granted (run-scoped),
-        // phase moves to Reward.
-        const int coins0 = run->getCoins();
+        // The kill is detected at turn end: an INTERACTIVE reward is armed
+        // (offer generated, rewardPending) and the phase moves to Reward. The
+        // grant is deferred to the player's pick, not auto-applied.
         run->advanceAnteState(fight);
         CHECK(run->getAntePhase() == GameRun::AntePhase::Reward);
-        CHECK(run->getCoins() == coins0 + 50);       // placeholder: 50 × ante
+        CHECK(run->isRewardPending());
+        CHECK(!run->getRewardOffer().empty());
+        CHECK(run->getRewardOffer().size() <= 3);
 
-        // Door two at the next push: no rewinding past the killing blow —
-        // and the pocketed reward survives the further play (it is run-scoped).
+        // Picking grants the chosen option (an item or a card) and clears the
+        // owed-reward state — the model path the modal drives in real play.
+        const size_t inv0 = run->getInventoryItems().size();
+        const size_t cards0 = run->getOwnedCards().size();
+        run->pickReward(0);
+        CHECK(!run->isRewardPending());
+        CHECK(!run->isRewardOpen());
+        CHECK(run->getInventoryItems().size() == inv0 + 1 ||
+              run->getOwnedCards().size() == cards0 + 1);
+
+        // Door two at the next push: no rewinding past the killing blow.
         run->newTurn(fight);
         CHECK(!run->goBack());
-        CHECK(run->getCoins() == coins0 + 50);
 
         // The reward turn ends: the next ante begins, clock reset, and its
         // boss arrives harder (placeholder linear HP scaling).
@@ -1800,6 +1845,50 @@ int main() {
         run->advanceAnteState(run->currentBoard()); // 1 -> 0: ante-2 boss
         Boss* boss2 = run->currentBoard().getBoss();
         CHECK(boss2 != nullptr && boss2->getMaxHp() == 128);
+    }
+
+    // --- Reward: defeat arms an interactive offer; pick grants, skip doesn't --
+    // The BossFight→Reward transition builds an offer from cards + consumables;
+    // the boss's defId rides the BossDefeated event into the context. We drive
+    // the model directly here (no modal): picking applies one grant, skipping
+    // clears the owed reward with none.
+    {
+        auto run = makeRun(90);
+        Turn scratch(renderer, run.get());
+        scratch.board.clear();
+        Boss* boss = scratch.board.spawnBoss(makeTestBoss(2), {2, 2});
+        CHECK(boss != nullptr);
+        run->advanceAnteState(scratch.board);              // adopt → BossFight
+        CHECK(run->getAntePhase() == GameRun::AntePhase::BossFight);
+
+        // Lethal 2 from the west (default Hit for the tile's value).
+        CHECK(scratch.board.spawnTileAt({1, 2}, 2) != nullptr);
+        scratch.board.move(Direction::Right);
+        CHECK(scratch.board.getBoss() == nullptr);         // dead
+
+        // The kill event carries the boss defId for the reward context.
+        bool taggedDefId = false;
+        for (const auto& e : scratch.log().events()) {
+            if (e.type == TurnEvent::Type::BossDefeated && e.itemId == "test_boss") {
+                taggedDefId = true;
+            }
+        }
+        CHECK(taggedDefId);
+
+        run->advanceAnteState(scratch.board);              // BossFight → Reward
+        CHECK(run->getAntePhase() == GameRun::AntePhase::Reward);
+        CHECK(run->isRewardPending());
+        const size_t offered = run->getRewardOffer().size();
+        CHECK(offered >= 1 && offered <= 3);
+
+        // Skip: the owed reward clears, nothing is granted.
+        const size_t inv0 = run->getInventoryItems().size();
+        const size_t cards0 = run->getOwnedCards().size();
+        run->dismissReward();
+        CHECK(!run->isRewardPending());
+        CHECK(run->getRewardOffer().empty());
+        CHECK(run->getInventoryItems().size() == inv0);
+        CHECK(run->getOwnedCards().size() == cards0);
     }
 
     // --- Ante machine: goBack restores the resumed turn's ante countdown -----

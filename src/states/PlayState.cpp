@@ -1,6 +1,7 @@
 #include "states/PlayState.h"
 #include "states/StateManager.h"
 #include "states/ShopState.h"
+#include "states/RewardState.h"
 #include "states/GameOverState.h"
 #include "rendering/RenderSystem.h"
 
@@ -33,6 +34,15 @@ PlayState::PlayState(StateManager& stateManager, RenderSystem& renderer)
 
     currentRun = std::make_unique<GameRun>(renderer, animCallback, shopCallback);
     currentRun->setAnimationsActiveQuery([this]() { return hasActiveAnimations(); });
+
+    // Post-boss reward picker, same modal pattern as the shop: the run model
+    // signals "a reward is owed", the state layer pushes the picker over a
+    // frozen play screen. Picking/skipping pops it and play resumes.
+    currentRun->setRewardCallback([this](GameRun* run) {
+        this->stateManager.pushState(std::make_unique<RewardState>(
+            this->stateManager, this->renderer, run,
+            [this](RenderSystem& r) { renderWorldAndHud(r); }));
+    });
 
     // Defeat → the terminal game-over overlay, same modal pattern as the shop:
     // the run model signals, the state layer presents. The overlay's exit pops

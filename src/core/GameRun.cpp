@@ -33,6 +33,21 @@ GameRun::GameRun(RenderSystem& renderer, AnimationCallback onAnimation, ShopCall
     shopTileValueStrategy = [](const Board& board) {
         return std::clamp(board.getMaxTileValue(), 2, Tile::MaxValue / 2);
     };
+
+    // Default ante boss: the Sleeper, with placeholder linear HP scaling
+    // (baseHp × ante). The whole "which boss, how hard per ante" policy lives
+    // here behind the strategy seam, so the ante machine never names a boss
+    // (see setBossForAnteStrategy / advanceAnteState).
+    bossForAnteStrategy = [](const BossRegistry& reg, int ante) {
+        BossDef def = reg.get("sleeper");
+        def.baseHp *= ante;
+        return def;
+    };
+
+    // Default post-defeat reward offer: 3 options from cards + consumables (see
+    // defaultRewardOffer). Swappable via setRewardOfferStrategy.
+    rewardOfferStrategy = &GameRun::defaultRewardOffer;
+
     shopCountdown = shopSpawnInterval;
 
     turns.push(std::make_unique<Turn>(renderer, this));
@@ -105,6 +120,60 @@ void GameRun::openShop() {
     }
 }
 
+void GameRun::openReward() {
+    if (rewardOpen) return;
+    // No presenter wired (headless harness, or a reward armed before the state
+    // layer attached) → skip rather than soft-lock the Phase::Begin gate, which
+    // would otherwise wait forever for a modal that can never open.
+    if (!rewardCallback) { dismissReward(); return; }
+    rewardOpen = true;
+    rewardCallback(this);
+}
+
+void GameRun::pickReward(size_t index) {
+    // Apply the chosen grant (addItem / acquireCard / ...), then close. An
+    // out-of-range index still closes the picker — the reward is consumed.
+    if (index < rewardOffer.size() && rewardOffer[index].apply) {
+        rewardOffer[index].apply(*this);
+    }
+    dismissReward();
+}
+
+void GameRun::dismissReward() {
+    rewardPending = false;
+    rewardOpen = false;
+    rewardOffer.clear();
+}
+
+std::vector<RewardOption> GameRun::defaultRewardOffer(const RewardContext& ctx) {
+    GameRun& run = ctx.run;
+
+    // Build the candidate pool from BOTH families, each option carrying its own
+    // grant lambda (so the picker stays content-agnostic): every consumable,
+    // plus every card the player does not already own (the shop's normal policy).
+    std::vector<RewardOption> pool;
+    for (const ItemDef* def : run.getItemRegistry().getAll()) {
+        pool.push_back({"item:" + def->id, def->textureId, def->name, def->description,
+                        [id = def->id](GameRun& r) { r.addItem(id); }});
+    }
+    for (const CardDef* def : run.getCardRegistry().getAll()) {
+        if (!run.ownsCard(def->id)) {
+            pool.push_back({"card:" + def->id, def->textureId, def->name, def->description,
+                            [id = def->id](GameRun& r) { r.acquireCard(id); }});
+        }
+    }
+
+    // Up to 3 DISTINCT options, uniformly drawn (remove-on-pick, so no dupes).
+    constexpr size_t OfferCount = 3;
+    std::vector<RewardOption> offer;
+    while (offer.size() < OfferCount && !pool.empty()) {
+        int idx = run.getRandomInt(0, static_cast<int>(pool.size()) - 1);
+        offer.push_back(std::move(pool[static_cast<size_t>(idx)]));
+        pool.erase(pool.begin() + idx);
+    }
+    return offer;
+}
+
 void GameRun::advanceShopState(Board& board) {
     // Order matters. We mutate `board` (the turn that just ended, already past
     // its move + tile spawn) so the result is baked into the clone the next turn
@@ -142,13 +211,6 @@ void GameRun::advanceShopState(Board& board) {
                                               : std::max(2, board.getMaxTileValue());
         board.spawnShop(tileValue);
     }
-}
-
-const std::string& GameRun::bossIdForAnte() const {
-    // Every ante fights the Brute until the catalogue grows (slice 6) — then
-    // this becomes a registry pick keyed off the ante number.
-    static const std::string brute = "brute";
-    return brute;
 }
 
 const char* GameRun::antePhaseName(AntePhase phase) {
@@ -201,12 +263,11 @@ void GameRun::advanceAnteState(Board& board) {
             if (anteCountdown > 0) --anteCountdown;
             if (anteCountdown > 0) return;
 
-            // Budget exhausted: the ante's boss arrives, HP scaled — a full
-            // board leaves the countdown at 0 and simply retries here next
-            // turn end.
-            BossDef scaled = bossRegistry.get(bossIdForAnte());
-            scaled.baseHp *= ante;
-            boss = board.spawnBossInRandomEmptySlot(scaled);
+            // Budget exhausted: the ante's boss arrives (the strategy picks
+            // and scales it) — a full board leaves the countdown at 0 and
+            // simply retries here next turn end.
+            BossDef def = bossForAnteStrategy(bossRegistry, ante);
+            boss = board.spawnBossInRandomEmptySlot(def);
             if (!boss && debug::Enabled) {
                 std::cout << "[ante " << ante
                           << "] boss due, but no free slot - retrying next turn\n";
@@ -235,18 +296,31 @@ void GameRun::advanceAnteState(Board& board) {
         // the body removal is merely its mechanism. Both sweep and self-damage
         // kills route their BossDefeated through Board::resolveBossDefeat, so
         // this one check covers every death path.
-        if (board.turn &&
-            board.turn->log().countOf(TurnEvent::Type::BossDefeated) > 0) {
-            // The reward is run-scoped (the player keeps it through any rewind)
-            // and lands in the finishing turn's log, where the reactors still
-            // see it.
-            addCoins(anteReward());
-            antePhase = AntePhase::Reward;
-            stackCutPending = true;  // door two: no rewinding past the blow
-            logAnteTransition(board);
-            if (debug::Enabled) {
-                std::cout << "[ante " << ante << "] boss down: +"
-                          << anteReward() << " coins\n";
+        if (board.turn) {
+            // Find the kill event (one boss at a time, one per turn) to learn
+            // WHICH boss fell — the offer can branch on it. The body is already
+            // reaped by now, so the defId rides the event, not live state.
+            const TurnEvent* defeat = nullptr;
+            for (const TurnEvent& e : board.turn->log().events()) {
+                if (e.type == TurnEvent::Type::BossDefeated) { defeat = &e; break; }
+            }
+            if (defeat) {
+                // Build the offer NOW (deterministic, with the run RNG) and arm
+                // the picker; the GRANT happens when the player chooses (start
+                // of the Reward turn — Turn::update Phase::Begin → openReward).
+                // The reward is run-scoped and door two (armed below) makes it
+                // unrewindable.
+                RewardContext ctx{defeat->itemId, ante, *this};
+                rewardOffer = rewardOfferStrategy ? rewardOfferStrategy(ctx)
+                                                  : std::vector<RewardOption>{};
+                rewardPending = true;
+                antePhase = AntePhase::Reward;
+                stackCutPending = true;  // door two: no rewinding past the blow
+                logAnteTransition(board);
+                if (debug::Enabled) {
+                    std::cout << "[ante " << ante << "] boss down: "
+                              << rewardOffer.size() << " reward option(s)\n";
+                }
             }
         }
         break;

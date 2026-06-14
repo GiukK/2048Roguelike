@@ -32,7 +32,10 @@ void TextureManager::initialize() {
     // Board
     load("slot",     "assets/textures/slot.png");
     load("shopslot", "assets/textures/shopslot.png");
-    load("monstro",  "assets/textures/monstro.png");
+    load("monstro",  "assets/textures/monstro.png");  // Brute (engine-test fixture)
+    // Sleeper phase art — picked per phase by SleeperState::bodyTextureId.
+    load("sleeper_asleep", "assets/textures/sleeper_asleep.png");
+    load("sleeper_awake",  "assets/textures/sleeper_awake.png");
     load("bomb",     "assets/textures/bomb.png");
     load("bomb_2",     "assets/textures/bomb_2.png");
     load("bomb_3",     "assets/textures/bomb_3.png");

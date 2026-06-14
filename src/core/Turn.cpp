@@ -179,6 +179,18 @@ void Turn::update(float deltaTime) {
     switch (currentPhase) {
 
     case Phase::Begin:
+        // A reward owed from the kill turn opens its picker before play resumes
+        // — the Phase::Begin twin of the shop's Phase::End gate. The modal
+        // pauses the world (PlayState stops updating the run) until the player
+        // chooses, so no move is processed while a reward is owed.
+        if (gameRun->isRewardPending()) {
+            if (!gameRun->isRewardOpen()) gameRun->openReward();
+            // Drop any move captured the frame the reward turn opened, so a
+            // keypress can't leak past the modal and fire once it closes.
+            inputReceived = false;
+            currentMove = Direction::None;
+            break;
+        }
         board.update(deltaTime);
         if (inputReceived) {
             nextPhase();
@@ -282,10 +294,12 @@ void Turn::handleBeginInput(sf::Event& event) {
         if (debug::active()) gameRun->requestGoBack();
         break;
     case sf::Keyboard::Scancode::V:
-        // Debug-only: drop the Brute on a random empty slot. The manual fight
-        // trigger for slice 3 — the ante machine (slice 4) takes over spawning.
-        if (debug::active() && gameRun->getBossRegistry().has("brute")) {
-            board.spawnBossInRandomEmptySlot(gameRun->getBossRegistry().get("brute"));
+        // Debug-only: drop the Sleeper on a random empty slot for instant
+        // fight/phase-art testing (the ante machine adopts an on-board boss as
+        // the fight next endTurn). Points at the current content focus; the
+        // Brute stays the all-defaults engine-test fixture (invariant suite).
+        if (debug::active() && gameRun->getBossRegistry().has("sleeper")) {
+            board.spawnBossInRandomEmptySlot(gameRun->getBossRegistry().get("sleeper"));
         }
         break;
     default:

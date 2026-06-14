@@ -43,6 +43,13 @@ public:
             : "ASLEEP - invulnerable (" + std::to_string(turnsUntilWake()) + ")";
     }
 
+    // The body's look follows the phase — the same asleep/awake split statusText
+    // narrates, but for the sprite. Board::render reads it via Boss::currentTextureId,
+    // so the two phase textures are pure content, no render-side boss-type checks.
+    const char* bodyTextureId() const override {
+        return isVulnerable() ? "sleeper_awake" : "sleeper_asleep";
+    }
+
 private:
     int turnsAsleep = 0;
 };

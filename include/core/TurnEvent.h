@@ -31,7 +31,7 @@ struct TurnEvent {
         ItemUsed,       // an inventory item was consumed.  itemId set
         BossSpawned,    // a boss body appeared.            valueA = max HP, coord = anchor cell
         BossDamaged,    // a tile hit the boss.             valueA = final (post-modifier) damage, valueB = HP after, coord = attacked cell
-        BossDefeated,   // the boss died (follows its killing BossDamaged). coord = anchor cell
+        BossDefeated,   // the boss died (follows its killing BossDamaged). coord = anchor cell, itemId = boss defId (for the reward offer)
         AntePhaseChanged // the ante machine moved phase (fight start / boss down / next ante). valueA = the new GameRun::AntePhase (cast to int), valueB = the ante number
     };
 
@@ -83,8 +83,10 @@ struct TurnEvent {
     static TurnEvent bossDamaged(int damage, int hpAfter, Coord at) {
         return {Type::BossDamaged, damage, hpAfter, at};
     }
-    static TurnEvent bossDefeated(Coord at) {
-        return {Type::BossDefeated, 0, 0, at};
+    static TurnEvent bossDefeated(Coord at, std::string defId = {}) {
+        TurnEvent e{Type::BossDefeated, 0, 0, at};
+        e.itemId = std::move(defId);
+        return e;
     }
     static TurnEvent antePhaseChanged(int newPhase, int ante) {
         return {Type::AntePhaseChanged, newPhase, ante};

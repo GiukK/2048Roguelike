@@ -80,3 +80,13 @@ std::string Boss::statusText() const {
     }
     return {};
 }
+
+std::string Boss::currentTextureId() const {
+    // First effect that declares a body texture wins (mirror of statusText):
+    // the Sleeper's SleeperState returns asleep/awake art per phase. Bosses
+    // with no such effect (the Brute) fall through to the def's base texture.
+    for (const auto& effect : effects) {
+        if (const char* id = effect->bodyTextureId()) return id;
+    }
+    return textureId;
+}

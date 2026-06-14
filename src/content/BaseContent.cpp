@@ -286,7 +286,7 @@ void registerBaseBosses(BossRegistry& bosses) {
     BossDef sleeper;
     sleeper.id = "sleeper";
     sleeper.name = "Sleeper";
-    sleeper.textureId = "monstro";  // placeholder art, shared with the Brute (slice-6 visuals)
+    sleeper.textureId = "sleeper_asleep";  // base/fallback; SleeperState::bodyTextureId drives the asleep/awake art per phase
     sleeper.baseHp = 32;
     sleeper.effects.push_back([] { return std::make_unique<SleeperState>(); });
 

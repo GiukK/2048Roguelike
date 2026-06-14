@@ -15,6 +15,7 @@
 #include "core/ItemRegistry.h"
 #include "core/CardRegistry.h"
 #include "core/BossRegistry.h"
+#include "core/Reward.h"
 
 class RenderSystem;
 struct AttackContext;
@@ -29,10 +30,24 @@ public:
     // GameRun signals, the state layer decides how to present game over.
     using DefeatCallback = std::function<void(GameRun*)>;
 
+    // Fired to open the post-defeat reward picker. Same decoupling as
+    // ShopCallback (GameRun signals, the state layer pushes RewardState): the
+    // model never names StateManager. Driven by rewardPending at the start of
+    // the Reward turn (see Turn::update Phase::Begin / openReward).
+    using RewardCallback = std::function<void(GameRun*)>;
+
     // Decides the value of the phantom tile a freshly spawned shop holds.
     // Default: a copy of the board's current largest tile (see constructor).
     // Replaceable so abilities can change the shop-activation criterion later.
     using ShopTileValueStrategy = std::function<int(const Board&)>;
+
+    // Picks AND scales the boss a given ante fights. Default: the Sleeper (the
+    // first real ante boss) with placeholder linear HP scaling. Swap via
+    // setBossForAnteStrategy so "which boss each ante, how hard" is content /
+    // policy, not control flow in the ante machine — the slice-6 bossForAnte
+    // axis, and the seam the state-machine tests use to inject a trivial boss.
+    // Mirrors ShopTileValueStrategy.
+    using BossForAnteStrategy = std::function<BossDef(const BossRegistry&, int ante)>;
 
     // `seed` fixes the run's RNG for reproducible runs (tests, replaying a bug
     // report); nullopt = a fresh random seed. Whichever is used is kept readable
@@ -63,6 +78,29 @@ public:
     // True once a turn began with no legal move. Latched: the run is over, the
     // callback never re-fires (the game-over presentation is terminal anyway).
     bool isDefeated() const { return defeated; }
+
+    // --- Interactive boss reward (boss-design §6, the Reward phase) ----------
+    // After a boss falls, the BossFight→Reward transition builds an OFFER (the
+    // strategy below) and arms rewardPending; the Reward turn opens a modal
+    // picker (RewardState) so the player chooses one. The grant happens on the
+    // pick — run-scoped, and the doors make it unrewindable.
+    void setRewardCallback(RewardCallback cb) { rewardCallback = std::move(cb); }
+    // Swap the offered content (mirror of setShopTileValueStrategy). Default set
+    // in the ctor: up to 3 distinct options drawn from cards + consumables.
+    void setRewardOfferStrategy(RewardOfferStrategy s) { rewardOfferStrategy = std::move(s); }
+
+    bool isRewardPending() const { return rewardPending; }
+    bool isRewardOpen() const { return rewardOpen; }
+    const std::vector<RewardOption>& getRewardOffer() const { return rewardOffer; }
+    // Opens the picker (fires rewardCallback). Idempotent while open — mirror of
+    // openShop. No-op with no callback (tests drive pickReward directly).
+    void openReward();
+    // Applies the chosen option and closes the picker (clears the owed-reward
+    // state). Out-of-range index = a safe no-op grant, picker still closes.
+    void pickReward(size_t index);
+    // Closes the picker WITHOUT a grant (the ESC/skip path). Both paths clear
+    // rewardPending/rewardOpen and the offer.
+    void dismissReward();
 
     // Drives the whole shop-spawn lifecycle for one completed turn. Called by
     // Turn::endTurn on the just-finished board, before it is cloned into the
@@ -128,6 +166,9 @@ public:
     void setMaxShopsOnBoard(unsigned int count) { maxShopsOnBoard = count; }
     void setShopTileValueStrategy(ShopTileValueStrategy strategy) {
         shopTileValueStrategy = std::move(strategy);
+    }
+    void setBossForAnteStrategy(BossForAnteStrategy strategy) {
+        bossForAnteStrategy = std::move(strategy);
     }
     int getShopCountdown() const { return shopCountdown; }
 
@@ -326,11 +367,11 @@ private:
     // antePhase/ante so the event carries the new state.
     void logAnteTransition(Board& board);
 
-    // Placeholder reward/scaling formulas until balance work: linear in the
-    // ante number, routed through the normal hooks (addCoins; a def copy with
-    // scaled baseHp) so replacing them later touches only these lines.
-    int anteReward() const { return 50 * ante; }
-    const std::string& bossIdForAnte() const;
+    // The default reward offer (set as the strategy in the ctor): up to 3
+    // distinct options drawn from the registered consumables + the unowned
+    // cards. Static + context-driven, so it reads only the run's public surface
+    // — content/policy with no privileged access.
+    static std::vector<RewardOption> defaultRewardOffer(const RewardContext& ctx);
 
     RenderSystem& renderer;
     AnimationCallback animationCallback;
@@ -338,6 +379,16 @@ private:
     AnimationsActiveQuery animationsActive;
     DefeatCallback defeatCallback;
     bool defeated = false;
+
+    // --- Reward picker state (see the public section above) ---
+    // rewardPending: a reward is owed (set at BossFight→Reward, cleared on
+    //   pick/skip). rewardOpen: the modal is up. rewardOffer: the generated
+    //   options the modal shows and pickReward indexes.
+    RewardCallback rewardCallback;
+    RewardOfferStrategy rewardOfferStrategy;
+    std::vector<RewardOption> rewardOffer;
+    bool rewardPending = false;
+    bool rewardOpen = false;
 
     std::mt19937 rng;
     unsigned int runSeed = 0;  // the seed rng was actually seeded with
@@ -387,6 +438,7 @@ private:
     int shopCountdown = 10; // mirrors shopSpawnInterval at construction
     unsigned int maxShopsOnBoard = 1;
     ShopTileValueStrategy shopTileValueStrategy;
+    BossForAnteStrategy bossForAnteStrategy;
 
     // --- Ante state (see the public section above) ---
     // anteFreePlayTurns: the per-ante budget (the "~3 shop cycles").

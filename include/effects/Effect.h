@@ -126,6 +126,14 @@ public:
     // brick marker; future tags (golden, locked...) bring their own.
     virtual const char* overlayTextureId() const { return nullptr; }
 
+    // Optional boss-body skin: texture id the owning BOSS draws its body with
+    // while this effect is mounted (nullptr = keep the def's base texture). The
+    // boss aggregates it (Boss::currentTextureId) so a phase mechanic can CHANGE
+    // THE BODY'S LOOK from its own state — the Sleeper's asleep/awake art —
+    // without render code ever type-switching on concrete effects. Visual twin
+    // of statusText below; data only (an id), so the headless boundary holds.
+    virtual const char* bodyTextureId() const { return nullptr; }
+
     // Optional one-line status surfaced in the boss-fight banner while this
     // effect is mounted (empty = nothing to show). The boss aggregates it
     // (Boss::statusText) so a phase mechanic can explain itself — today the

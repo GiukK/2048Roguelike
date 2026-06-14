@@ -312,7 +312,7 @@ void Board::render(RenderSystem& renderer) {
     if (boss) {
         auto it = slots.find(boss->getFootprint().front());
         if (it != slots.end()) {
-            sf::Sprite body(renderer.getTextureManager().get(boss->getTextureId()));
+            sf::Sprite body(renderer.getTextureManager().get(boss->currentTextureId()));
             body.setOrigin(body.getLocalBounds().getCenter());
 
             const sf::FloatRect cell = it->second->getSlotSprite().getGlobalBounds();
@@ -616,7 +616,8 @@ void Board::resolveBossDefeat() {
     //
     // Precondition: boss != nullptr, called at a SAFE point (never mid-sweep).
     if (turn) {
-        turn->log().push(TurnEvent::bossDefeated(boss->getFootprint().front()));
+        turn->log().push(TurnEvent::bossDefeated(boss->getFootprint().front(),
+                                                 boss->getDefId()));
         if (turn->gameRun) {
             EffectContext ctx(*turn->gameRun, *this, turn->log());
             boss->runDefeat(ctx);
